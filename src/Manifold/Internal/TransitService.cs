@@ -17,6 +17,7 @@ internal sealed class TransitService : ITransitionService
     private readonly ICoreServerAPI _sapi;
     private readonly IPlayerTeleporter _teleporter;
     private readonly ITargetPositionResolver _defaultResolver;
+    private readonly DimensionGenerator _generator;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -24,16 +25,19 @@ internal sealed class TransitService : ITransitionService
     /// <param name="sapi">Server API.</param>
     /// <param name="teleporter">Player teleporter abstraction.</param>
     /// <param name="defaultResolver">Default target position resolver.</param>
+    /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
         IPlayerTeleporter teleporter,
-        ITargetPositionResolver defaultResolver)
+        ITargetPositionResolver defaultResolver,
+        DimensionGenerator generator)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
         _teleporter = teleporter ?? throw new ArgumentNullException(nameof(teleporter));
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
+        _generator = generator ?? throw new ArgumentNullException(nameof(generator));
     }
 
     /// <inheritdoc/>
@@ -77,6 +81,11 @@ internal sealed class TransitService : ITransitionService
         {
             return;
         }
+
+        // Pre-generate / load the destination region so the player lands on solid ground.
+        int centerCx = targetPos.X / 32;
+        int centerCz = targetPos.Z / 32;
+        _generator.EnsureRegion(_sapi, target.InternalId, centerCx, centerCz, player);
 
         _teleporter.Teleport(player, targetPos);
 

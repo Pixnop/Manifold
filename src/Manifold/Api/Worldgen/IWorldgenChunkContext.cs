@@ -1,32 +1,27 @@
+using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
-using Vintagestory.API.Server;
 
 namespace Manifold.Api.Worldgen;
 
-/// <summary>
-/// Provided to <see cref="IWorldgenStrategy.OnChunkColumnGen"/> for one chunk column per pass.
-/// </summary>
-/// <remarks>
-/// Server-side, worldgen worker thread.
-/// <see cref="BlockAccessor"/> is per-worker and thread-safe; never replace it with <c>api.World.BlockAccessor</c>.
-/// </remarks>
+/// <summary>Provided to <see cref="IWorldgenStrategy.GenerateColumn"/> for one chunk column.</summary>
+/// <remarks>Server-side, main thread. Write blocks via <see cref="BlockAccessor"/> using dimension-encoded positions.</remarks>
 public interface IWorldgenChunkContext
 {
-    /// <summary>Engine dimension id of the chunk being generated.</summary>
+    /// <summary>Engine dimension id being generated.</summary>
     int DimensionId { get; }
 
-    /// <summary>Chunk X index (multiply by 32 for world coordinates).</summary>
+    /// <summary>Chunk X index (multiply by 32 for world X).</summary>
     int ChunkX { get; }
 
-    /// <summary>Chunk Z index.</summary>
+    /// <summary>Chunk Z index (multiply by 32 for world Z).</summary>
     int ChunkZ { get; }
 
-    /// <summary>Chunks of this column (index 0 = lowest).</summary>
-    IServerChunk[] Chunks { get; }
+    /// <summary>
+    /// Block accessor for writing terrain. Positions MUST be dimension-encoded
+    /// (use <c>new BlockPos(x, y, z, DimensionId)</c>).
+    /// </summary>
+    IBlockAccessor BlockAccessor { get; }
 
-    /// <summary>Dimension-aware, thread-safe block accessor bound to this worker.</summary>
-    IWorldGenBlockAccessor BlockAccessor { get; }
-
-    /// <summary>Per-worker random generator initialised from <see cref="IWorldgenInitContext.Seed"/>.</summary>
+    /// <summary>Deterministic per-column random generator.</summary>
     LCGRandom Rng { get; }
 }

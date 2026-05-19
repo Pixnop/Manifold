@@ -42,12 +42,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     {
         ArgumentNullException.ThrowIfNull(strategy);
         ThrowIfUsed();
-        if (strategy.Passes is null || strategy.Passes.Count == 0)
-        {
-            throw new WorldgenStrategyContractException(
-                $"Worldgen strategy '{strategy.GetType().FullName}' declares no passes.");
-        }
-
         _worldgen = strategy;
         return this;
     }

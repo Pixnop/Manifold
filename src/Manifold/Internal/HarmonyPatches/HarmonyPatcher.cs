@@ -11,15 +11,14 @@ namespace Manifold.Internal.HarmonyPatches;
 /// <remarks>
 /// <para>
 /// As of v0 (per Phase 9 research, 2026-05-19), Manifold ships with <b>zero</b>
-/// Harmony patches — every gap identified at design time is closeable via public
+/// Harmony patches. Every gap identified at design time is closeable via public
 /// VS API. <c>PatchAll</c> still runs to remain forward-compatible if a future
 /// patch is added to the assembly.
 /// </para>
 /// <para>
-/// One concession to internal API access remains: <see cref="WorldgenDispatcher"/>
-/// reads the current dimension from <c>IChunkColumnGenerateRequest</c> via reflection
-/// because the engine doesn't expose it on the public interface. That's a reflection
-/// cast, not a Harmony patch — see <see cref="WorldgenDispatcher.ResolveDimensionFromRequest"/>.
+/// Worldgen for custom dimensions is driven actively by <see cref="DimensionGenerator"/>
+/// via <c>IWorldManagerAPI.CreateChunkColumnForDimension</c> and <c>IBlockAccessor.SetBlock</c>,
+/// not via the <c>ChunkColumnGeneration</c> event hook. No reflection hacks are needed.
 /// </para>
 /// <para>Server-side. Apply once in <c>StartServerSide</c>, dispose at shutdown / hot-reload.</para>
 /// </remarks>
@@ -41,7 +40,7 @@ internal sealed class HarmonyPatcher : IDisposable
 
     /// <summary>
     /// Gets a value indicating whether patches applied successfully (or trivially, when there are none).
-    /// <c>false</c> if <see cref="Apply"/> threw — services should refuse mutations.
+    /// <c>false</c> if <see cref="Apply"/> threw -- services should refuse mutations.
     /// </summary>
     public bool IsHealthy { get; private set; }
 
@@ -78,7 +77,7 @@ internal sealed class HarmonyPatcher : IDisposable
         }
         catch
         {
-            // Swallow on shutdown — Harmony may already be torn down.
+            // Swallow on shutdown -- Harmony may already be torn down.
         }
     }
 

@@ -26,8 +26,7 @@ public sealed class ManifoldModSystem : ModSystem
     private DimensionAllocator? _allocator;
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
-    private WorldgenDispatcher? _dispatcher;
-    private WorldgenChunkContextFactory? _wgFactory;
+    private DimensionGenerator? _generator;
     private TransitService? _transit;
     private ManifoldNetworkChannel? _network;
     private ClientDimensionMirror? _clientMirror;
@@ -87,27 +86,26 @@ public sealed class ManifoldModSystem : ModSystem
         _registry.Created += OnRegistryCreated;
         _registry.Destroyed += OnRegistryDestroyed;
 
-        _wgFactory = new WorldgenChunkContextFactory(sapi.WorldManager.Seed);
-        _dispatcher = new WorldgenDispatcher();
-        _dispatcher.StrategyThrew += (dim, _, ex) =>
+        _generator = new DimensionGenerator(_registry);
+        _generator.StrategyThrew += (dim, _, ex) =>
             Mod.Logger.Error("[Manifold] Worldgen strategy threw for dim {0}: {1}", dim, ex);
-        _dispatcher.StrategyAutoDisabled += dim =>
+        _generator.StrategyAutoDisabled += dim =>
             Mod.Logger.Warning(
                 "[Manifold] Worldgen strategy auto-disabled for dim {0} after 4 consecutive throws.", dim);
-        _dispatcher.RegisterServerHook(sapi, _wgFactory);
 
         _transit = new TransitService(
             _registry,
             sapi,
             new PlayerTeleporter(),
-            TargetPositionResolvers.SameXZSurfaceY);
+            TargetPositionResolvers.SameXZSurfaceY,
+            _generator);
         _transit.PlayerEntered += OnTransitPlayerEntered;
 
         ServerFacade = new ManifoldServerFacade(_registry, _transit, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
 
         sapi.Event.GameWorldSave += OnGameWorldSave;
-        sapi.Event.PlayerJoin += OnPlayerJoin;
+        sapi.Event.PlayerJoin += player => OnPlayerJoin(player, sapi);
         sapi.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
 
         int active = CountByState(DimensionState.Active);
@@ -160,11 +158,13 @@ public sealed class ManifoldModSystem : ModSystem
         // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
         var allocator = new DimensionAllocator();
         var registry = new DimensionRegistry(allocator, () => Mod.Info.ModID);
+        var generator = new DimensionGenerator(registry);
         var transit = new TransitService(
             registry,
             sapi,
             new PlayerTeleporter(),
-            TargetPositionResolvers.SameXZSurfaceY);
+            TargetPositionResolvers.SameXZSurfaceY,
+            generator);
         transit.MarkUnhealthy();
         ServerFacade = new ManifoldServerFacade(registry, transit, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
@@ -216,7 +216,7 @@ public sealed class ManifoldModSystem : ModSystem
         _persistence.Save(entries);
     }
 
-    private void OnPlayerJoin(IServerPlayer player)
+    private void OnPlayerJoin(IServerPlayer player, ICoreServerAPI sapi)
     {
         if (_network is null || _registry is null)
         {
@@ -230,6 +230,18 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         _network.SendManifestSnapshot(player, snapshot);
+
+        // If the player logs in already inside a custom dimension, pre-generate their region.
+        if (_generator is not null && player.Entity?.Pos is { } entityPos)
+        {
+            int dim = entityPos.Dimension;
+            if (dim != 0)
+            {
+                int cx = (int)entityPos.X / 32;
+                int cz = (int)entityPos.Z / 32;
+                _generator.EnsureRegion(sapi, dim, cx, cz, player);
+            }
+        }
     }
 
     private void OnServerShutdown()

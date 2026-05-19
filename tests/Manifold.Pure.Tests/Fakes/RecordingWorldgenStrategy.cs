@@ -1,20 +1,21 @@
 using System.Collections.Generic;
 using Manifold.Api.Worldgen;
-using Vintagestory.API.Server;
 
 namespace Manifold.Pure.Tests.Fakes;
 
+/// <summary>A worldgen strategy that records all calls for assertion in tests.</summary>
 internal sealed class RecordingWorldgenStrategy : IWorldgenStrategy
 {
-    public IReadOnlySet<EnumWorldGenPass> Passes { get; init; } =
-        new HashSet<EnumWorldGenPass> { EnumWorldGenPass.PreDone };
-
+    /// <summary>Number of times <see cref="OnInitialize"/> has been called.</summary>
     public int InitCallCount { get; private set; }
 
-    public List<(int Dim, EnumWorldGenPass Pass)> ChunkGenCalls { get; } = new();
+    /// <summary>Dimension ids passed to <see cref="GenerateColumn"/>, in order.</summary>
+    public List<int> GenerateColumnCalls { get; } = new();
 
+    /// <inheritdoc/>
     public void OnInitialize(IWorldgenInitContext ctx) => InitCallCount++;
 
-    public void OnChunkColumnGen(IWorldgenChunkContext ctx, EnumWorldGenPass pass) =>
-        ChunkGenCalls.Add((ctx.DimensionId, pass));
+    /// <inheritdoc/>
+    public void GenerateColumn(IWorldgenChunkContext ctx) =>
+        GenerateColumnCalls.Add(ctx.DimensionId);
 }

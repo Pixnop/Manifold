@@ -102,14 +102,6 @@ public sealed class DimensionBuilderImplTests
     }
 
     [Fact]
-    public void WithWorldgen_Should_Throw_When_Strategy_Has_Empty_Passes()
-    {
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
-        var bad = new FakeWorldgenStrategy { Passes = new System.Collections.Generic.HashSet<Vintagestory.API.Server.EnumWorldGenPass>() };
-        Assert.Throws<WorldgenStrategyContractException>(() => builder.WithWorldgen(bad));
-    }
-
-    [Fact]
     public void Builder_Should_Not_Allow_Reuse_After_RegisterStatic()
     {
         var completion = Substitute.For<IDimension>();
