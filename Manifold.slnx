@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Manifold/Manifold.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Manifold.Pure.Tests/Manifold.Pure.Tests.csproj" />
+    <Project Path="tests/Manifold.Tests/Manifold.Tests.csproj" />
+  </Folder>
+</Solution>
