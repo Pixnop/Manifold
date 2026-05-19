@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Reflection;
 using Manifold.Api.Worldgen;
 using Vintagestory.API.Server;
 
@@ -110,5 +111,71 @@ internal sealed class WorldgenDispatcher
 
         // Phase 11: wire api.Event.GetWorldgenBlockAccessor + api.Event.ChunkColumnGeneration via WorldgenChunkContextFactory.
         // For now, a no-op so consumers can call it during boot wiring.
+    }
+
+    /// <summary>
+    /// Reads the current dimension id from a chunk-generation request via reflection.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// FRAGILE — <c>IChunkColumnGenerateRequest</c> doesn't expose <c>dimension</c> on its public
+    /// interface, but the engine's concrete impl (<c>ChunkColumnLoadRequest</c>) has a
+    /// <c>dimension</c> field/property. This helper reflects on the runtime type at first call
+    /// and caches the <see cref="MemberInfo"/>.
+    /// </para>
+    /// <para>
+    /// If VS renames or removes the member in a future version, the method returns <c>0</c> (overworld);
+    /// Phase 12 smoke testing must verify cross-dim chunks still generate correctly after each VS bump.
+    /// </para>
+    /// </remarks>
+    /// <param name="request">Chunk-generation request from <c>api.Event.ChunkColumnGeneration</c>.</param>
+    /// <returns>Dimension id, or <c>0</c> if the member can't be located.</returns>
+    internal static int ResolveDimensionFromRequest(IChunkColumnGenerateRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return DimensionAccessor.Read(request);
+    }
+
+    /// <summary>
+    /// Per-request-type cached reflection accessor for the <c>dimension</c> member.
+    /// </summary>
+    private static class DimensionAccessor
+    {
+        private const BindingFlags AnyInstance =
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+        private static Type? _cachedType;
+        private static Func<object, int>? _cachedReader;
+
+        public static int Read(IChunkColumnGenerateRequest request)
+        {
+            var type = request.GetType();
+            if (!ReferenceEquals(type, _cachedType))
+            {
+                _cachedType = type;
+                _cachedReader = BuildReader(type);
+            }
+
+            return _cachedReader is null ? 0 : _cachedReader(request);
+        }
+
+        private static Func<object, int>? BuildReader(Type type)
+        {
+            // Try field with lowercase 'd' (VS convention for instance fields).
+            var field = type.GetField("dimension", AnyInstance) ?? type.GetField("Dimension", AnyInstance);
+            if (field is not null && field.FieldType == typeof(int))
+            {
+                return obj => (int)field.GetValue(obj)!;
+            }
+
+            // Fall back to property.
+            var prop = type.GetProperty("dimension", AnyInstance) ?? type.GetProperty("Dimension", AnyInstance);
+            if (prop is not null && prop.PropertyType == typeof(int) && prop.CanRead)
+            {
+                return obj => (int)prop.GetValue(obj)!;
+            }
+
+            return null;
+        }
     }
 }
