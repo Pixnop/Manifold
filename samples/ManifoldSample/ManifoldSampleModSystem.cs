@@ -6,8 +6,9 @@ using Vintagestory.API.Server;
 namespace ManifoldSample;
 
 /// <summary>
-/// Sample consumer mod. Registers manifoldsample:void using <c>BasicVoidWorldgenStrategy</c>
-/// and exposes a <c>/voiddim</c> chat command for transit.
+/// Sample consumer mod. Registers two demo dimensions — manifoldsample:void (empty air, via
+/// <c>BasicVoidWorldgenStrategy</c>) and manifoldsample:flat (solid floor, via
+/// <c>FlatWorldgenStrategy</c>) — and exposes <c>/voiddim</c> and <c>/flatdim</c> chat commands.
 /// </summary>
 public sealed class ManifoldSampleModSystem : ModSystem
 {
@@ -46,7 +47,20 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .DescribedAs("Teleport to the Manifold sample void dimension.")
             .Register(sapi);
 
+        manifold.Registry
+            .Define(new AssetLocation("manifoldsample", "flat"))
+            .Persistent()
+            .WithWorldgen(new FlatWorldgenStrategy())
+            .RegisterStatic();
+
+        new DimensionCommandBuilder()
+            .Command("flatdim")
+            .TargetDimension(new AssetLocation("manifoldsample", "flat"))
+            .RequiresPrivilege("chat")
+            .DescribedAs("Teleport to the Manifold sample flat dimension (solid floor for movement testing).")
+            .Register(sapi);
+
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void dimension and /voiddim command.");
+            "[ManifoldSample] Registered void + flat dimensions and /voiddim, /flatdim commands.");
     }
 }
