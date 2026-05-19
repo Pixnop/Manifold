@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -18,7 +18,7 @@
       SA1623 — property summary should begin with "Gets" — too restrictive
       SA1629 — documentation text should end with a period — too restrictive for code-example doc
     -->
-    <NoWarn>$(NoWarn);SA1633;SA1200;SA1101;SA1309;SA1413;SA1503;SA1623;SA1629</NoWarn>
+    <NoWarn>$(NoWarn);SA1633;SA1200;SA1101;SA1309;SA1413;SA1503;SA1623;SA1629;CS1705</NoWarn>
 
     <!-- MSB3277: cross-version System.* unification noise; VS DLL is compiled against a different runtime ref. -->
     <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
