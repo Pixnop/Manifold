@@ -1,0 +1,13 @@
+{
+  "type": "code",
+  "modid": "manifoldsample",
+  "name": "Manifold Sample",
+  "version": "0.1.0",
+  "description": "Smoke-test consumer mod for Manifold. Registers a void dimension, a portal block, and the /voiddim chat command.",
+  "authors": ["Fieve"],
+  "side": "Universal",
+  "dependencies": {
+    "game": "",
+    "manifold": ""
+  }
+}

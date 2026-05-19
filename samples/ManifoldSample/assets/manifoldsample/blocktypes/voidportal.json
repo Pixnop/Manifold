@@ -1,0 +1,8 @@
+{
+  "code": "voidportal",
+  "class": "ManifoldSampleVoidPortal",
+  "blockmaterial": "Stone",
+  "textures": { "all": { "base": "game:block/stone/granite" } },
+  "shape": { "base": "game:block/basic/cube" },
+  "creativeinventory": { "general": ["*"] }
+}
