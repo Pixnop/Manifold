@@ -97,20 +97,43 @@ internal sealed class WorldgenDispatcher
     }
 
     /// <summary>
-    /// Hook Manifold's dispatcher into VS's ChunkColumnGeneration events.
+    /// Hook Manifold's dispatcher into VS's <c>ChunkColumnGeneration</c> events for all passes.
     /// </summary>
-    /// <remarks>
-    /// Phase 11 will wire the chunk-context factory; for now this method exists so other
-    /// services can call it but does no actual hooking. The full body lands when
-    /// <c>WorldgenChunkContextFactory</c> exists.
-    /// </remarks>
     /// <param name="sapi">Server API.</param>
-    internal void RegisterServerHook(ICoreServerAPI sapi)
+    /// <param name="factory">Per-worker chunk-context factory.</param>
+    internal void RegisterServerHook(ICoreServerAPI sapi, WorldgenChunkContextFactory factory)
     {
         ArgumentNullException.ThrowIfNull(sapi);
+        ArgumentNullException.ThrowIfNull(factory);
 
-        // Phase 11: wire api.Event.GetWorldgenBlockAccessor + api.Event.ChunkColumnGeneration via WorldgenChunkContextFactory.
-        // For now, a no-op so consumers can call it during boot wiring.
+        sapi.Event.GetWorldgenBlockAccessor(provider =>
+            factory.BindWorker(provider.GetBlockAccessor(true)));
+
+        var passes = new[]
+        {
+            EnumWorldGenPass.Terrain,
+            EnumWorldGenPass.TerrainFeatures,
+            EnumWorldGenPass.Vegetation,
+            EnumWorldGenPass.PreDone,
+        };
+
+        foreach (var pass in passes)
+        {
+            EnumWorldGenPass passLocal = pass; // closure-safe capture
+            sapi.Event.ChunkColumnGeneration(
+                request =>
+                {
+                    var ctx = factory.Create(request);
+                    if (ctx is null || ctx.DimensionId == 0)
+                    {
+                        return;
+                    }
+
+                    Dispatch(ctx, passLocal);
+                },
+                pass,
+                "standard");
+        }
     }
 
     /// <summary>
