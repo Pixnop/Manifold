@@ -105,7 +105,7 @@ public sealed class TransitServiceTests
             .Returns(new BlockPos(100, 100, 100, 10));
 
         var sapi = Substitute.For<ICoreServerAPI>();
-        var generator = new DimensionGenerator(registry);
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
         var svc = new TransitService(registry, sapi, teleporter, positionResolver, generator);
 
         var player = Substitute.For<IServerPlayer>();

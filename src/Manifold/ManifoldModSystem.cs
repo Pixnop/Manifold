@@ -22,11 +22,16 @@ namespace Manifold;
 /// </summary>
 public sealed class ManifoldModSystem : ModSystem
 {
+    /// <summary>Savegame key for the persisted set of already-generated dimension columns.</summary>
+    private const string GeneratedColumnsKey = "manifold:genchunks";
+
     private HarmonyPatcher? _harmony;
     private DimensionAllocator? _allocator;
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
+    private GeneratedColumnStore? _generatedColumns;
+    private SaveGameManifestStore? _manifestStore;
     private TransitService? _transit;
     private ManifoldNetworkChannel? _network;
     private ClientDimensionMirror? _clientMirror;
@@ -67,8 +72,9 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         _allocator = new DimensionAllocator();
+        _manifestStore = new SaveGameManifestStore(sapi);
         _persistence = new DimensionPersistence(
-            new SaveGameManifestStore(sapi),
+            _manifestStore,
             new ModLoaderQuery(sapi.ModLoader));
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(sapi);
@@ -86,7 +92,12 @@ public sealed class ManifoldModSystem : ModSystem
         _registry.Created += OnRegistryCreated;
         _registry.Destroyed += OnRegistryDestroyed;
 
-        _generator = new DimensionGenerator(_registry);
+        // Restore the persisted set of generated columns so revisits LOAD (preserving player
+        // modifications) instead of regenerating over them.
+        _generatedColumns = new GeneratedColumnStore();
+        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
+
+        _generator = new DimensionGenerator(_registry, _generatedColumns);
         _generator.StrategyThrew += (dim, _, ex) =>
             Mod.Logger.Error("[Manifold] Worldgen strategy threw for dim {0}: {1}", dim, ex);
         _generator.StrategyAutoDisabled += dim =>
@@ -153,7 +164,7 @@ public sealed class ManifoldModSystem : ModSystem
         // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
         var allocator = new DimensionAllocator();
         var registry = new DimensionRegistry(allocator, () => Mod.Info.ModID);
-        var generator = new DimensionGenerator(registry);
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
         var transit = new TransitService(
             registry,
             sapi,
@@ -225,6 +236,13 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         _persistence.Save(entries);
+
+        // Persist the generated-columns set so revisits after restart load instead of regenerate.
+        if (_generatedColumns is { IsDirty: true } && _manifestStore is not null)
+        {
+            _manifestStore.Write(GeneratedColumnsKey, _generatedColumns.ToBytes());
+            _generatedColumns.ClearDirty();
+        }
     }
 
     private void OnPlayerJoin(IServerPlayer player, ICoreServerAPI sapi)

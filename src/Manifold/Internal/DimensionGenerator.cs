@@ -30,6 +30,7 @@ internal sealed class DimensionGenerator
     private const int RelightMaxY = 64;
 
     private readonly DimensionRegistry _registry;
+    private readonly GeneratedColumnStore _generatedColumns;
     private readonly ConcurrentDictionary<int, bool> _initialized = new();
     private readonly ConcurrentDictionary<int, int> _failureCounts = new();
     private readonly ConcurrentDictionary<int, bool> _disabled = new();
@@ -38,9 +39,11 @@ internal sealed class DimensionGenerator
     /// Initializes a new instance of the <see cref="DimensionGenerator"/> class.
     /// </summary>
     /// <param name="registry">Dimension registry used to look up strategies.</param>
-    public DimensionGenerator(DimensionRegistry registry)
+    /// <param name="generatedColumns">Persisted set of already-generated columns (load vs regenerate decision).</param>
+    public DimensionGenerator(DimensionRegistry registry, GeneratedColumnStore generatedColumns)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _generatedColumns = generatedColumns ?? throw new ArgumentNullException(nameof(generatedColumns));
     }
 
     /// <summary>Raised when a strategy throws during generation.</summary>
@@ -192,22 +195,18 @@ internal sealed class DimensionGenerator
     /// <summary>Generates or loads a single column. Returns <c>true</c> if it was newly generated.</summary>
     private bool GenerateOrLoadColumn(ICoreServerAPI sapi, int dimId, int cx, int cz, IWorldgenStrategy strategy)
     {
-        // Determine whether this column already exists on disk / in loaded chunks.
-        // Per Appendix D: the chunk Y index for the bottom of a dimension's column is dim * 1024
-        // (derived from CreateChunkColumnForDimension: cy = dim * 32768 / 32 = dim * 1024).
-        // If GetChunk returns non-null the column was already created/loaded; use Load path.
-        int cyBase = dimId * 1024;
-        bool exists = sapi.WorldManager.GetChunk(cx, cyBase, cz) != null;
-
-        if (exists)
+        // Decide load-vs-generate using Manifold's persisted generated-set, NOT GetChunk:
+        // GetChunk is in-memory only, so after a server restart it reports "not loaded" for a
+        // column that exists on disk, which would trigger a regenerate that overwrites player
+        // modifications. The engine has no synchronous on-disk existence check.
+        if (_generatedColumns.IsGenerated(dimId, cx, cz))
         {
-            // Chunks already in loaded-chunks dictionary; re-enqueue a load to ensure persistence
-            // is up to date on subsequent server restarts. No relight needed.
+            // Previously generated and persisted; restore from disk. No relight needed.
             sapi.WorldManager.LoadChunkColumnForDimension(cx, cz, dimId);
             return false;
         }
 
-        // First visit: allocate empty chunk slots, populate via strategy. Relight is done ONCE
+        // First-ever visit: allocate empty chunk slots, populate via strategy. Relight is done ONCE
         // for the whole region by the caller (per-column relight was the ~40s bottleneck).
         sapi.WorldManager.CreateChunkColumnForDimension(cx, cz, dimId);
 
@@ -222,6 +221,7 @@ internal sealed class DimensionGenerator
 
         InvokeStrategyColumn(strategy, ctx, dimId);
         accessor.Commit();
+        _generatedColumns.MarkGenerated(dimId, cx, cz);
         return true;
     }
 

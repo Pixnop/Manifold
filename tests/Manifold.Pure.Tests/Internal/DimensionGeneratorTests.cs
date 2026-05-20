@@ -135,7 +135,7 @@ public sealed class DimensionGeneratorTests
     {
         var allocator = new DimensionAllocator();
         var registry = new DimensionRegistry(allocator, () => "owner");
-        return (new DimensionGenerator(registry), registry);
+        return (new DimensionGenerator(registry, new GeneratedColumnStore()), registry);
     }
 
     private static IWorldgenChunkContext FakeCtx(int dim)
