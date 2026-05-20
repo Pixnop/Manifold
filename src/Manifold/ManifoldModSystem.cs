@@ -28,14 +28,12 @@ public sealed class ManifoldModSystem : ModSystem
     private const string PlayerPositionsKey = "manifold:lastpos";
 
     private HarmonyPatcher? _harmony;
-    private DimensionAllocator? _allocator;
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
     private SaveGameManifestStore? _manifestStore;
-    private TransitService? _transit;
     private ManifoldNetworkChannel? _network;
     private ClientDimensionMirror? _clientMirror;
     private bool _disposed;
@@ -57,32 +55,32 @@ public sealed class ManifoldModSystem : ModSystem
     }
 
     /// <inheritdoc/>
-    public override void StartServerSide(ICoreServerAPI sapi)
+    public override void StartServerSide(ICoreServerAPI api)
     {
-        ArgumentNullException.ThrowIfNull(sapi);
-        base.StartServerSide(sapi);
+        ArgumentNullException.ThrowIfNull(api);
+        base.StartServerSide(api);
 
         _harmony = new HarmonyPatcher(Mod.Logger);
         _harmony.Apply();
 
         if (!_harmony.IsHealthy)
         {
-            BuildUnhealthyServerFacade(sapi);
+            BuildUnhealthyServerFacade(api);
             Mod.Logger.Error(
                 "[Manifold] Disabled — Harmony patches failed at boot. "
                 + "IsHealthy=false; consumer mutations will throw.");
             return;
         }
 
-        _allocator = new DimensionAllocator();
-        _manifestStore = new SaveGameManifestStore(sapi);
+        var allocator = new DimensionAllocator();
+        _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(
             _manifestStore,
-            new ModLoaderQuery(sapi.ModLoader));
+            new ModLoaderQuery(api.ModLoader));
         _network = new ManifoldNetworkChannel();
-        _network.RegisterServer(sapi);
+        _network.RegisterServer(api);
 
-        _registry = new DimensionRegistry(_allocator);
+        _registry = new DimensionRegistry(allocator);
 
         // Seed manifest BEFORE wiring Created event, so seeded entries don't
         // trigger broadcasts to clients that aren't connected yet anyway.
@@ -110,32 +108,32 @@ public sealed class ManifoldModSystem : ModSystem
             Mod.Logger.Warning(
                 "[Manifold] Worldgen strategy auto-disabled for dim {0} after 4 consecutive throws.", dim);
 
-        _transit = new TransitService(
+        var transit = new TransitService(
             _registry,
-            sapi,
+            api,
             new PlayerTeleporter(),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore);
-        _transit.PlayerEntered += OnTransitPlayerEntered;
+        transit.PlayerEntered += OnTransitPlayerEntered;
 
-        ServerFacade = new ManifoldServerFacade(_registry, _transit, isHealthy: true);
+        ServerFacade = new ManifoldServerFacade(_registry, transit, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
 
-        sapi.Event.GameWorldSave += OnGameWorldSave;
-        sapi.Event.PlayerJoin += player => OnPlayerJoin(player, sapi);
-        sapi.Event.PlayerDisconnect += OnPlayerDisconnect;
-        sapi.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
-        sapi.Event.SaveGameLoaded += () => OnSaveGameLoaded(sapi);
+        api.Event.GameWorldSave += OnGameWorldSave;
+        api.Event.PlayerJoin += player => OnPlayerJoin(player, api);
+        api.Event.PlayerDisconnect += OnPlayerDisconnect;
+        api.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
+        api.Event.SaveGameLoaded += OnSaveGameLoaded;
 
         Mod.Logger.Notification("[Manifold] Initialized (healthy).");
     }
 
     /// <inheritdoc/>
-    public override void StartClientSide(ICoreClientAPI capi)
+    public override void StartClientSide(ICoreClientAPI api)
     {
-        ArgumentNullException.ThrowIfNull(capi);
-        base.StartClientSide(capi);
+        ArgumentNullException.ThrowIfNull(api);
+        base.StartClientSide(api);
 
         _network = new ManifoldNetworkChannel();
         _clientMirror = new ClientDimensionMirror();
@@ -145,7 +143,7 @@ public sealed class ManifoldModSystem : ModSystem
         _network.OnClientManifest += _clientMirror.ApplyManifest;
         _network.OnClientPlayerTransited += OnClientPlayerTransited;
 
-        _network.RegisterClient(capi);
+        _network.RegisterClient(api);
 
         ClientFacade = new ManifoldClientFacade(_clientMirror);
         ManifoldAccess.SetClientResolver(_ => ClientFacade);
@@ -215,7 +213,7 @@ public sealed class ManifoldModSystem : ModSystem
         });
     }
 
-    private void OnSaveGameLoaded(ICoreServerAPI sapi)
+    private void OnSaveGameLoaded()
     {
         if (_registry is null)
         {
@@ -328,7 +326,7 @@ public sealed class ManifoldModSystem : ModSystem
         // for v0 — instead consumers should subscribe to ClientMirror.Added/Removed for state changes,
         // and use IClientPlayer events for player-local hooks.
 
-        // TODO(v1): wire LocalPlayerTransited with a proper player handle if/when needed.
+        // Future(v1): wire LocalPlayerTransited with a proper player handle if/when needed.
         _ = source;
         _ = target;
     }

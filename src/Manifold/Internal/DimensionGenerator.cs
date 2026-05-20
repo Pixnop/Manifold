@@ -109,46 +109,13 @@ internal sealed class DimensionGenerator
             }
         }
 
-        bool anyGenerated = false;
-
-        for (int dx = -radius; dx <= radius; dx++)
-        {
-            for (int dz = -radius; dz <= radius; dz++)
-            {
-                int cx = centerCx + dx;
-                int cz = centerCz + dz;
-
-                if (cx < 0 || cz < 0)
-                {
-                    continue;
-                }
-
-                anyGenerated |= GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
-
-                if (player != null)
-                {
-                    sapi.WorldManager.ForceSendChunkColumn(player, cx, cz, dimId);
-                }
-            }
-        }
+        bool anyGenerated = FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
 
         // Relight ONCE for the whole freshly-generated region, over a bounded Y band.
         // (Per-column full-height relight was the ~40s bottleneck.)
         if (anyGenerated)
         {
-            int minX = (centerCx - radius) * 32;
-            int minZ = (centerCz - radius) * 32;
-            int maxX = ((centerCx + radius) * 32) + 31;
-            int maxZ = ((centerCz + radius) * 32) + 31;
-            int maxY = Math.Min(RelightMaxY, sapi.WorldManager.MapSizeY - 1);
-            try
-            {
-                sapi.WorldManager.FullRelight(new BlockPos(minX, 0, minZ), new BlockPos(maxX, maxY, maxZ), false);
-            }
-            catch
-            {
-                // FullRelight is best-effort; don't block transit if it fails.
-            }
+            RelightRegion(sapi, centerCx, centerCz, radius);
         }
     }
 
@@ -174,6 +141,60 @@ internal sealed class DimensionGenerator
         catch (Exception ex)
         {
             RecordFailure(strategy, dimId, ex);
+        }
+    }
+
+    /// <summary>Iterates all chunk columns in the radius square, generating or loading each.
+    /// Returns <c>true</c> if at least one column was newly generated.</summary>
+    private bool FillRegionColumns(
+        ICoreServerAPI sapi,
+        int dimId,
+        int centerCx,
+        int centerCz,
+        int radius,
+        IWorldgenStrategy strategy,
+        IServerPlayer? player)
+    {
+        bool anyGenerated = false;
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+            for (int dz = -radius; dz <= radius; dz++)
+            {
+                int cx = centerCx + dx;
+                int cz = centerCz + dz;
+
+                if (cx < 0 || cz < 0)
+                {
+                    continue;
+                }
+
+                anyGenerated |= GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
+
+                if (player != null)
+                {
+                    sapi.WorldManager.ForceSendChunkColumn(player, cx, cz, dimId);
+                }
+            }
+        }
+
+        return anyGenerated;
+    }
+
+    /// <summary>Relights the bounding box of the given region over a bounded Y band.</summary>
+    private static void RelightRegion(ICoreServerAPI sapi, int centerCx, int centerCz, int radius)
+    {
+        int minX = (centerCx - radius) * 32;
+        int minZ = (centerCz - radius) * 32;
+        int maxX = ((centerCx + radius) * 32) + 31;
+        int maxZ = ((centerCz + radius) * 32) + 31;
+        int maxY = Math.Min(RelightMaxY, sapi.WorldManager.MapSizeY - 1);
+        try
+        {
+            sapi.WorldManager.FullRelight(new BlockPos(minX, 0, minZ), new BlockPos(maxX, maxY, maxZ), false);
+        }
+        catch
+        {
+            // FullRelight is best-effort; don't block transit if it fails.
         }
     }
 

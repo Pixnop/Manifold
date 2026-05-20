@@ -17,7 +17,6 @@ internal sealed class ManifoldNetworkChannel
     internal const string ChannelName = "manifold:dims";
 
     private IServerNetworkChannel? _server;
-    private IClientNetworkChannel? _client;
 
     /// <summary>Raised on the client when a <see cref="DimensionAddedPacket"/> is received.</summary>
     public event Action<DimensionAddedPacket>? OnClientDimensionAdded;
@@ -48,7 +47,7 @@ internal sealed class ManifoldNetworkChannel
     public void RegisterClient(ICoreClientAPI capi)
     {
         ArgumentNullException.ThrowIfNull(capi);
-        _client = capi.Network.RegisterChannel(ChannelName)
+        capi.Network.RegisterChannel(ChannelName)
             .RegisterMessageType<DimensionAddedPacket>()
             .RegisterMessageType<DimensionRemovedPacket>()
             .RegisterMessageType<ManifestSnapshotPacket>()

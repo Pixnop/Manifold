@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Manifold.Api;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
@@ -85,9 +86,8 @@ internal sealed class DimensionPersistence
             yield break;
         }
 
-        foreach (var kvp in list)
+        foreach (var attr in list.Select(kvp => kvp.Value))
         {
-            var attr = kvp.Value;
             if (attr is not TreeAttribute child)
             {
                 continue;

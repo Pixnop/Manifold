@@ -14,6 +14,8 @@ namespace ManifoldSample;
 /// </summary>
 public sealed class ManifoldSampleModSystem : ModSystem
 {
+    private const string ModId = "manifoldsample";
+
     /// <summary>Run after Manifold (0.05) so the facade is ready.</summary>
     public override double ExecuteOrder() => 0.5;
 
@@ -25,11 +27,11 @@ public sealed class ManifoldSampleModSystem : ModSystem
     }
 
     /// <inheritdoc/>
-    public override void StartServerSide(ICoreServerAPI sapi)
+    public override void StartServerSide(ICoreServerAPI api)
     {
-        base.StartServerSide(sapi);
+        base.StartServerSide(api);
 
-        var manifold = sapi.GetManifoldServer(this);
+        var manifold = api.GetManifoldServer(this);
         if (!manifold.IsHealthy)
         {
             Mod.Logger.Warning("[ManifoldSample] Manifold is unhealthy; dimension features disabled.");
@@ -37,9 +39,10 @@ public sealed class ManifoldSampleModSystem : ModSystem
         }
 
         manifold.Registry
-            .Define(new AssetLocation("manifoldsample", "void"))
+            .Define(new AssetLocation(ModId, "void"))
             .Persistent()
             .WithWorldgen(new BasicVoidWorldgenStrategy())
+
             // Spawn well away from the world corner (negative chunks are invalid in VS, so a
             // 0,0 spawn would be walled on two sides). Larger radius = more room to fly around.
             .WithFixedSpawn(new BlockPos(1024, 64, 1024, 0))
@@ -48,13 +51,13 @@ public sealed class ManifoldSampleModSystem : ModSystem
 
         new DimensionCommandBuilder()
             .Command("voiddim")
-            .TargetDimension(new AssetLocation("manifoldsample", "void"))
+            .TargetDimension(new AssetLocation(ModId, "void"))
             .RequiresPrivilege("chat")
             .DescribedAs("Teleport to the Manifold sample void dimension.")
-            .Register(sapi);
+            .Register(api);
 
         manifold.Registry
-            .Define(new AssetLocation("manifoldsample", "flat"))
+            .Define(new AssetLocation(ModId, "flat"))
             .Persistent()
             .WithWorldgen(new FlatWorldgenStrategy())
             .WithSpawnBehavior(SpawnBehavior.LastVisited)
@@ -63,10 +66,10 @@ public sealed class ManifoldSampleModSystem : ModSystem
 
         new DimensionCommandBuilder()
             .Command("flatdim")
-            .TargetDimension(new AssetLocation("manifoldsample", "flat"))
+            .TargetDimension(new AssetLocation(ModId, "flat"))
             .RequiresPrivilege("chat")
             .DescribedAs("Teleport to the Manifold sample flat dimension (solid floor for movement testing).")
-            .Register(sapi);
+            .Register(api);
 
         // The overworld is a first-class Manifold dimension (manifold:overworld, id 0).
         // This command demonstrates a clean round-trip back to it via the transit API.
@@ -76,7 +79,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .RequiresPrivilege("chat")
             .WithSpawnBehavior(SpawnBehavior.LastVisited)
             .DescribedAs("Teleport back to the overworld (to your last position there) via Manifold's transit API.")
-            .Register(sapi);
+            .Register(api);
 
         Mod.Logger.Notification(
             "[ManifoldSample] Registered void + flat dimensions and /voiddim, /flatdim, /overworlddim commands.");
