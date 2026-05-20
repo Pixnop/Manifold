@@ -6,7 +6,7 @@ using Vintagestory.API.Client;
 namespace Manifold.Api.Client;
 
 /// <summary>Extension method to obtain Manifold's client facade.</summary>
-public static class CoreClientAPIExtensions
+public static class CoreClientApiExtensions
 {
     /// <summary>Get Manifold's client-side facade.</summary>
     /// <param name="capi">Client API.</param>

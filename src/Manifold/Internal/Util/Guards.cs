@@ -15,7 +15,11 @@ internal static class Guards
     /// <returns>The validated string.</returns>
     public static string NotNullOrWhiteSpace(string value, string paramName)
     {
-        ArgumentNullException.ThrowIfNull(value, paramName);
+        if (value is null)
+        {
+            throw new ArgumentNullException(paramName);
+        }
+
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new ArgumentException("Value must not be empty or whitespace.", paramName);

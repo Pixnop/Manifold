@@ -7,12 +7,10 @@ namespace Manifold.Internal.Util;
 /// <summary>
 /// Validates <see cref="AssetLocation"/> codes used to identify dimensions in Manifold's API.
 /// </summary>
-internal static class DimensionCodeValidator
+internal static partial class DimensionCodeValidator
 {
     /// <summary>Domain name reserved for built-in Manifold dimensions.</summary>
     internal const string ReservedDomain = "manifold";
-
-    private static readonly Regex Segment = new("^[a-z0-9_]+$", RegexOptions.Compiled);
 
     /// <summary>Validates a consumer-supplied code. The reserved domain <c>manifold</c> is rejected.</summary>
     /// <param name="code">The code to validate.</param>
@@ -35,6 +33,9 @@ internal static class DimensionCodeValidator
     /// <exception cref="ArgumentException">code has invalid shape.</exception>
     public static void ValidateInternal(AssetLocation code) => ValidateShape(code);
 
+    [GeneratedRegex("^[a-z0-9_]+$")]
+    private static partial Regex SegmentRegex();
+
     private static void ValidateShape(AssetLocation code)
     {
         ArgumentNullException.ThrowIfNull(code);
@@ -45,14 +46,14 @@ internal static class DimensionCodeValidator
                 nameof(code));
         }
 
-        if (!Segment.IsMatch(code.Domain))
+        if (!SegmentRegex().IsMatch(code.Domain))
         {
             throw new ArgumentException(
                 $"Domain '{code.Domain}' must match [a-z0-9_]+ (got '{code}').",
                 nameof(code));
         }
 
-        if (!Segment.IsMatch(code.Path))
+        if (!SegmentRegex().IsMatch(code.Path))
         {
             throw new ArgumentException(
                 $"Path '{code.Path}' must match [a-z0-9_]+ (got '{code}').",

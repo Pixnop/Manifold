@@ -160,20 +160,10 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     /// <summary>Worker-pool safe reverse lookup by engine dimension id.</summary>
     /// <param name="internalId">Engine dimension id.</param>
     /// <returns>The dimension if found; <c>null</c> otherwise.</returns>
-    internal DimensionImpl? GetByInternalId(int internalId)
-    {
-        foreach (var kvp in _snapshot)
-        {
-            if (kvp.Value.InternalId == internalId)
-            {
-                return kvp.Value;
-            }
-        }
+    internal DimensionImpl? GetByInternalId(int internalId) =>
+        _snapshot.Values.FirstOrDefault(d => d.InternalId == internalId);
 
-        return null;
-    }
-
-    private IDimension Complete(DimensionBuildRequest request)
+    private DimensionImpl Complete(DimensionBuildRequest request)
     {
         if (_snapshot.TryGetValue(request.Code, out var existing) &&
             existing.State == DimensionState.Pending)

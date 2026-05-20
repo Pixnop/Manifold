@@ -8,7 +8,7 @@ using Vintagestory.API.Server;
 namespace Manifold.Api.Server;
 
 /// <summary>Extension method to obtain Manifold's server facade.</summary>
-public static class CoreServerAPIExtensions
+public static class CoreServerApiExtensions
 {
     /// <summary>Get Manifold's server-side facade (read/transit only — <c>Registry.Define</c> will throw).</summary>
     /// <param name="sapi">Server API.</param>
