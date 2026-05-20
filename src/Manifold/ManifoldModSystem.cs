@@ -24,12 +24,16 @@ public sealed class ManifoldModSystem : ModSystem
     /// <summary>Savegame key for the persisted set of already-generated dimension columns.</summary>
     private const string GeneratedColumnsKey = "manifold:genchunks";
 
+    /// <summary>Savegame key for per-player per-dimension last positions.</summary>
+    private const string PlayerPositionsKey = "manifold:lastpos";
+
     private HarmonyPatcher? _harmony;
     private DimensionAllocator? _allocator;
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
     private GeneratedColumnStore? _generatedColumns;
+    private PlayerPositionStore? _positionStore;
     private SaveGameManifestStore? _manifestStore;
     private TransitService? _transit;
     private ManifoldNetworkChannel? _network;
@@ -96,6 +100,9 @@ public sealed class ManifoldModSystem : ModSystem
         _generatedColumns = new GeneratedColumnStore();
         _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
 
+        _positionStore = new PlayerPositionStore();
+        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey));
+
         _generator = new DimensionGenerator(_registry, _generatedColumns);
         _generator.StrategyThrew += (dim, _, ex) =>
             Mod.Logger.Error("[Manifold] Worldgen strategy threw for dim {0}: {1}", dim, ex);
@@ -108,7 +115,8 @@ public sealed class ManifoldModSystem : ModSystem
             sapi,
             new PlayerTeleporter(),
             TargetPositionResolvers.SameXZSurfaceY,
-            _generator);
+            _generator,
+            _positionStore);
         _transit.PlayerEntered += OnTransitPlayerEntered;
 
         ServerFacade = new ManifoldServerFacade(_registry, _transit, isHealthy: true);
@@ -116,6 +124,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         sapi.Event.GameWorldSave += OnGameWorldSave;
         sapi.Event.PlayerJoin += player => OnPlayerJoin(player, sapi);
+        sapi.Event.PlayerDisconnect += OnPlayerDisconnect;
         sapi.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
         sapi.Event.SaveGameLoaded += () => OnSaveGameLoaded(sapi);
 
@@ -169,7 +178,8 @@ public sealed class ManifoldModSystem : ModSystem
             sapi,
             new PlayerTeleporter(),
             TargetPositionResolvers.SameXZSurfaceY,
-            generator);
+            generator,
+            new PlayerPositionStore());
         transit.MarkUnhealthy();
         ServerFacade = new ManifoldServerFacade(registry, transit, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
@@ -221,6 +231,17 @@ public sealed class ManifoldModSystem : ModSystem
             quarantined);
     }
 
+    private void OnPlayerDisconnect(IServerPlayer player)
+    {
+        // Remember where the player was so the LastVisited behavior survives logout/restart.
+        if (_positionStore is null || player.Entity?.Pos is not { } pos)
+        {
+            return;
+        }
+
+        _positionStore.Record(player.PlayerUID, pos.Dimension, (int)pos.X, (int)pos.Y, (int)pos.Z);
+    }
+
     private void OnGameWorldSave()
     {
         if (_persistence is null || _registry is null)
@@ -241,6 +262,13 @@ public sealed class ManifoldModSystem : ModSystem
         {
             _manifestStore.Write(GeneratedColumnsKey, _generatedColumns.ToBytes());
             _generatedColumns.ClearDirty();
+        }
+
+        // Persist per-player last positions for the LastVisited spawn behavior.
+        if (_positionStore is { IsDirty: true } && _manifestStore is not null)
+        {
+            _manifestStore.Write(PlayerPositionsKey, _positionStore.ToBytes());
+            _positionStore.ClearDirty();
         }
     }
 

@@ -18,26 +18,30 @@ internal sealed class TransitService : ITransitionService
     private readonly IPlayerTeleporter _teleporter;
     private readonly ITargetPositionResolver _defaultResolver;
     private readonly DimensionGenerator _generator;
+    private readonly PlayerPositionStore _positionStore;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
     /// <param name="sapi">Server API.</param>
     /// <param name="teleporter">Player teleporter abstraction.</param>
-    /// <param name="defaultResolver">Default target position resolver.</param>
+    /// <param name="defaultResolver">Default target position resolver (used for SameCoordinates behavior).</param>
     /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
+    /// <param name="positionStore">Per-player per-dimension last-position memory (for LastVisited behavior).</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
         IPlayerTeleporter teleporter,
         ITargetPositionResolver defaultResolver,
-        DimensionGenerator generator)
+        DimensionGenerator generator,
+        PlayerPositionStore positionStore)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
         _teleporter = teleporter ?? throw new ArgumentNullException(nameof(teleporter));
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
+        _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
     }
 
     /// <inheritdoc/>
@@ -70,13 +74,12 @@ internal sealed class TransitService : ITransitionService
 
         int sourceId = player.Entity.Pos.Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
+        var targetImpl = _registry.GetByInternalId(target.InternalId);
 
         // Resolve a preliminary position to determine the generation region center.
-        // The resolver may be called again after generation (see step 4 below), so implementations
+        // The resolver may be called again after generation (see below), so implementations
         // must be deterministic and side-effect free.
-        var prelim = (options.OverridePosition
-            ?? (options.Resolver ?? _defaultResolver).Resolve(player, target, _sapi))
-            .SetDimension(target.InternalId);
+        var prelim = ResolveTargetPosition(player, target, targetImpl, options);
 
         var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
         PlayerEntering?.Invoke(this, enteringArgs);
@@ -85,26 +88,32 @@ internal sealed class TransitService : ITransitionService
             return;
         }
 
-        // Pre-generate / load the destination region so the player lands on solid ground.
-        int centerCx = prelim.X / 32;
-        int centerCz = prelim.Z / 32;
-        _generator.EnsureRegion(_sapi, target.InternalId, centerCx, centerCz, player);
+        // Record the player's current position in the SOURCE dimension before leaving,
+        // so the LastVisited behavior can return them here later.
+        var srcPos = player.Entity.Pos;
+        _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
 
-        // Resolve the final position now that terrain exists. If an override position was supplied,
-        // use it as-is (exact). Otherwise re-call the resolver against the freshly generated terrain.
-        BlockPos targetPos;
-        if (options.OverridePosition is { } overridePos)
-        {
-            targetPos = overridePos.SetDimension(target.InternalId);
-        }
-        else
-        {
-            targetPos = (options.Resolver ?? _defaultResolver)
-                .Resolve(player, target, _sapi)
-                .SetDimension(target.InternalId);
-        }
+        // Pre-generate / load the destination region so the player lands on solid ground.
+        _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, player);
+
+        // Resolve the final landing position now that terrain exists.
+        var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
 
         _teleporter.Teleport(player, targetPos);
+
+        // Apply a forced game mode if the destination dimension configures one.
+        if (targetImpl?.ForcedGameMode is { } gameMode)
+        {
+            try
+            {
+                player.WorldData.CurrentGameMode = gameMode;
+                player.BroadcastPlayerData(true);
+            }
+            catch
+            {
+                // Best effort — never block transit on a game-mode failure.
+            }
+        }
 
         PlayerLeft?.Invoke(this, new PlayerLeftDimensionEventArgs(player, source, target));
         PlayerEntered?.Invoke(this, new PlayerEnteredDimensionEventArgs(player, source, target));
@@ -112,4 +121,44 @@ internal sealed class TransitService : ITransitionService
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
+
+    /// <summary>
+    /// Computes the landing position, honoring per-transit overrides first, then the target
+    /// dimension's <see cref="SpawnBehavior"/>.
+    /// </summary>
+    private BlockPos ResolveTargetPosition(
+        IServerPlayer player, IDimension target, DimensionImpl? targetImpl, TransitionOptions options)
+    {
+        if (options.OverridePosition is { } overridePos)
+        {
+            return overridePos.SetDimension(target.InternalId);
+        }
+
+        if (options.Resolver is { } resolver)
+        {
+            return resolver.Resolve(player, target, _sapi).SetDimension(target.InternalId);
+        }
+
+        // Per-transit override beats the dimension's configured behavior.
+        var behavior = options.SpawnBehavior ?? targetImpl?.SpawnBehavior ?? SpawnBehavior.SameCoordinates;
+        switch (behavior)
+        {
+            case SpawnBehavior.DimensionSpawn:
+                var spawn = targetImpl?.SpawnPoint ?? new BlockPos(0, 64, 0, target.InternalId);
+                return TargetPositionResolvers.FixedSpawn(spawn)
+                    .Resolve(player, target, _sapi)
+                    .SetDimension(target.InternalId);
+
+            case SpawnBehavior.LastVisited:
+                if (_positionStore.TryGet(player.PlayerUID, target.InternalId, out var x, out var y, out var z))
+                {
+                    return new BlockPos(x, y, z, target.InternalId);
+                }
+
+                return _defaultResolver.Resolve(player, target, _sapi).SetDimension(target.InternalId);
+
+            default:
+                return _defaultResolver.Resolve(player, target, _sapi).SetDimension(target.InternalId);
+        }
+    }
 }

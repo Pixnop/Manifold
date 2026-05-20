@@ -71,6 +71,15 @@ public sealed class DimensionCommandBuilder
         return this;
     }
 
+    /// <summary>Sets a per-transit spawn behavior override (e.g. LastVisited when returning to the overworld).</summary>
+    /// <param name="behavior">The spawn behavior to apply for this command's transits.</param>
+    /// <returns>This builder.</returns>
+    public DimensionCommandBuilder WithSpawnBehavior(SpawnBehavior behavior)
+    {
+        Options = Options with { SpawnBehavior = behavior };
+        return this;
+    }
+
     /// <summary>Throw if the builder is incomplete. Public for testability.</summary>
     /// <exception cref="InvalidOperationException">Required field missing.</exception>
     public void Validate()

@@ -19,7 +19,10 @@ public sealed class DimensionDescriptorMapperTests
             OwnerModId: "mod",
             State: DimensionState.Active,
             Worldgen: null,
-            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
+            SpawnBehavior: Manifold.Api.Transitions.SpawnBehavior.SameCoordinates,
+            SpawnPoint: null,
+            ForcedGameMode: null);
 
         var d = DimensionDescriptorMapper.ToDescriptor(dim);
         Assert.Equal("mod:nether", d.Code);
@@ -41,7 +44,10 @@ public sealed class DimensionDescriptorMapperTests
             OwnerModId: "owner",
             State: DimensionState.Quarantined,
             Worldgen: null,
-            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
+            SpawnBehavior: Manifold.Api.Transitions.SpawnBehavior.SameCoordinates,
+            SpawnPoint: null,
+            ForcedGameMode: null);
 
         var roundtrip = DimensionDescriptorMapper.ToImpl(DimensionDescriptorMapper.ToDescriptor(original));
 

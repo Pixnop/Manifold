@@ -1,9 +1,11 @@
 using System;
 using Manifold.Api;
 using Manifold.Api.Server;
+using Manifold.Api.Transitions;
 using Manifold.Api.Worldgen;
 using Manifold.Internal.Util;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 
 namespace Manifold.Internal;
 
@@ -22,6 +24,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private IWorldgenStrategy? _worldgen;
     private DimensionLifetime? _lifetime;
     private int _generationRadius = DefaultGenerationRadius;
+    private SpawnBehavior _spawnBehavior = SpawnBehavior.SameCoordinates;
+    private BlockPos? _spawnPoint;
+    private EnumGameMode? _forcedGameMode;
     private bool _used;
 
     /// <summary>
@@ -84,6 +89,32 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder WithSpawnBehavior(SpawnBehavior behavior)
+    {
+        ThrowIfUsed();
+        _spawnBehavior = behavior;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IDimensionBuilder WithFixedSpawn(BlockPos spawnPoint)
+    {
+        ArgumentNullException.ThrowIfNull(spawnPoint);
+        ThrowIfUsed();
+        _spawnPoint = spawnPoint;
+        _spawnBehavior = SpawnBehavior.DimensionSpawn;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IDimensionBuilder WithForcedGameMode(EnumGameMode mode)
+    {
+        ThrowIfUsed();
+        _forcedGameMode = mode;
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimension RegisterStatic()
     {
         ThrowIfUsed();
@@ -101,7 +132,16 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(_code, _worldgen, lifetime, _ownerModId, IsStaticRegistration: true, _generationRadius));
+        return _completion(new DimensionBuildRequest(
+            _code,
+            _worldgen,
+            lifetime,
+            _ownerModId,
+            IsStaticRegistration: true,
+            _generationRadius,
+            _spawnBehavior,
+            _spawnPoint,
+            _forcedGameMode));
     }
 
     /// <inheritdoc/>
@@ -121,7 +161,16 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(_code, _worldgen, _lifetime.Value, _ownerModId, IsStaticRegistration: false, _generationRadius));
+        return _completion(new DimensionBuildRequest(
+            _code,
+            _worldgen,
+            _lifetime.Value,
+            _ownerModId,
+            IsStaticRegistration: false,
+            _generationRadius,
+            _spawnBehavior,
+            _spawnPoint,
+            _forcedGameMode));
     }
 
     private void ThrowIfUsed()

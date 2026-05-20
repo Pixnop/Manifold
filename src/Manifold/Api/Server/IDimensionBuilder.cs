@@ -1,4 +1,7 @@
+using Manifold.Api.Transitions;
 using Manifold.Api.Worldgen;
+using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 
 namespace Manifold.Api.Server;
 
@@ -28,6 +31,21 @@ public interface IDimensionBuilder
     /// <param name="chunks">Radius in chunks (0 = only the target column).</param>
     /// <returns>This builder.</returns>
     IDimensionBuilder WithGenerationRadius(int chunks);
+
+    /// <summary>Sets how players land when entering this dimension. Default: <see cref="SpawnBehavior.SameCoordinates"/>.</summary>
+    /// <param name="behavior">The spawn behavior.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithSpawnBehavior(SpawnBehavior behavior);
+
+    /// <summary>Sets a fixed spawn point and switches spawn behavior to <see cref="SpawnBehavior.DimensionSpawn"/>.</summary>
+    /// <param name="spawnPoint">The fixed landing position.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithFixedSpawn(BlockPos spawnPoint);
+
+    /// <summary>Forces a game mode when players enter this dimension. Omit to preserve the player's current mode.</summary>
+    /// <param name="mode">The game mode to force on entry.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithForcedGameMode(EnumGameMode mode);
 
     /// <summary>
     /// Finalises as a static, persistent dimension (boot-time use). Idempotent across server restarts —

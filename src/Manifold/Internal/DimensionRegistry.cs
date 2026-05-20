@@ -42,7 +42,10 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             OwnerModId: "manifold",
             State: DimensionState.Active,
             Worldgen: null,
-            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
+            SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
+            SpawnPoint: null,
+            ForcedGameMode: null);
         _snapshot = _snapshot.Add(OverworldCode, overworld);
     }
 
@@ -147,7 +150,10 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             OwnerModId: entry.OwnerModId,
             State: state,
             Worldgen: null,
-            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
+            SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
+            SpawnPoint: null,
+            ForcedGameMode: null);
         _snapshot = _snapshot.Add(entry.Code, dim);
     }
 
@@ -177,6 +183,9 @@ internal sealed class DimensionRegistry : IDimensionRegistry
                 State = DimensionState.Active,
                 Worldgen = request.Worldgen,
                 GenerationRadius = request.GenerationRadius,
+                SpawnBehavior = request.SpawnBehavior,
+                SpawnPoint = request.SpawnPoint,
+                ForcedGameMode = request.ForcedGameMode,
             };
             _snapshot = _snapshot.SetItem(request.Code, promoted);
             Created?.Invoke(this, new DimensionCreatedEventArgs(promoted));
@@ -192,7 +201,10 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             OwnerModId: request.OwnerModId,
             State: DimensionState.Active,
             Worldgen: request.Worldgen,
-            GenerationRadius: request.GenerationRadius);
+            GenerationRadius: request.GenerationRadius,
+            SpawnBehavior: request.SpawnBehavior,
+            SpawnPoint: request.SpawnPoint,
+            ForcedGameMode: request.ForcedGameMode);
         _snapshot = _snapshot.Add(request.Code, dim);
         Created?.Invoke(this, new DimensionCreatedEventArgs(dim));
         return dim;

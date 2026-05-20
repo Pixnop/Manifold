@@ -19,6 +19,13 @@ public readonly record struct TransitionOptions
     /// <summary>Resolver used when <see cref="OverridePosition"/> is null. Defaults to <see cref="TargetPositionResolvers.SameXZSurfaceY"/>.</summary>
     public ITargetPositionResolver? Resolver { get; init; }
 
+    /// <summary>
+    /// Per-transit spawn behavior override. When set, takes precedence over the destination
+    /// dimension's configured behavior (but not over <see cref="OverridePosition"/> or <see cref="Resolver"/>).
+    /// Useful for transiting to the built-in overworld with <see cref="SpawnBehavior.LastVisited"/>.
+    /// </summary>
+    public SpawnBehavior? SpawnBehavior { get; init; }
+
     /// <summary>If <c>true</c> (default), the player's inventory remains untouched across transit.</summary>
     public bool PreserveInventory { get; init; }
 }

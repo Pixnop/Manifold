@@ -32,5 +32,8 @@ internal static class DimensionDescriptorMapper
         OwnerModId: d.OwnerModId,
         State: (DimensionState)d.State,
         Worldgen: null,
-        GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
+        GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
+        SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
+        SpawnPoint: null,
+        ForcedGameMode: null);
 }

@@ -187,5 +187,79 @@ public sealed class DimensionBuilderImplTests
         Assert.Equal(16, req16!.Value.GenerationRadius);
     }
 
+    [Fact]
+    public void WithSpawnBehavior_Should_Pass_Through_To_Request()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy())
+            .WithSpawnBehavior(Manifold.Api.Transitions.SpawnBehavior.LastVisited)
+            .RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.LastVisited, captured.Value.SpawnBehavior);
+    }
+
+    [Fact]
+    public void WithFixedSpawn_Should_Set_DimensionSpawn_And_Point()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        var spawn = new Vintagestory.API.MathTools.BlockPos(10, 64, 20, 0);
+        builder.WithWorldgen(new FakeWorldgenStrategy())
+            .WithFixedSpawn(spawn)
+            .RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.DimensionSpawn, captured.Value.SpawnBehavior);
+        Assert.Equal(spawn, captured.Value.SpawnPoint);
+    }
+
+    [Fact]
+    public void WithForcedGameMode_Should_Pass_Through_To_Request()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy())
+            .WithForcedGameMode(EnumGameMode.Creative)
+            .RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(EnumGameMode.Creative, captured.Value.ForcedGameMode);
+    }
+
+    [Fact]
+    public void SpawnBehavior_Should_Default_To_SameCoordinates_And_GameMode_Null()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.SameCoordinates, captured.Value.SpawnBehavior);
+        Assert.Null(captured.Value.SpawnPoint);
+        Assert.Null(captured.Value.ForcedGameMode);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 }
