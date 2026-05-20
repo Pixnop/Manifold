@@ -60,7 +60,16 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .DescribedAs("Teleport to the Manifold sample flat dimension (solid floor for movement testing).")
             .Register(sapi);
 
+        // The overworld is a first-class Manifold dimension (manifold:overworld, id 0).
+        // This command demonstrates a clean round-trip back to it via the transit API.
+        new DimensionCommandBuilder()
+            .Command("overworlddim")
+            .TargetDimension(new AssetLocation("manifold", "overworld"))
+            .RequiresPrivilege("chat")
+            .DescribedAs("Teleport back to the overworld via Manifold's transit API.")
+            .Register(sapi);
+
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void + flat dimensions and /voiddim, /flatdim commands.");
+            "[ManifoldSample] Registered void + flat dimensions and /voiddim, /flatdim, /overworlddim commands.");
     }
 }
