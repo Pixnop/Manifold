@@ -6,10 +6,18 @@
 
 **A Vintage Story 1.21+ library mod for declaring and managing custom dimensions.**
 
+[![Mod DB](https://img.shields.io/badge/Mod_DB-Manifold-1E9FE3)](https://mods.vintagestory.at/manifold)
 [![Build](https://img.shields.io/github/actions/workflow/status/Pixnop/Manifold/ci.yml?branch=main&label=build)](https://github.com/Pixnop/Manifold/actions)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Pixnop_Manifold&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Pixnop_Manifold)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Pixnop_Manifold&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Pixnop_Manifold)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+---
+
+## Download
+
+- **[Manifold on the Mod DB](https://mods.vintagestory.at/manifold)** — install this (the library other mods depend on).
+- **[Manifold Sample](https://mods.vintagestory.at/manifoldsample)** — optional demo mod (void + flat dimensions, travel commands).
 
 ---
 
