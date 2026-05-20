@@ -1,0 +1,5 @@
+/* Constrain the navbar logo (the source SVG is 1024x1024). */
+#logo {
+  height: 36px;
+  width: auto;
+}
