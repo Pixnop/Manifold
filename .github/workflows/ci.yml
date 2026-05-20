@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Opt into the Node.js 24 action runtime ahead of the June 2026 forced switch.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   analyze:
     name: Build, test & SonarCloud
