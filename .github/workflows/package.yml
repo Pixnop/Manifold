@@ -1,16 +1,16 @@
-name: release
+name: package
+
+# Builds both mods and uploads them as downloadable artifacts (no release/tag
+# needed). Handy for testing a build or grabbing a zip to upload to the VS Mod DB.
 
 on:
   push:
-    tags: ['v*.*.*']
-
-permissions:
-  contents: write
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  release:
+  package:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -30,35 +30,36 @@ jobs:
       - name: Build
         run: dotnet build Manifold.slnx -c Release
 
-      - name: Package mod zips (library + demo companion)
+      - name: Package mod zips
         run: |
           set -e
-          VERSION="${GITHUB_REF_NAME#v}"
+          SHA="${GITHUB_SHA::7}"
 
-          # Manifold (the library mod) — no in-game assets.
           MANI_OUT="src/Manifold/bin/Release/net10.0"
           mkdir -p package/manifold
           cp "$MANI_OUT/Manifold.dll" package/manifold/
           cp src/Manifold/modinfo.json package/manifold/
           cp src/Manifold/modicon.png package/manifold/
-          (cd package/manifold && zip -r "$GITHUB_WORKSPACE/Manifold-$VERSION.zip" .)
+          (cd package/manifold && zip -r "$GITHUB_WORKSPACE/Manifold-$SHA.zip" .)
 
-          # ManifoldSample (the demo companion). Bundles its own assets but NOT
-          # Manifold.dll (it depends on Manifold as a separate mod).
           SAMPLE_OUT="samples/ManifoldSample/bin/Release/net10.0"
           mkdir -p package/sample
           cp "$SAMPLE_OUT/ManifoldSample.dll" package/sample/
           cp samples/ManifoldSample/modinfo.json package/sample/
           cp samples/ManifoldSample/modicon.png package/sample/
           if [ -d "$SAMPLE_OUT/assets" ]; then cp -r "$SAMPLE_OUT/assets" package/sample/; fi
-          (cd package/sample && zip -r "$GITHUB_WORKSPACE/ManifoldSample-$VERSION.zip" .)
+          (cd package/sample && zip -r "$GITHUB_WORKSPACE/ManifoldSample-$SHA.zip" .)
 
           ls -la ./*.zip
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Manifold artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            Manifold-*.zip
-            ManifoldSample-*.zip
-          generate_release_notes: true
+          name: Manifold
+          path: Manifold-*.zip
+
+      - name: Upload ManifoldSample artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManifoldSample
+          path: ManifoldSample-*.zip

@@ -3,7 +3,7 @@
   "modid": "manifoldsample",
   "name": "Manifold Sample",
   "version": "0.1.0",
-  "description": "Smoke-test consumer mod for Manifold. Registers a void dimension, a portal block, and the /voiddim chat command.",
+  "description": "Demo consumer mod for Manifold. Registers void + flat dimensions with travel policies and the /voiddim, /flatdim, /overworlddim commands, plus a portal block.",
   "authors": ["Fieve"],
   "side": "Universal",
   "dependencies": {
