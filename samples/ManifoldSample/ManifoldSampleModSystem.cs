@@ -27,7 +27,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
     {
         base.StartServerSide(sapi);
 
-        var manifold = sapi.GetManifoldServer();
+        var manifold = sapi.GetManifoldServer(this);
         if (!manifold.IsHealthy)
         {
             Mod.Logger.Warning("[ManifoldSample] Manifold is unhealthy; dimension features disabled.");

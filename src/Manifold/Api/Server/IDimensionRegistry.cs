@@ -27,9 +27,16 @@ public interface IDimensionRegistry
     /// <returns>The dimension, or <c>null</c> if not found.</returns>
     IDimension? Get(AssetLocation code);
 
-    /// <summary>Start a fluent declaration. Caller's mod id is captured from the calling <c>ModSystem</c>.</summary>
+    /// <summary>
+    /// Start a fluent declaration. Must be called through an owner-scoped registry obtained via
+    /// <c>sapi.GetManifoldServer(thisModSystem).Registry</c>; calling on the parameterless
+    /// overload's registry throws <see cref="DimensionOwnerRequiredException"/>.
+    /// </summary>
     /// <param name="code">The new dimension's code.</param>
     /// <returns>A single-use builder.</returns>
+    /// <exception cref="Manifold.Api.DimensionOwnerRequiredException">
+    /// Thrown when the registry cannot determine the owning mod id (e.g. the unscoped facade).
+    /// </exception>
     IDimensionBuilder Define(AssetLocation code);
 
     /// <summary>

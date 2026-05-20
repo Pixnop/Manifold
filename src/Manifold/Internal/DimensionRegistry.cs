@@ -22,7 +22,6 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     private static readonly AssetLocation OverworldCode = new("manifold", "overworld");
 
     private readonly DimensionAllocator _allocator;
-    private readonly Func<string> _callerModIdProvider;
 
     private volatile ImmutableDictionary<AssetLocation, DimensionImpl> _snapshot =
         ImmutableDictionary<AssetLocation, DimensionImpl>.Empty;
@@ -31,11 +30,9 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     /// Initializes a new instance of the <see cref="DimensionRegistry"/> class with the built-in overworld and dependencies.
     /// </summary>
     /// <param name="allocator">Dimension id allocator.</param>
-    /// <param name="callerModIdProvider">Returns the mod id of the current Define caller.</param>
-    public DimensionRegistry(DimensionAllocator allocator, Func<string> callerModIdProvider)
+    public DimensionRegistry(DimensionAllocator allocator)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
-        _callerModIdProvider = callerModIdProvider ?? throw new ArgumentNullException(nameof(callerModIdProvider));
 
         var overworld = new DimensionImpl(
             Code: OverworldCode,
@@ -63,18 +60,14 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         code is not null && _snapshot.TryGetValue(code, out var dim) ? dim : null;
 
     /// <inheritdoc/>
-    public IDimensionBuilder Define(AssetLocation code)
-    {
-        DimensionCodeValidator.Validate(code);
-        if (_snapshot.TryGetValue(code, out var existing) && existing.State != DimensionState.Pending)
-        {
-            throw new DimensionAlreadyRegisteredException(
-                $"Dimension '{code}' is already registered in this boot.");
-        }
-
-        var caller = _callerModIdProvider();
-        return new DimensionBuilderImpl(code, caller, Complete);
-    }
+    /// <exception cref="DimensionOwnerRequiredException">
+    /// Always thrown. Use <see cref="DefineForOwner"/> via
+    /// <c>sapi.GetManifoldServer(thisModSystem).Registry</c> so the owning mod id is recorded.
+    /// </exception>
+    public IDimensionBuilder Define(AssetLocation code) =>
+        throw new DimensionOwnerRequiredException(
+            "Register dimensions via sapi.GetManifoldServer(thisModSystem).Registry so Manifold "
+            + "can record the owning mod id. The parameterless server facade is read/transit only.");
 
     /// <inheritdoc/>
     public bool TryRemove(AssetLocation code)
@@ -100,6 +93,28 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         _allocator.Release(dim.InternalId);
         Destroyed?.Invoke(this, new DimensionDestroyedEventArgs(dim));
         return true;
+    }
+
+    /// <summary>
+    /// Start a fluent declaration with an explicit owner mod id. Called by
+    /// <see cref="OwnerScopedRegistry"/> which captures the owner from the caller's
+    /// <c>ModSystem.Mod.Info.ModID</c>.
+    /// </summary>
+    /// <param name="code">The new dimension's code.</param>
+    /// <param name="ownerModId">The mod id that owns this dimension.</param>
+    /// <returns>A single-use builder.</returns>
+    /// <exception cref="DimensionAlreadyRegisteredException">The code is already registered.</exception>
+    internal IDimensionBuilder DefineForOwner(AssetLocation code, string ownerModId)
+    {
+        DimensionCodeValidator.Validate(code);
+        Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
+        if (_snapshot.TryGetValue(code, out var existing) && existing.State != DimensionState.Pending)
+        {
+            throw new DimensionAlreadyRegisteredException(
+                $"Dimension '{code}' is already registered in this boot.");
+        }
+
+        return new DimensionBuilderImpl(code, ownerModId, Complete);
     }
 
     /// <summary>

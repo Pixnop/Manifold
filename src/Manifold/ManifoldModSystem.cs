@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Manifold.Api;
 using Manifold.Api.Client;
 using Manifold.Api.Events;
@@ -79,7 +78,7 @@ public sealed class ManifoldModSystem : ModSystem
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(sapi);
 
-        _registry = new DimensionRegistry(_allocator, () => GuessCallerModId(sapi));
+        _registry = new DimensionRegistry(_allocator);
 
         // Seed manifest BEFORE wiring Created event, so seeded entries don't
         // trigger broadcasts to clients that aren't connected yet anyway.
@@ -163,7 +162,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Allocator + registry + transit are still created so that consumers calling GetManifoldServer()
         // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
         var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator, () => Mod.Info.ModID);
+        var registry = new DimensionRegistry(allocator);
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
         var transit = new TransitService(
             registry,
@@ -323,47 +322,5 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         return n;
-    }
-
-    private string GuessCallerModId(ICoreServerAPI sapi)
-    {
-        // Best-effort: walk the stack, find the first frame outside Manifold/System/Vintagestory namespaces.
-        // Match the frame's assembly name to a loaded mod's primary assembly to extract its modid.
-        var stack = new System.Diagnostics.StackTrace(false);
-        foreach (var frame in stack.GetFrames())
-        {
-            var method = frame.GetMethod();
-            if (method?.DeclaringType is null)
-            {
-                continue;
-            }
-
-            var ns = method.DeclaringType.Namespace ?? string.Empty;
-            if (ns.StartsWith("Manifold", StringComparison.Ordinal) ||
-                ns.StartsWith("System", StringComparison.Ordinal) ||
-                ns.StartsWith("Vintagestory", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var asmName = method.DeclaringType.Assembly.GetName().Name ?? string.Empty;
-            foreach (var mod in sapi.ModLoader.Mods)
-            {
-                if (mod.Systems is { Count: > 0 } systems)
-                {
-                    var firstSystem = systems.First();
-                    var modAsm = firstSystem.GetType().Assembly.GetName().Name ?? string.Empty;
-                    if (string.Equals(asmName, modAsm, StringComparison.Ordinal))
-                    {
-                        return mod.Info.ModID;
-                    }
-                }
-            }
-
-            // Fallback: return the assembly name as a synthetic mod id.
-            return asmName;
-        }
-
-        return Mod.Info.ModID;
     }
 }

@@ -134,7 +134,7 @@ public sealed class DimensionGeneratorTests
     private static (DimensionGenerator Generator, DimensionRegistry Registry) NewGenerator()
     {
         var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator, () => "owner");
+        var registry = new DimensionRegistry(allocator);
         return (new DimensionGenerator(registry, new GeneratedColumnStore()), registry);
     }
 

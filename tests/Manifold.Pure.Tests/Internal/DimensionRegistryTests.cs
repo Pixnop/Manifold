@@ -24,10 +24,17 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
-    public void Define_RegisterStatic_Should_Add_Dimension_To_Registry()
+    public void Define_Should_Throw_DimensionOwnerRequiredException()
     {
         var registry = NewRegistry();
-        var dim = registry.Define(Code("testmod:nether"))
+        Assert.Throws<DimensionOwnerRequiredException>(() => registry.Define(Code("testmod:nether")));
+    }
+
+    [Fact]
+    public void DefineForOwner_RegisterStatic_Should_Add_Dimension_To_Registry()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("testmod:nether"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy())
             .RegisterStatic();
 
@@ -38,26 +45,26 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
-    public void Define_Should_Throw_When_Code_Already_Registered_In_Same_Boot()
+    public void DefineForOwner_Should_Throw_When_Code_Already_Registered_In_Same_Boot()
     {
         var registry = NewRegistry();
-        registry.Define(Code("testmod:nether")).WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        registry.DefineForOwner(Code("testmod:nether"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
         Assert.Throws<DimensionAlreadyRegisteredException>(() =>
-            registry.Define(Code("testmod:nether")).WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic());
+            registry.DefineForOwner(Code("testmod:nether"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic());
     }
 
     [Fact]
-    public void Define_Should_Reject_Reserved_Manifold_Domain()
+    public void DefineForOwner_Should_Reject_Reserved_Manifold_Domain()
     {
         var registry = NewRegistry();
-        Assert.Throws<System.ArgumentException>(() => registry.Define(Code("manifold:foo")));
+        Assert.Throws<System.ArgumentException>(() => registry.DefineForOwner(Code("manifold:foo"), "testmod"));
     }
 
     [Fact]
     public void All_Should_Include_Overworld_And_Registered_Dimensions()
     {
         var registry = NewRegistry();
-        registry.Define(Code("a:b")).WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
         Assert.Equal(2, registry.All.Count);
     }
 
@@ -68,7 +75,7 @@ public sealed class DimensionRegistryTests
         IDimension? raised = null;
         registry.Created += (_, e) => raised = e.Dimension;
 
-        registry.Define(Code("a:b")).WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
 
         Assert.NotNull(raised);
         Assert.Equal("a:b", raised!.Code.ToString());
@@ -93,7 +100,7 @@ public sealed class DimensionRegistryTests
     public void TryRemove_Should_Throw_When_Target_Is_Persistent()
     {
         var registry = NewRegistry();
-        registry.Define(Code("a:b")).WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
         Assert.Throws<DimensionStateException>(() => registry.TryRemove(Code("a:b")));
     }
 
@@ -101,7 +108,7 @@ public sealed class DimensionRegistryTests
     public void TryRemove_Should_Remove_And_Fire_Destroyed_When_Ephemeral()
     {
         var registry = NewRegistry();
-        var dim = registry.Define(Code("a:b"))
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy())
             .Ephemeral()
             .Create();
@@ -119,9 +126,9 @@ public sealed class DimensionRegistryTests
     public void TryRemove_Should_Release_Id_For_Recycling()
     {
         var registry = NewRegistry();
-        registry.Define(Code("a:b")).WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+        registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
         registry.TryRemove(Code("a:b"));
-        var fresh = registry.Define(Code("c:d"))
+        var fresh = registry.DefineForOwner(Code("c:d"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
         Assert.Equal(10, fresh.InternalId);
     }
@@ -168,7 +175,7 @@ public sealed class DimensionRegistryTests
             "testmod");
         registry.SeedFromManifest(entry, DimensionState.Pending);
 
-        var dim = registry.Define(Code("testmod:nether"))
+        var dim = registry.DefineForOwner(Code("testmod:nether"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy())
             .RegisterStatic();
 
@@ -182,16 +189,16 @@ public sealed class DimensionRegistryTests
         var registry = NewRegistry();
         Assert.NotNull(registry.GetByInternalId(0));
         Assert.Null(registry.GetByInternalId(999));
-        var dim = registry.Define(Code("a:b"))
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
         Assert.Same(dim, registry.GetByInternalId(dim.InternalId));
     }
 
     [Fact]
-    public void Define_RegisterStatic_Should_Propagate_GenerationRadius_To_DimensionImpl()
+    public void DefineForOwner_RegisterStatic_Should_Propagate_GenerationRadius_To_DimensionImpl()
     {
         var registry = NewRegistry();
-        var dim = registry.Define(Code("a:b"))
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy())
             .WithGenerationRadius(7)
             .RegisterStatic();
@@ -201,10 +208,10 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
-    public void Define_RegisterStatic_Should_Use_Default_GenerationRadius_When_Not_Configured()
+    public void DefineForOwner_RegisterStatic_Should_Use_Default_GenerationRadius_When_Not_Configured()
     {
         var registry = NewRegistry();
-        var dim = registry.Define(Code("a:b"))
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
             .WithWorldgen(new FakeWorldgenStrategy())
             .RegisterStatic();
 
@@ -214,9 +221,9 @@ public sealed class DimensionRegistryTests
 
     private static AssetLocation Code(string s) => new(s);
 
-    private static DimensionRegistry NewRegistry(string callerModId = "testmod")
+    private static DimensionRegistry NewRegistry()
     {
         var allocator = new DimensionAllocator();
-        return new DimensionRegistry(allocator, () => callerModId);
+        return new DimensionRegistry(allocator);
     }
 }

@@ -93,8 +93,8 @@ public sealed class TransitServiceTests
         NewService()
     {
         var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator, () => "owner");
-        registry.Define(Code("owner:target"))
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:target"), "owner")
             .WithWorldgen(new FakeWorldgenStrategy())
             .RegisterStatic();
 
