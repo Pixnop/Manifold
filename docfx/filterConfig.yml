@@ -1,0 +1,15 @@
+apiRules:
+- include:
+    uidRegex: ^Manifold\.Api
+    type: Namespace
+- include:
+    uidRegex: ^Manifold\.Api
+    type: Type
+- include:
+    uidRegex: ^Manifold\.Api
+    type: Member
+- exclude:
+    uidRegex: ^Manifold\.Internal
+    type: Namespace
+- exclude:
+    uidRegex: ^Manifold\.Internal

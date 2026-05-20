@@ -45,3 +45,9 @@ packages/
 # Mod DB packaging
 *.zip
 release/
+
+# DocFX
+docfx/_site/
+docfx/api/
+docfx/obj/
+docfx-tool/
