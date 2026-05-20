@@ -44,7 +44,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             Lifetime: DimensionLifetime.BuiltIn,
             OwnerModId: "manifold",
             State: DimensionState.Active,
-            Worldgen: null);
+            Worldgen: null,
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
         _snapshot = _snapshot.Add(OverworldCode, overworld);
     }
 
@@ -130,7 +131,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             Lifetime: entry.Lifetime,
             OwnerModId: entry.OwnerModId,
             State: state,
-            Worldgen: null);
+            Worldgen: null,
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
         _snapshot = _snapshot.Add(entry.Code, dim);
     }
 
@@ -159,6 +161,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             {
                 State = DimensionState.Active,
                 Worldgen = request.Worldgen,
+                GenerationRadius = request.GenerationRadius,
             };
             _snapshot = _snapshot.SetItem(request.Code, promoted);
             Created?.Invoke(this, new DimensionCreatedEventArgs(promoted));
@@ -173,7 +176,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             Lifetime: request.Lifetime,
             OwnerModId: request.OwnerModId,
             State: DimensionState.Active,
-            Worldgen: request.Worldgen);
+            Worldgen: request.Worldgen,
+            GenerationRadius: request.GenerationRadius);
         _snapshot = _snapshot.Add(request.Code, dim);
         Created?.Invoke(this, new DimensionCreatedEventArgs(dim));
         return dim;

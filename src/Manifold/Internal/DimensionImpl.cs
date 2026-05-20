@@ -15,6 +15,7 @@ namespace Manifold.Internal;
 /// <param name="OwnerModId">Owning mod id.</param>
 /// <param name="State">Current runtime state.</param>
 /// <param name="Worldgen">Attached worldgen strategy (null while Pending/Quarantined).</param>
+/// <param name="GenerationRadius">Generation radius in chunks around the transit target.</param>
 internal sealed record DimensionImpl(
     AssetLocation Code,
     int InternalId,
@@ -22,7 +23,8 @@ internal sealed record DimensionImpl(
     DimensionLifetime Lifetime,
     string OwnerModId,
     DimensionState State,
-    IWorldgenStrategy? Worldgen) : IDimension
+    IWorldgenStrategy? Worldgen,
+    int GenerationRadius) : IDimension
 {
     /// <summary>Return a copy with the supplied <see cref="State"/>.</summary>
     /// <param name="newState">The new state.</param>

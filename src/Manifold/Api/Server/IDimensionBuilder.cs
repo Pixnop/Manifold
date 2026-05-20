@@ -22,6 +22,14 @@ public interface IDimensionBuilder
     IDimensionBuilder Ephemeral();
 
     /// <summary>
+    /// Sets the generation radius in chunks around the transit target (default 2 = 5x5 columns).
+    /// Larger values generate more terrain per transit but cost more time. Range 0..16.
+    /// </summary>
+    /// <param name="chunks">Radius in chunks (0 = only the target column).</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithGenerationRadius(int chunks);
+
+    /// <summary>
     /// Finalises as a static, persistent dimension (boot-time use). Idempotent across server restarts —
     /// re-calling with the same code reuses the existing internal id.
     /// </summary>

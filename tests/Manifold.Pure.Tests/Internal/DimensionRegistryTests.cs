@@ -187,6 +187,31 @@ public sealed class DimensionRegistryTests
         Assert.Same(dim, registry.GetByInternalId(dim.InternalId));
     }
 
+    [Fact]
+    public void Define_RegisterStatic_Should_Propagate_GenerationRadius_To_DimensionImpl()
+    {
+        var registry = NewRegistry();
+        var dim = registry.Define(Code("a:b"))
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithGenerationRadius(7)
+            .RegisterStatic();
+
+        var impl = (Manifold.Internal.DimensionImpl)dim;
+        Assert.Equal(7, impl.GenerationRadius);
+    }
+
+    [Fact]
+    public void Define_RegisterStatic_Should_Use_Default_GenerationRadius_When_Not_Configured()
+    {
+        var registry = NewRegistry();
+        var dim = registry.Define(Code("a:b"))
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        var impl = (Manifold.Internal.DimensionImpl)dim;
+        Assert.Equal(DimensionBuilderImpl.DefaultGenerationRadius, impl.GenerationRadius);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static DimensionRegistry NewRegistry(string callerModId = "testmod")

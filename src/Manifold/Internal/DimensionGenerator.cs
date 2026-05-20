@@ -21,9 +21,6 @@ internal sealed class DimensionGenerator
 {
     private const int MaxConsecutiveFailures = 4;
 
-    /// <summary>Hardcoded generation radius in chunks around the target position.</summary>
-    private const int DefaultRadiusChunks = 2;
-
     /// <summary>
     /// Upper Y bound for the single post-generation relight pass. Relighting the full map height
     /// per column is what made generation take ~40s; bounding it to a low band keeps a flat/void
@@ -96,6 +93,8 @@ internal sealed class DimensionGenerator
             return;
         }
 
+        int radius = dim.GenerationRadius;
+
         // Ensure OnInitialize is called once per dimension.
         if (_initialized.TryAdd(dimId, true))
         {
@@ -109,9 +108,9 @@ internal sealed class DimensionGenerator
 
         bool anyGenerated = false;
 
-        for (int dx = -DefaultRadiusChunks; dx <= DefaultRadiusChunks; dx++)
+        for (int dx = -radius; dx <= radius; dx++)
         {
-            for (int dz = -DefaultRadiusChunks; dz <= DefaultRadiusChunks; dz++)
+            for (int dz = -radius; dz <= radius; dz++)
             {
                 int cx = centerCx + dx;
                 int cz = centerCz + dz;
@@ -134,10 +133,10 @@ internal sealed class DimensionGenerator
         // (Per-column full-height relight was the ~40s bottleneck.)
         if (anyGenerated)
         {
-            int minX = (centerCx - DefaultRadiusChunks) * 32;
-            int minZ = (centerCz - DefaultRadiusChunks) * 32;
-            int maxX = ((centerCx + DefaultRadiusChunks) * 32) + 31;
-            int maxZ = ((centerCz + DefaultRadiusChunks) * 32) + 31;
+            int minX = (centerCx - radius) * 32;
+            int minZ = (centerCz - radius) * 32;
+            int maxX = ((centerCx + radius) * 32) + 31;
+            int maxZ = ((centerCz + radius) * 32) + 31;
             int maxY = Math.Min(RelightMaxY, sapi.WorldManager.MapSizeY - 1);
             try
             {

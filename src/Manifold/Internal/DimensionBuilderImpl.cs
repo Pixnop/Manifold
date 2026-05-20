@@ -13,12 +13,15 @@ namespace Manifold.Internal;
 /// <remarks>Server-side, main thread only. Not thread-safe.</remarks>
 internal sealed class DimensionBuilderImpl : IDimensionBuilder
 {
+    /// <summary>Default generation radius in chunks (produces a 5x5 column region).</summary>
+    internal const int DefaultGenerationRadius = 2;
+
     private readonly AssetLocation _code;
     private readonly string _ownerModId;
     private readonly System.Func<DimensionBuildRequest, IDimension> _completion;
-
     private IWorldgenStrategy? _worldgen;
     private DimensionLifetime? _lifetime;
+    private int _generationRadius = DefaultGenerationRadius;
     private bool _used;
 
     /// <summary>
@@ -73,6 +76,14 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder WithGenerationRadius(int chunks)
+    {
+        ThrowIfUsed();
+        _generationRadius = Guards.InRange(chunks, 0, 16, nameof(chunks));
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimension RegisterStatic()
     {
         ThrowIfUsed();
@@ -90,7 +101,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(_code, _worldgen, lifetime, _ownerModId, IsStaticRegistration: true));
+        return _completion(new DimensionBuildRequest(_code, _worldgen, lifetime, _ownerModId, IsStaticRegistration: true, _generationRadius));
     }
 
     /// <inheritdoc/>
@@ -110,7 +121,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(_code, _worldgen, _lifetime.Value, _ownerModId, IsStaticRegistration: false));
+        return _completion(new DimensionBuildRequest(_code, _worldgen, _lifetime.Value, _ownerModId, IsStaticRegistration: false, _generationRadius));
     }
 
     private void ThrowIfUsed()

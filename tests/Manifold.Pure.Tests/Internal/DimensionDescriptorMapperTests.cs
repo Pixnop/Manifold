@@ -18,7 +18,8 @@ public sealed class DimensionDescriptorMapperTests
             Lifetime: DimensionLifetime.Persistent,
             OwnerModId: "mod",
             State: DimensionState.Active,
-            Worldgen: null);
+            Worldgen: null,
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
 
         var d = DimensionDescriptorMapper.ToDescriptor(dim);
         Assert.Equal("mod:nether", d.Code);
@@ -39,7 +40,8 @@ public sealed class DimensionDescriptorMapperTests
             Lifetime: DimensionLifetime.Ephemeral,
             OwnerModId: "owner",
             State: DimensionState.Quarantined,
-            Worldgen: null);
+            Worldgen: null,
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
 
         var roundtrip = DimensionDescriptorMapper.ToImpl(DimensionDescriptorMapper.ToDescriptor(original));
 

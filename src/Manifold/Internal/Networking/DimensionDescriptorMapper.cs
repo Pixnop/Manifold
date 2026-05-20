@@ -31,5 +31,6 @@ internal static class DimensionDescriptorMapper
         Lifetime: (DimensionLifetime)d.Lifetime,
         OwnerModId: d.OwnerModId,
         State: (DimensionState)d.State,
-        Worldgen: null);
+        Worldgen: null,
+        GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius);
 }

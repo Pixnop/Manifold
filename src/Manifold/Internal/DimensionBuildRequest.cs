@@ -12,9 +12,11 @@ namespace Manifold.Internal;
 /// <param name="Lifetime">The chosen lifetime.</param>
 /// <param name="OwnerModId">The owning mod id.</param>
 /// <param name="IsStaticRegistration">True if RegisterStatic was called; false for Create.</param>
+/// <param name="GenerationRadius">Generation radius in chunks around the transit target.</param>
 internal readonly record struct DimensionBuildRequest(
     AssetLocation Code,
     IWorldgenStrategy Worldgen,
     DimensionLifetime Lifetime,
     string OwnerModId,
-    bool IsStaticRegistration);
+    bool IsStaticRegistration,
+    int GenerationRadius);

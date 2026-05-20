@@ -119,5 +119,73 @@ public sealed class DimensionBuilderImplTests
             () => builder.WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().RegisterStatic());
     }
 
+    [Fact]
+    public void WithGenerationRadius_Should_Pass_Value_Through_To_Request()
+    {
+        DimensionBuildRequest? capturedRequest = null;
+        var completion = Substitute.For<IDimension>();
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            capturedRequest = req;
+            return completion;
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).WithGenerationRadius(5).RegisterStatic();
+
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(5, capturedRequest.Value.GenerationRadius);
+    }
+
+    [Fact]
+    public void WithGenerationRadius_Should_Default_To_DefaultGenerationRadius()
+    {
+        DimensionBuildRequest? capturedRequest = null;
+        var completion = Substitute.For<IDimension>();
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            capturedRequest = req;
+            return completion;
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(DimensionBuilderImpl.DefaultGenerationRadius, capturedRequest.Value.GenerationRadius);
+    }
+
+    [Fact]
+    public void WithGenerationRadius_Should_Throw_When_Out_Of_Range()
+    {
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => builder.WithGenerationRadius(-1));
+
+        var builder2 = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => builder2.WithGenerationRadius(17));
+    }
+
+    [Fact]
+    public void WithGenerationRadius_Should_Accept_Boundary_Values()
+    {
+        DimensionBuildRequest? req0 = null;
+        var b0 = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            req0 = req;
+            return Substitute.For<IDimension>();
+        });
+        b0.WithWorldgen(new FakeWorldgenStrategy()).WithGenerationRadius(0).RegisterStatic();
+        Assert.Equal(0, req0!.Value.GenerationRadius);
+
+        DimensionBuildRequest? req16 = null;
+        var b16 = new DimensionBuilderImpl(Code("mod:b"), "mod", req =>
+        {
+            req16 = req;
+            return Substitute.For<IDimension>();
+        });
+        b16.WithWorldgen(new FakeWorldgenStrategy()).WithGenerationRadius(16).RegisterStatic();
+        Assert.Equal(16, req16!.Value.GenerationRadius);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 }
