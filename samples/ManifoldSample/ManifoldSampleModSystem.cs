@@ -1,6 +1,8 @@
 using Manifold.Api.Helpers;
 using Manifold.Api.Server;
+using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 namespace ManifoldSample;
@@ -38,6 +40,10 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .Define(new AssetLocation("manifoldsample", "void"))
             .Persistent()
             .WithWorldgen(new BasicVoidWorldgenStrategy())
+            // Spawn well away from the world corner (negative chunks are invalid in VS, so a
+            // 0,0 spawn would be walled on two sides). Larger radius = more room to fly around.
+            .WithFixedSpawn(new BlockPos(1024, 64, 1024, 0))
+            .WithGenerationRadius(5)
             .RegisterStatic();
 
         new DimensionCommandBuilder()
@@ -51,6 +57,8 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .Define(new AssetLocation("manifoldsample", "flat"))
             .Persistent()
             .WithWorldgen(new FlatWorldgenStrategy())
+            .WithSpawnBehavior(SpawnBehavior.LastVisited)
+            .WithGenerationRadius(4)
             .RegisterStatic();
 
         new DimensionCommandBuilder()
@@ -66,7 +74,8 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .Command("overworlddim")
             .TargetDimension(new AssetLocation("manifold", "overworld"))
             .RequiresPrivilege("chat")
-            .DescribedAs("Teleport back to the overworld via Manifold's transit API.")
+            .WithSpawnBehavior(SpawnBehavior.LastVisited)
+            .DescribedAs("Teleport back to the overworld (to your last position there) via Manifold's transit API.")
             .Register(sapi);
 
         Mod.Logger.Notification(
