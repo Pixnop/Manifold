@@ -7,6 +7,12 @@ namespace Manifold.Api.Transitions;
 /// <summary>
 /// Resolves the target <see cref="BlockPos"/> in the destination dimension for a player transit.
 /// </summary>
+/// <remarks>
+/// May be called more than once per transit; implementations should be deterministic and side-effect free.
+/// The transit service first calls <see cref="Resolve"/> to determine the generation region center, then
+/// generates terrain, then calls <see cref="Resolve"/> again so the result can query the freshly generated
+/// blocks (e.g. to find the surface Y after generation).
+/// </remarks>
 public interface ITargetPositionResolver
 {
     /// <summary>Compute the target landing position for a transit.</summary>

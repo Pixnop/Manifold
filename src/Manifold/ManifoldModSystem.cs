@@ -107,14 +107,9 @@ public sealed class ManifoldModSystem : ModSystem
         sapi.Event.GameWorldSave += OnGameWorldSave;
         sapi.Event.PlayerJoin += player => OnPlayerJoin(player, sapi);
         sapi.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
+        sapi.Event.SaveGameLoaded += () => OnSaveGameLoaded(sapi);
 
-        int active = CountByState(DimensionState.Active);
-        int quarantined = CountByState(DimensionState.Quarantined);
-        Mod.Logger.Notification(
-            "[Manifold] Ready — {0} dimensions known ({1} active, {2} quarantined).",
-            _registry.All.Count,
-            active,
-            quarantined);
+        Mod.Logger.Notification("[Manifold] Initialized (healthy).");
     }
 
     /// <inheritdoc/>
@@ -198,6 +193,22 @@ public sealed class ManifoldModSystem : ModSystem
             TargetY = pos.Y,
             TargetZ = pos.Z,
         });
+    }
+
+    private void OnSaveGameLoaded(ICoreServerAPI sapi)
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        int active = CountByState(DimensionState.Active);
+        int quarantined = CountByState(DimensionState.Quarantined);
+        Mod.Logger.Notification(
+            "[Manifold] Ready — {0} dimensions known ({1} active, {2} quarantined).",
+            _registry.All.Count,
+            active,
+            quarantined);
     }
 
     private void OnGameWorldSave()

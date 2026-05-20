@@ -23,10 +23,26 @@ public static class TargetPositionResolvers
             ArgumentNullException.ThrowIfNull(player);
             ArgumentNullException.ThrowIfNull(target);
             ArgumentNullException.ThrowIfNull(api);
-            var pos = player.Entity.Pos.AsBlockPos;
-            int? surface = api.World.BlockAccessor.GetTerrainMapheightAt(pos);
-            int y = surface.HasValue ? surface.Value + 1 : pos.Y;
-            return new BlockPos(pos.X, y, pos.Z, target.InternalId);
+
+            var current = player.Entity.Pos.AsBlockPos;
+            int x = current.X;
+            int z = current.Z;
+
+            // Scan downward in the TARGET dimension for the highest non-air block; land just above it.
+            // A new BlockPos is constructed each iteration to ensure dimension encoding is correct.
+            const int scanTop = 160;
+            for (int y = scanTop; y >= 1; y--)
+            {
+                var probe = new BlockPos(x, y, z, target.InternalId);
+                var block = api.World.BlockAccessor.GetBlock(probe);
+                if (block is not null && block.Id != 0)
+                {
+                    return new BlockPos(x, y + 1, z, target.InternalId);
+                }
+            }
+
+            // No solid ground found (e.g. a void dimension) — keep the player's current Y.
+            return new BlockPos(x, current.Y, z, target.InternalId);
         }
     }
 

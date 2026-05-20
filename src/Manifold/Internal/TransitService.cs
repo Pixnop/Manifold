@@ -71,11 +71,14 @@ internal sealed class TransitService : ITransitionService
         int sourceId = player.Entity.Pos.Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
 
-        BlockPos targetPos = options.OverridePosition
-            ?? (options.Resolver ?? _defaultResolver).Resolve(player, target, _sapi);
-        targetPos = targetPos.SetDimension(target.InternalId);
+        // Resolve a preliminary position to determine the generation region center.
+        // The resolver may be called again after generation (see step 4 below), so implementations
+        // must be deterministic and side-effect free.
+        var prelim = (options.OverridePosition
+            ?? (options.Resolver ?? _defaultResolver).Resolve(player, target, _sapi))
+            .SetDimension(target.InternalId);
 
-        var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, targetPos);
+        var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
         PlayerEntering?.Invoke(this, enteringArgs);
         if (enteringArgs.Cancel)
         {
@@ -83,9 +86,23 @@ internal sealed class TransitService : ITransitionService
         }
 
         // Pre-generate / load the destination region so the player lands on solid ground.
-        int centerCx = targetPos.X / 32;
-        int centerCz = targetPos.Z / 32;
+        int centerCx = prelim.X / 32;
+        int centerCz = prelim.Z / 32;
         _generator.EnsureRegion(_sapi, target.InternalId, centerCx, centerCz, player);
+
+        // Resolve the final position now that terrain exists. If an override position was supplied,
+        // use it as-is (exact). Otherwise re-call the resolver against the freshly generated terrain.
+        BlockPos targetPos;
+        if (options.OverridePosition is { } overridePos)
+        {
+            targetPos = overridePos.SetDimension(target.InternalId);
+        }
+        else
+        {
+            targetPos = (options.Resolver ?? _defaultResolver)
+                .Resolve(player, target, _sapi)
+                .SetDimension(target.InternalId);
+        }
 
         _teleporter.Teleport(player, targetPos);
 
