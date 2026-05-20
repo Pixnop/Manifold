@@ -1,0 +1,49 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Vintage Story server
+        run: |
+          set -e
+          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.21.0.tar.gz"
+          mkdir -p "$HOME/vs"
+          tar -xzf vs_server.tar.gz -C "$HOME/vs"
+          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
+          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: dotnet build src/Manifold/Manifold.csproj -c Release
+
+      - name: Package mod zip
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          OUT="src/Manifold/bin/Release/net10.0"
+          mkdir -p package
+          cp "$OUT/Manifold.dll" package/
+          cp src/Manifold/modinfo.json package/
+          cp src/Manifold/modicon.png package/
+          (cd package && zip -r "../Manifold-$VERSION.zip" .)
+          ls -la "Manifold-$VERSION.zip"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Manifold-*.zip
+          generate_release_notes: true
