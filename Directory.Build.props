@@ -27,9 +27,9 @@
     <FileVersion>0.1.0.0</FileVersion>
     <Version>0.1.0</Version>
 
-    <Authors>Fieve</Authors>
+    <Authors>Pixnop</Authors>
     <Product>Manifold</Product>
-    <Copyright>Copyright (c) Fieve</Copyright>
+    <Copyright>Copyright (c) Pixnop</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

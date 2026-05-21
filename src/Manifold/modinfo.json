@@ -4,7 +4,7 @@
   "name": "Manifold",
   "version": "0.2.0",
   "description": "Library for declaring and managing custom dimensions. Pure dependency - does not add in-game content.",
-  "authors": ["Fieve"],
+  "authors": ["Pixnop"],
   "side": "Universal",
   "dependencies": {
     "game": ""

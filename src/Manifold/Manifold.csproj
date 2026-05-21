@@ -13,8 +13,8 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>Pixnop.Manifold</PackageId>
-    <Version>0.2.0-alpha.1</Version>
-    <Authors>Fieve</Authors>
+    <Version>0.2.0</Version>
+    <Authors>Pixnop</Authors>
     <Description>Compile-time API for declaring and managing custom dimensions in Vintage Story mods. Install the mod from the Mod DB; reference this package to build against its API.</Description>
     <PackageTags>vintagestory;vsmod;dimensions;worldgen;library</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
