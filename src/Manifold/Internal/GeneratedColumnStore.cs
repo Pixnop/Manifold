@@ -6,7 +6,7 @@ namespace Manifold.Internal;
 /// <summary>
 /// Tracks which dimension chunk columns Manifold has already generated, so that on a later
 /// visit (especially after a server restart, when chunks live on disk but are not yet loaded
-/// in memory) the generator <em>loads</em> the persisted column instead of regenerating it —
+/// in memory) the generator <em>loads</em> the persisted column instead of regenerating it -
 /// which would overwrite player modifications.
 /// </summary>
 /// <remarks>

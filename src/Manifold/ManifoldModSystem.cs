@@ -50,7 +50,7 @@ public sealed class ManifoldModSystem : ModSystem
     /// <inheritdoc/>
     public override void Start(ICoreAPI api)
     {
-        // Manifold registers no block/item/entity/behaviour classes — pure dependency library.
+        // Manifold registers no block/item/entity/behaviour classes - pure dependency library.
         base.Start(api);
     }
 
@@ -67,7 +67,7 @@ public sealed class ManifoldModSystem : ModSystem
         {
             BuildUnhealthyServerFacade(api);
             Mod.Logger.Error(
-                "[Manifold] Disabled — Harmony patches failed at boot. "
+                "[Manifold] Disabled - Harmony patches failed at boot. "
                 + "IsHealthy=false; consumer mutations will throw.");
             return;
         }
@@ -223,7 +223,7 @@ public sealed class ManifoldModSystem : ModSystem
         int active = CountByState(DimensionState.Active);
         int quarantined = CountByState(DimensionState.Quarantined);
         Mod.Logger.Notification(
-            "[Manifold] Ready — {0} dimensions known ({1} active, {2} quarantined).",
+            "[Manifold] Ready - {0} dimensions known ({1} active, {2} quarantined).",
             _registry.All.Count,
             active,
             quarantined);
@@ -320,10 +320,10 @@ public sealed class ManifoldModSystem : ModSystem
         // Player parameter is awkward on the client (we'd need to look up the local IServerPlayer
         // equivalent, but on the client side that's the local EntityPlayer's player handle).
         // For v0 we raise with the local player from the game world; consumers typically filter by code.
-        // The IServerPlayer cast is the simplest path — VS exposes ClientPlayer.Player as IServerPlayer
+        // The IServerPlayer cast is the simplest path - VS exposes ClientPlayer.Player as IServerPlayer
         // on the integrated server only. On a dedicated client we omit the player.
         // To avoid the cast complexity, we don't construct PlayerEnteredDimensionEventArgs here
-        // for v0 — instead consumers should subscribe to ClientMirror.Added/Removed for state changes,
+        // for v0 - instead consumers should subscribe to ClientMirror.Added/Removed for state changes,
         // and use IClientPlayer events for player-local hooks.
 
         // Future(v1): wire LocalPlayerTransited with a proper player handle if/when needed.

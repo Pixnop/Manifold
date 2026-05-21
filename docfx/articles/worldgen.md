@@ -10,7 +10,7 @@ Every dimension must have exactly one `IWorldgenStrategy` attached via `IDimensi
 public interface IWorldgenStrategy
 {
     // Called once per dimension before the first column is generated.
-    // Resolve block ids here — do NOT resolve them in GenerateColumn (performance).
+    // Resolve block ids here - do NOT resolve them in GenerateColumn (performance).
     void OnInitialize(IWorldgenInitContext ctx);
 
     // Fill one chunk column with blocks.
@@ -55,10 +55,10 @@ Called once per chunk column within the generation radius. The `IWorldgenChunkCo
 
 | Property | Description |
 |----------|-------------|
-| `DimensionId` | Engine dimension id — use as the 4th argument to `new BlockPos(x, y, z, DimensionId)`. |
+| `DimensionId` | Engine dimension id - use as the 4th argument to `new BlockPos(x, y, z, DimensionId)`. |
 | `ChunkX` / `ChunkZ` | Chunk-grid coordinates. Multiply by 32 to get the world-space origin of the column. |
 | `BlockAccessor` | Write blocks with `SetBlock(blockId, pos)`. Positions **must** be dimension-encoded. |
-| `Rng` | `LCGRandom` seeded deterministically per column — use for reproducible procedural generation. |
+| `Rng` | `LCGRandom` seeded deterministically per column - use for reproducible procedural generation. |
 
 > **Important:** Always dimension-encode positions. A `BlockPos` without `DimensionId` defaults to dimension 0 (the overworld) and will silently write to the wrong world.
 
@@ -71,7 +71,7 @@ When a player transits into a dimension for the first time (or after a server re
 3. For each column: calls `CreateChunkColumnForDimension`, then `strategy.GenerateColumn`, then relights the column and sends it to the client.
 4. Completes the player teleport once generation finishes.
 
-This happens **synchronously on the main thread** before the player arrives — so the player never sees an ungenerated void.
+This happens **synchronously on the main thread** before the player arrives - so the player never sees an ungenerated void.
 
 ## WithGenerationRadius
 
@@ -88,7 +88,7 @@ manifold.Registry
 
 - Default is **2** (5x5 columns).
 - Range: **0** (center column only) to **16** (33x33 columns).
-- Larger radii cost more time per transit. For most dimensions, 2–5 is sufficient.
+- Larger radii cost more time per transit. For most dimensions, 2-5 is sufficient.
 
 Already-generated columns are tracked in the savegame and are not re-generated on subsequent server starts.
 

@@ -74,7 +74,7 @@ public sealed class PlayerPositionStoreTests
         store.LoadFromBytes(System.Array.Empty<byte>());
         Assert.False(store.TryGet("uid", 10, out _, out _, out _));
 
-        store.LoadFromBytes(new byte[] { 0xFF, 0x01, 0x02 }); // corrupt — must not throw
+        store.LoadFromBytes(new byte[] { 0xFF, 0x01, 0x02 }); // corrupt - must not throw
         Assert.False(store.TryGet("uid", 10, out _, out _, out _));
     }
 

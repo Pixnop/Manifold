@@ -10,7 +10,7 @@ namespace Manifold.Api.Server;
 /// <summary>Extension method to obtain Manifold's server facade.</summary>
 public static class CoreServerApiExtensions
 {
-    /// <summary>Get Manifold's server-side facade (read/transit only — <c>Registry.Define</c> will throw).</summary>
+    /// <summary>Get Manifold's server-side facade (read/transit only - <c>Registry.Define</c> will throw).</summary>
     /// <param name="sapi">Server API.</param>
     /// <returns>The facade.</returns>
     /// <exception cref="ManifoldNotInitializedException">
@@ -43,7 +43,7 @@ public static class CoreServerApiExtensions
             ?? throw new ManifoldNotInitializedException("Caller ModSystem has no Mod info.");
         if (shared.Registry is not DimensionRegistry sharedRegistry)
         {
-            // Unhealthy or unexpected facade — return shared as-is (Define will throw clearly).
+            // Unhealthy or unexpected facade - return shared as-is (Define will throw clearly).
             return shared;
         }
 

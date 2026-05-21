@@ -1,6 +1,6 @@
 # Transit and Travel Policy
 
-Manifold provides a single primitive for moving players between dimensions — `ITransitionService.TeleportPlayer` — plus helpers that layer on top of it. Travel policy (where the player lands and what game mode they use) is configured per-dimension on the builder and optionally overridden per-transit.
+Manifold provides a single primitive for moving players between dimensions - `ITransitionService.TeleportPlayer` - plus helpers that layer on top of it. Travel policy (where the player lands and what game mode they use) is configured per-dimension on the builder and optionally overridden per-transit.
 
 ## TeleportPlayer
 
@@ -13,7 +13,7 @@ void TeleportPlayer(
 
 Must be called on the **main thread**. The method:
 
-1. Raises `PlayerEntering` (cancellable — set `e.Cancel = true` to abort).
+1. Raises `PlayerEntering` (cancellable - set `e.Cancel = true` to abort).
 2. Resolves the landing position using the dimension's spawn behavior (or the `options` override).
 3. Pre-generates terrain around the landing position if needed.
 4. Teleports the player and adjusts their game mode if the dimension forces one.
@@ -40,7 +40,7 @@ transitions.TeleportPlayer(player, new AssetLocation("mymod", "nether"));
 | Property | Description |
 |----------|-------------|
 | `OverridePosition` | Hard-coded landing `BlockPos` (dimension-encoded). Skips all resolver logic. |
-| `Resolver` | Custom `ITargetPositionResolver` — used when `OverridePosition` is null. |
+| `Resolver` | Custom `ITargetPositionResolver` - used when `OverridePosition` is null. |
 | `SpawnBehavior` | Per-transit override of the dimension's configured spawn behavior. |
 | `PreserveInventory` | Keep the player's inventory across transit (default: `true`). |
 
@@ -110,7 +110,7 @@ manifold.Registry
     .RegisterStatic();
 ```
 
-The player's original game mode is not automatically restored when they leave — handle that in `PlayerLeft` if needed.
+The player's original game mode is not automatically restored when they leave - handle that in `PlayerLeft` if needed.
 
 ## PortalBlockBase
 
@@ -139,7 +139,7 @@ public override void Start(ICoreAPI api)
 }
 ```
 
-Manifold does not register any portal block itself — portal block usage is entirely opt-in.
+Manifold does not register any portal block itself - portal block usage is entirely opt-in.
 
 ## DimensionCommandBuilder
 

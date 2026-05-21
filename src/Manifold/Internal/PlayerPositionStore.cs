@@ -90,7 +90,7 @@ internal sealed class PlayerPositionStore
             }
             catch
             {
-                _positions.Clear(); // corrupted — start fresh
+                _positions.Clear(); // corrupted - start fresh
             }
         }
 
