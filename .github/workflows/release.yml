@@ -14,6 +14,8 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Skip prerelease tags (e.g. v0.1.0-alpha.1): those publish the NuGet package only.
+    if: ${{ !contains(github.ref_name, '-') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +41,7 @@ jobs:
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
 
-          # Manifold (the library mod) — no in-game assets.
+          # Manifold (the library mod) - no in-game assets.
           MANI_OUT="src/Manifold/bin/Release/net10.0"
           mkdir -p package/manifold
           cp "$MANI_OUT/Manifold.dll" package/manifold/
