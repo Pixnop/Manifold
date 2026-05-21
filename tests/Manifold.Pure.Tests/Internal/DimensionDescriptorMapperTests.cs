@@ -22,7 +22,8 @@ public sealed class DimensionDescriptorMapperTests
             GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
             SpawnBehavior: Manifold.Api.Transitions.SpawnBehavior.SameCoordinates,
             SpawnPoint: null,
-            ForcedGameMode: null);
+            ForcedGameMode: null,
+            StreamingLoadRadius: null);
 
         var d = DimensionDescriptorMapper.ToDescriptor(dim);
         Assert.Equal("mod:nether", d.Code);
@@ -47,7 +48,8 @@ public sealed class DimensionDescriptorMapperTests
             GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
             SpawnBehavior: Manifold.Api.Transitions.SpawnBehavior.SameCoordinates,
             SpawnPoint: null,
-            ForcedGameMode: null);
+            ForcedGameMode: null,
+            StreamingLoadRadius: null);
 
         var roundtrip = DimensionDescriptorMapper.ToImpl(DimensionDescriptorMapper.ToDescriptor(original));
 

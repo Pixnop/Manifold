@@ -27,6 +27,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private SpawnBehavior _spawnBehavior = SpawnBehavior.SameCoordinates;
     private BlockPos? _spawnPoint;
     private EnumGameMode? _forcedGameMode;
+    private int? _streamingLoadRadius;
     private bool _used;
 
     /// <summary>
@@ -115,6 +116,14 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder Streaming(int loadRadius)
+    {
+        ThrowIfUsed();
+        _streamingLoadRadius = Guards.InRange(loadRadius, 1, 32, nameof(loadRadius));
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimension RegisterStatic()
     {
         ThrowIfUsed();
@@ -141,7 +150,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _generationRadius,
             _spawnBehavior,
             _spawnPoint,
-            _forcedGameMode));
+            _forcedGameMode,
+            _streamingLoadRadius));
     }
 
     /// <inheritdoc/>
@@ -170,7 +180,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _generationRadius,
             _spawnBehavior,
             _spawnPoint,
-            _forcedGameMode));
+            _forcedGameMode,
+            _streamingLoadRadius));
     }
 
     private void ThrowIfUsed()
