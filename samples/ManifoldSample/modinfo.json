@@ -4,7 +4,7 @@
   "name": "Manifold Sample",
   "version": "0.2.0",
   "description": "Demo consumer mod for Manifold. Registers void + flat + streaming dimensions with travel policies and the /voiddim, /flatdim, /streamdim, /overworlddim commands, plus a portal block.",
-  "authors": ["Fieve"],
+  "authors": ["Pixnop"],
   "side": "Universal",
   "dependencies": {
     "game": "",
