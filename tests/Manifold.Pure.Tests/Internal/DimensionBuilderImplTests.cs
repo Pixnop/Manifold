@@ -261,5 +261,47 @@ public sealed class DimensionBuilderImplTests
         Assert.Null(captured.Value.ForcedGameMode);
     }
 
+    [Fact]
+    public void Streaming_Should_Set_StreamingLoadRadius_On_Request()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).Streaming(5).RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(5, captured.Value.StreamingLoadRadius);
+    }
+
+    [Fact]
+    public void StreamingLoadRadius_Should_Default_To_Null()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Null(captured.Value.StreamingLoadRadius);
+    }
+
+    [Fact]
+    public void Streaming_Should_Throw_When_Out_Of_Range()
+    {
+        var b1 = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
+        Assert.Throws<ArgumentOutOfRangeException>(() => b1.Streaming(0));
+
+        var b2 = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
+        Assert.Throws<ArgumentOutOfRangeException>(() => b2.Streaming(33));
+    }
+
     private static AssetLocation Code(string s) => new(s);
 }
