@@ -32,6 +32,15 @@ public interface IDimensionBuilder
     /// <returns>This builder.</returns>
     IDimensionBuilder WithGenerationRadius(int chunks);
 
+    /// <summary>
+    /// Sets the upper Y bound for the post-generation relight pass (default 20). Content built
+    /// above this height is under-lit until the engine relights naturally. Higher values light
+    /// taller dimensions correctly but cost more per relight. Range 1..1024.
+    /// </summary>
+    /// <param name="maxY">Top of the lit band.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithRelightHeight(int maxY);
+
     /// <summary>Sets how players land when entering this dimension. Default: <see cref="SpawnBehavior.SameCoordinates"/>.</summary>
     /// <param name="behavior">The spawn behavior.</param>
     /// <returns>This builder.</returns>

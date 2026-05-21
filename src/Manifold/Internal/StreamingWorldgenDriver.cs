@@ -77,7 +77,11 @@ internal sealed class StreamingWorldgenDriver
 
         if (generated.Count > 0)
         {
-            DimensionGenerator.RelightColumns(_sapi, generated);
+            // All columns in a tick are from a single streaming dimension in practice; look up the
+            // relight height from the first column's dimension.
+            int relightHeight = _registry.GetByInternalId(planned[0].DimId)?.RelightHeight
+                ?? DimensionBuilderImpl.DefaultRelightHeight;
+            DimensionGenerator.RelightColumns(_sapi, generated, relightHeight);
         }
     }
 

@@ -46,7 +46,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
             SpawnPoint: null,
             ForcedGameMode: null,
-            StreamingLoadRadius: null);
+            StreamingLoadRadius: null,
+            RelightHeight: DimensionBuilderImpl.DefaultRelightHeight);
         _snapshot = _snapshot.Add(OverworldCode, overworld);
     }
 
@@ -155,7 +156,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
             SpawnPoint: null,
             ForcedGameMode: null,
-            StreamingLoadRadius: null);
+            StreamingLoadRadius: null,
+            RelightHeight: DimensionBuilderImpl.DefaultRelightHeight);
         _snapshot = _snapshot.Add(entry.Code, dim);
     }
 
@@ -179,6 +181,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
                 SpawnPoint = request.SpawnPoint,
                 ForcedGameMode = request.ForcedGameMode,
                 StreamingLoadRadius = request.StreamingLoadRadius,
+                RelightHeight = request.RelightHeight,
             };
             _snapshot = _snapshot.SetItem(request.Code, promoted);
             Created?.Invoke(this, new DimensionCreatedEventArgs(promoted));
@@ -198,7 +201,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             SpawnBehavior: request.SpawnBehavior,
             SpawnPoint: request.SpawnPoint,
             ForcedGameMode: request.ForcedGameMode,
-            StreamingLoadRadius: request.StreamingLoadRadius);
+            StreamingLoadRadius: request.StreamingLoadRadius,
+            RelightHeight: request.RelightHeight);
         _snapshot = _snapshot.Add(request.Code, dim);
         Created?.Invoke(this, new DimensionCreatedEventArgs(dim));
         return dim;

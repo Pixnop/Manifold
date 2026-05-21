@@ -36,5 +36,6 @@ internal static class DimensionDescriptorMapper
         SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
         SpawnPoint: null,
         ForcedGameMode: null,
-        StreamingLoadRadius: null);
+        StreamingLoadRadius: null,
+        RelightHeight: DimensionBuilderImpl.DefaultRelightHeight);
 }
