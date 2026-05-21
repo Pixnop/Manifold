@@ -46,6 +46,10 @@ packages/
 *.zip
 release/
 
+# Local Mod DB submission helper (not part of the repo)
+MODDB.md
+*-logo-480.png
+
 # DocFX
 docfx/_site/
 docfx/api/
