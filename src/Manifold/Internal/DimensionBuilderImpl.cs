@@ -18,6 +18,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     /// <summary>Default generation radius in chunks (produces a 5x5 column region).</summary>
     internal const int DefaultGenerationRadius = 2;
 
+    /// <summary>Default upper Y bound for the post-generation relight pass.</summary>
+    internal const int DefaultRelightHeight = 20;
+
     private readonly AssetLocation _code;
     private readonly string _ownerModId;
     private readonly System.Func<DimensionBuildRequest, IDimension> _completion;
@@ -28,6 +31,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private BlockPos? _spawnPoint;
     private EnumGameMode? _forcedGameMode;
     private int? _streamingLoadRadius;
+    private int _relightHeight = DefaultRelightHeight;
     private bool _used;
 
     /// <summary>
@@ -86,6 +90,14 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     {
         ThrowIfUsed();
         _generationRadius = Guards.InRange(chunks, 0, 16, nameof(chunks));
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IDimensionBuilder WithRelightHeight(int maxY)
+    {
+        ThrowIfUsed();
+        _relightHeight = Guards.InRange(maxY, 1, 1024, nameof(maxY));
         return this;
     }
 
@@ -151,7 +163,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _spawnBehavior,
             _spawnPoint,
             _forcedGameMode,
-            _streamingLoadRadius));
+            _streamingLoadRadius,
+            _relightHeight));
     }
 
     /// <inheritdoc/>
@@ -181,7 +194,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _spawnBehavior,
             _spawnPoint,
             _forcedGameMode,
-            _streamingLoadRadius));
+            _streamingLoadRadius,
+            _relightHeight));
     }
 
     private void ThrowIfUsed()

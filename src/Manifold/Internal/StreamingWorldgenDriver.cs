@@ -18,6 +18,12 @@ internal sealed class StreamingWorldgenDriver
     private readonly ICoreServerAPI _sapi;
     private readonly DimensionRegistry _registry;
     private readonly DimensionGenerator _generator;
+
+    // The server view radius (MaxChunkRadius) is read once at construction and cached.
+    // The configured loadRadius on a streaming dimension is a floor; we extend it to
+    // the server view distance so chunks are ready before they become visible to players.
+    private readonly int _serverViewRadius;
+
     private long _listenerId = -1;
 
     /// <summary>Initializes a new instance of the <see cref="StreamingWorldgenDriver"/> class.</summary>
@@ -29,6 +35,7 @@ internal sealed class StreamingWorldgenDriver
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
+        _serverViewRadius = sapi.Server.Config.MaxChunkRadius;
     }
 
     /// <summary>Registers the periodic tick listener.</summary>
@@ -77,7 +84,11 @@ internal sealed class StreamingWorldgenDriver
 
         if (generated.Count > 0)
         {
-            DimensionGenerator.RelightColumns(_sapi, generated);
+            // All columns in a tick are from a single streaming dimension in practice; look up the
+            // relight height from the first column's dimension.
+            int relightHeight = _registry.GetByInternalId(planned[0].DimId)?.RelightHeight
+                ?? DimensionBuilderImpl.DefaultRelightHeight;
+            DimensionGenerator.RelightColumns(_sapi, generated, relightHeight);
         }
     }
 
@@ -96,10 +107,14 @@ internal sealed class StreamingWorldgenDriver
 
             int dimId = pos.Dimension;
             var dim = _registry.GetByInternalId(dimId);
-            if (dim?.StreamingLoadRadius is not { } radius)
+            if (dim?.StreamingLoadRadius is not { } dimRadius)
             {
                 continue;
             }
+
+            // The configured loadRadius is a floor; extend it to the server view distance so
+            // chunks are ready before they become visible to players.
+            int radius = Math.Max(dimRadius, _serverViewRadius);
 
             int cx = (int)pos.X / 32;
             int cz = (int)pos.Z / 32;

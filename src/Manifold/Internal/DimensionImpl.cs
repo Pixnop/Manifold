@@ -22,6 +22,7 @@ namespace Manifold.Internal;
 /// <param name="SpawnPoint">Fixed spawn point for DimensionSpawn behavior, or null.</param>
 /// <param name="ForcedGameMode">Game mode forced on entry, or null to preserve.</param>
 /// <param name="StreamingLoadRadius">If set, the dimension streams (chunk radius around each player); null = bounded.</param>
+/// <param name="RelightHeight">Upper Y bound for the relight pass; content above is under-lit until the engine relights.</param>
 internal sealed record DimensionImpl(
     AssetLocation Code,
     int InternalId,
@@ -34,7 +35,8 @@ internal sealed record DimensionImpl(
     SpawnBehavior SpawnBehavior,
     BlockPos? SpawnPoint,
     EnumGameMode? ForcedGameMode,
-    int? StreamingLoadRadius) : IDimension
+    int? StreamingLoadRadius,
+    int RelightHeight) : IDimension
 {
     /// <summary>Return a copy with the supplied <see cref="State"/>.</summary>
     /// <param name="newState">The new state.</param>
