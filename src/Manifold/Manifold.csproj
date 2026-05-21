@@ -27,6 +27,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Embed the repo README as the NuGet package readme (PackageReadmeFile above). -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
       <Private>false</Private>
