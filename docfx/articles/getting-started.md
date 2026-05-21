@@ -26,6 +26,14 @@ In your mod's `modinfo.json`, add Manifold to the `dependencies` object. The emp
 
 This ensures Vintage Story loads Manifold before your mod, and Manifold's `StartServerSide` has already run when yours executes.
 
+To build against Manifold's API, add the [`Pixnop.Manifold`](https://www.nuget.org/packages/Pixnop.Manifold) NuGet package:
+
+```sh
+dotnet add package Pixnop.Manifold
+```
+
+The package contains only Manifold's API assembly (a compile-time reference); the running mod and its dependencies come from the Manifold mod installed in `Mods/`.
+
 ## 2. Set the Load Order
 
 Manifold's `ModSystem` runs at order `0.05`. Return a value greater than that from `ExecuteOrder()` so Manifold is ready when your `StartServerSide` runs:
