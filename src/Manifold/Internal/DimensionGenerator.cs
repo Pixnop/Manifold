@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Manifold.Api.Worldgen;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
@@ -115,8 +116,61 @@ internal sealed class DimensionGenerator
         // (Per-column full-height relight was the ~40s bottleneck.)
         if (anyGenerated)
         {
-            RelightRegion(sapi, centerCx, centerCz, radius);
+            RelightChunkBounds(sapi, centerCx - radius, centerCz - radius, centerCx + radius, centerCz + radius);
         }
+    }
+
+    /// <summary>
+    /// Ensures a single chunk column is generated or loaded for a streaming dimension. Runs the
+    /// same guards and initialisation as <see cref="EnsureRegion"/>. Does NOT relight or force-send
+    /// (the streaming driver batches those). Returns <c>true</c> if the column was newly generated.
+    /// </summary>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id.</param>
+    /// <param name="cx">Chunk X.</param>
+    /// <param name="cz">Chunk Z.</param>
+    /// <returns><c>true</c> if newly generated (caller should relight).</returns>
+    public bool EnsureColumn(ICoreServerAPI sapi, int dimId, int cx, int cz)
+    {
+        if (sapi is null || dimId == 0 || IsDisabled(dimId) || cx < 0 || cz < 0)
+        {
+            return false;
+        }
+
+        var dim = _registry.GetByInternalId(dimId);
+        if (dim?.Worldgen is not { } strategy)
+        {
+            return false;
+        }
+
+        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
+        {
+            return false;
+        }
+
+        return GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
+    }
+
+    /// <summary>Relights the bounding box of a batch of newly-generated columns (best-effort).</summary>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="columns">Newly-generated columns to relight.</param>
+    public void RelightColumns(ICoreServerAPI sapi, IReadOnlyList<(int Cx, int Cz)> columns)
+    {
+        if (sapi is null || columns is null || columns.Count == 0)
+        {
+            return;
+        }
+
+        int minCx = int.MaxValue, minCz = int.MaxValue, maxCx = int.MinValue, maxCz = int.MinValue;
+        foreach (var (cx, cz) in columns)
+        {
+            minCx = Math.Min(minCx, cx);
+            minCz = Math.Min(minCz, cz);
+            maxCx = Math.Max(maxCx, cx);
+            maxCz = Math.Max(maxCz, cz);
+        }
+
+        RelightChunkBounds(sapi, minCx, minCz, maxCx, maxCz);
     }
 
     /// <summary>
@@ -180,13 +234,13 @@ internal sealed class DimensionGenerator
         return anyGenerated;
     }
 
-    /// <summary>Relights the bounding box of the given region over a bounded Y band.</summary>
-    private static void RelightRegion(ICoreServerAPI sapi, int centerCx, int centerCz, int radius)
+    /// <summary>Relights a rectangle of chunk columns over a bounded Y band (best-effort).</summary>
+    private static void RelightChunkBounds(ICoreServerAPI sapi, int minCx, int minCz, int maxCx, int maxCz)
     {
-        int minX = (centerCx - radius) * 32;
-        int minZ = (centerCz - radius) * 32;
-        int maxX = ((centerCx + radius) * 32) + 31;
-        int maxZ = ((centerCz + radius) * 32) + 31;
+        int minX = minCx * 32;
+        int minZ = minCz * 32;
+        int maxX = (maxCx * 32) + 31;
+        int maxZ = (maxCz * 32) + 31;
         int maxY = Math.Min(RelightMaxY, sapi.WorldManager.MapSizeY - 1);
         try
         {
@@ -194,7 +248,7 @@ internal sealed class DimensionGenerator
         }
         catch
         {
-            // FullRelight is best-effort; don't block transit if it fails.
+            // FullRelight is best-effort; never block on a lighting failure.
         }
     }
 
