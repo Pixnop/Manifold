@@ -8,6 +8,8 @@ namespace Manifold.Pure.Tests.Internal;
 
 public sealed class StreamingPlannerTests
 {
+    private static readonly string[] PlayersAB = { "a", "b" };
+
     [Fact]
     public void Plan_Should_Return_Window_NearestFirst_Within_Budget()
     {
@@ -58,7 +60,7 @@ public sealed class StreamingPlannerTests
         var planned = StreamingPlanner.Plan(players, NoneLoaded, budgetPerTick: 100);
 
         var shared = planned.Single(c => c.Cx == 5 && c.Cz == 5);
-        Assert.Equal(new[] { "a", "b" }, shared.PlayerUids.OrderBy(u => u).ToArray());
+        Assert.Equal(PlayersAB, shared.PlayerUids.OrderBy(u => u).ToArray());
     }
 
     [Fact]

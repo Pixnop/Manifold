@@ -26,40 +26,9 @@ internal static class StreamingPlanner
         ArgumentNullException.ThrowIfNull(isLoaded);
 
         var candidates = new Dictionary<(int Dim, int Cx, int Cz), (long DistSq, List<string> Uids)>();
-
         foreach (var p in players)
         {
-            for (int dx = -p.LoadRadius; dx <= p.LoadRadius; dx++)
-            {
-                for (int dz = -p.LoadRadius; dz <= p.LoadRadius; dz++)
-                {
-                    int cx = p.ChunkX + dx;
-                    int cz = p.ChunkZ + dz;
-                    if (cx < 0 || cz < 0 || isLoaded(p.DimId, cx, cz))
-                    {
-                        continue;
-                    }
-
-                    long distSq = ((long)dx * dx) + ((long)dz * dz);
-                    var key = (p.DimId, cx, cz);
-                    if (candidates.TryGetValue(key, out var existing))
-                    {
-                        if (!existing.Uids.Contains(p.PlayerUid))
-                        {
-                            existing.Uids.Add(p.PlayerUid);
-                        }
-
-                        if (distSq < existing.DistSq)
-                        {
-                            candidates[key] = (distSq, existing.Uids);
-                        }
-                    }
-                    else
-                    {
-                        candidates[key] = (distSq, new List<string> { p.PlayerUid });
-                    }
-                }
-            }
+            CollectWindow(p, isLoaded, candidates);
         }
 
         return candidates
@@ -70,5 +39,49 @@ internal static class StreamingPlanner
             .Take(budgetPerTick)
             .Select(kvp => new PlannedColumn(kvp.Key.Dim, kvp.Key.Cx, kvp.Key.Cz, kvp.Value.Uids))
             .ToList();
+    }
+
+    /// <summary>Adds every not-yet-loaded column in a player's square window to the candidate set.</summary>
+    private static void CollectWindow(
+        StreamingPlayer p,
+        Func<int, int, int, bool> isLoaded,
+        Dictionary<(int Dim, int Cx, int Cz), (long DistSq, List<string> Uids)> candidates)
+    {
+        for (int dx = -p.LoadRadius; dx <= p.LoadRadius; dx++)
+        {
+            for (int dz = -p.LoadRadius; dz <= p.LoadRadius; dz++)
+            {
+                int cx = p.ChunkX + dx;
+                int cz = p.ChunkZ + dz;
+                if (cx < 0 || cz < 0 || isLoaded(p.DimId, cx, cz))
+                {
+                    continue;
+                }
+
+                long distSq = ((long)dx * dx) + ((long)dz * dz);
+                AddCandidate(candidates, (p.DimId, cx, cz), distSq, p.PlayerUid);
+            }
+        }
+    }
+
+    /// <summary>Records a candidate column, merging the requesting player and keeping the nearest distance.</summary>
+    private static void AddCandidate(
+        Dictionary<(int Dim, int Cx, int Cz), (long DistSq, List<string> Uids)> candidates,
+        (int Dim, int Cx, int Cz) key,
+        long distSq,
+        string uid)
+    {
+        if (!candidates.TryGetValue(key, out var existing))
+        {
+            candidates[key] = (distSq, new List<string> { uid });
+            return;
+        }
+
+        if (!existing.Uids.Contains(uid))
+        {
+            existing.Uids.Add(uid);
+        }
+
+        candidates[key] = (Math.Min(distSq, existing.DistSq), existing.Uids);
     }
 }

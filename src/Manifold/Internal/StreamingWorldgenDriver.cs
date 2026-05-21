@@ -77,7 +77,7 @@ internal sealed class StreamingWorldgenDriver
 
         if (generated.Count > 0)
         {
-            _generator.RelightColumns(_sapi, generated);
+            DimensionGenerator.RelightColumns(_sapi, generated);
         }
     }
 

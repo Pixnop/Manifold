@@ -154,7 +154,7 @@ internal sealed class DimensionGenerator
     /// <summary>Relights the bounding box of a batch of newly-generated columns (best-effort).</summary>
     /// <param name="sapi">Server API.</param>
     /// <param name="columns">Newly-generated columns to relight.</param>
-    public void RelightColumns(ICoreServerAPI sapi, IReadOnlyList<(int Cx, int Cz)> columns)
+    public static void RelightColumns(ICoreServerAPI sapi, IReadOnlyList<(int Cx, int Cz)> columns)
     {
         if (sapi is null || columns is null || columns.Count == 0)
         {
