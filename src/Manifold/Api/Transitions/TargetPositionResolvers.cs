@@ -41,7 +41,7 @@ public static class TargetPositionResolvers
                 }
             }
 
-            // No solid ground found (e.g. a void dimension) — keep the player's current Y.
+            // No solid ground found (e.g. a void dimension) - keep the player's current Y.
             return new BlockPos(x, current.Y, z, target.InternalId);
         }
     }

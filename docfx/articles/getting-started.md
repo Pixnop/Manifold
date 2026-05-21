@@ -36,7 +36,7 @@ public override double ExecuteOrder() => 0.5;
 
 ## 3. Get the Facade
 
-Call the `GetManifoldServer(this)` extension method. Passing `this` (your `ModSystem`) tells Manifold to attribute any dimensions you register to your mod id — this is required for correct quarantine behavior if your mod is later uninstalled.
+Call the `GetManifoldServer(this)` extension method. Passing `this` (your `ModSystem`) tells Manifold to attribute any dimensions you register to your mod id - this is required for correct quarantine behavior if your mod is later uninstalled.
 
 ```csharp
 public override void StartServerSide(ICoreServerAPI sapi)
@@ -148,6 +148,6 @@ public sealed class MyModSystem : ModSystem
 
 ## Next Steps
 
-- [Dimensions](dimensions.md) — understand dimension lifecycle and registry semantics.
-- [Worldgen](worldgen.md) — implement a custom `IWorldgenStrategy`.
-- [Transit & Travel Policy](transit-and-travel-policy.md) — fine-tune spawn behavior and build portal blocks.
+- [Dimensions](dimensions.md) - understand dimension lifecycle and registry semantics.
+- [Worldgen](worldgen.md) - implement a custom `IWorldgenStrategy`.
+- [Transit & Travel Policy](transit-and-travel-policy.md) - fine-tune spawn behavior and build portal blocks.

@@ -8,9 +8,9 @@ using Vintagestory.API.Server;
 namespace ManifoldSample;
 
 /// <summary>
-/// Sample consumer mod. Registers two demo dimensions — manifoldsample:void (empty air, via
+/// Sample consumer mod. Registers two demo dimensions - manifoldsample:void (empty air, via
 /// <c>BasicVoidWorldgenStrategy</c>) and manifoldsample:flat (solid floor, via
-/// <c>FlatWorldgenStrategy</c>) — and exposes <c>/voiddim</c> and <c>/flatdim</c> chat commands.
+/// <c>FlatWorldgenStrategy</c>) - and exposes <c>/voiddim</c> and <c>/flatdim</c> chat commands.
 /// </summary>
 public sealed class ManifoldSampleModSystem : ModSystem
 {

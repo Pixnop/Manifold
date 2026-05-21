@@ -16,21 +16,21 @@
 
 ## Download
 
-- **[Manifold on the Mod DB](https://mods.vintagestory.at/manifold)** — install this (the library other mods depend on).
-- **[Manifold Sample](https://mods.vintagestory.at/manifoldsample)** — optional demo mod (void + flat dimensions, travel commands).
+- **[Manifold on the Mod DB](https://mods.vintagestory.at/manifold)** - install this (the library other mods depend on).
+- **[Manifold Sample](https://mods.vintagestory.at/manifoldsample)** - optional demo mod (void + flat dimensions, travel commands).
 
 ---
 
 ## Features
 
-- **Custom dimensions** — declare persistent or ephemeral dimensions from any mod; boot-time (`RegisterStatic`) or runtime (`Create`).
-- **Active worldgen** — Manifold pre-generates a bounded chunk region around the transit target before the player arrives, so they never land in void. Configurable radius via `WithGenerationRadius`.
-- **Player transit** — `ITransitionService.TeleportPlayer` moves a player between any two dimensions with a single call.
-- **Travel policy per dimension** — spawn behavior (`SameCoordinates` / `DimensionSpawn` / `LastVisited`), optional forced game mode, all configured through a fluent builder.
-- **Persistence** — dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
-- **Client mirror** — the dimension list is replicated to connected clients via `IManifoldClient`.
-- **Zero Harmony patches** — built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
-- **Opt-in helpers** — `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy` to get started with minimal boilerplate.
+- **Custom dimensions** - declare persistent or ephemeral dimensions from any mod; boot-time (`RegisterStatic`) or runtime (`Create`).
+- **Active worldgen** - Manifold pre-generates a bounded chunk region around the transit target before the player arrives, so they never land in void. Configurable radius via `WithGenerationRadius`.
+- **Player transit** - `ITransitionService.TeleportPlayer` moves a player between any two dimensions with a single call.
+- **Travel policy per dimension** - spawn behavior (`SameCoordinates` / `DimensionSpawn` / `LastVisited`), optional forced game mode, all configured through a fluent builder.
+- **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
+- **Client mirror** - the dimension list is replicated to connected clients via `IManifoldClient`.
+- **Zero Harmony patches** - built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
+- **Opt-in helpers** - `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy` to get started with minimal boilerplate.
 
 > **v0.1 note:** Infinite chunk streaming for custom dimensions (walking past the pre-generated region) is a planned v1 feature and is not available yet.
 

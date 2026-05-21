@@ -9,14 +9,14 @@
 
     <!--
       StyleCop suppressions (project-wide):
-      SA1633 — file header (we use a project-level LICENSE, not per-file headers)
-      SA1200 — using directives outside namespace (we use top-level using directives)
-      SA1101 — prefix local calls with this (idiomatic C# omits 'this.')
-      SA1309 — field names starting with underscore (we DO use _ prefix; rule conflicts with .editorconfig style)
-      SA1413 — trailing comma in multi-line initializers (we omit)
-      SA1503 — braces should not be omitted (allowed for single-statement bodies)
-      SA1623 — property summary should begin with "Gets" — too restrictive
-      SA1629 — documentation text should end with a period — too restrictive for code-example doc
+      SA1633 - file header (we use a project-level LICENSE, not per-file headers)
+      SA1200 - using directives outside namespace (we use top-level using directives)
+      SA1101 - prefix local calls with this (idiomatic C# omits 'this.')
+      SA1309 - field names starting with underscore (we DO use _ prefix; rule conflicts with .editorconfig style)
+      SA1413 - trailing comma in multi-line initializers (we omit)
+      SA1503 - braces should not be omitted (allowed for single-statement bodies)
+      SA1623 - property summary should begin with "Gets" - too restrictive
+      SA1629 - documentation text should end with a period - too restrictive for code-example doc
     -->
     <NoWarn>$(NoWarn);SA1633;SA1200;SA1101;SA1309;SA1413;SA1503;SA1623;SA1629;CS1705;SA1204</NoWarn>
 

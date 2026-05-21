@@ -4,7 +4,26 @@
     <OutputType>Library</OutputType>
     <AssemblyName>Manifold</AssemblyName>
     <RootNamespace>Manifold</RootNamespace>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;NU5128</NoWarn>
+  </PropertyGroup>
+
+  <!-- NuGet packaging. The package is a COMPILE-TIME API reference (Manifold.dll only); the mod
+       itself is distributed on the Mod DB. VintagestoryAPI/0Harmony/protobuf are provided by the
+       game at compile and runtime (Private=false), so they are not package dependencies. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Pixnop.Manifold</PackageId>
+    <Version>0.1.0-alpha.1</Version>
+    <Authors>Fieve</Authors>
+    <Description>Compile-time API for declaring and managing custom dimensions in Vintage Story mods. Install the mod from the Mod DB; reference this package to build against its API.</Description>
+    <PackageTags>vintagestory;vsmod;dimensions;worldgen;library</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Pixnop/Manifold</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Pixnop/Manifold</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>See https://github.com/Pixnop/Manifold/releases</PackageReleaseNotes>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
   <ItemGroup>

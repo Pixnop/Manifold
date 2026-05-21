@@ -101,7 +101,7 @@ public sealed class DimensionGeneratorTests
         generator.InvokeStrategyColumn(throwing, ctx, 42);
         Assert.Equal(2, generator.GetConsecutiveFailureCount(42));
 
-        // Now invoke with a good strategy — resets the counter.
+        // Now invoke with a good strategy - resets the counter.
         generator.InvokeStrategyColumn(new FakeWorldgenStrategy(), ctx, 42);
 
         Assert.Equal(0, generator.GetConsecutiveFailureCount(42));

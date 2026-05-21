@@ -12,15 +12,15 @@ On `StartServerSide` it instantiates the internal services, wires them together,
 
 ```
 ManifoldModSystem
-  ├── DimensionAllocator      — assigns and reclaims VS engine dimension ids (0–1023)
-  ├── DimensionRegistry       — the source of truth; owns IDimension objects and fires events
-  ├── DimensionPersistence    — reads/writes the dimension manifest + player positions from the savegame
-  ├── WorldgenDispatcher      — drives active bounded-region generation per transit
-  ├── TransitService          — TeleportPlayer logic, event dispatch, game-mode enforcement
-  └── NetworkingService       — serialises the dimension list and pushes updates to clients
+  ├── DimensionAllocator      - assigns and reclaims VS engine dimension ids (0-1023)
+  ├── DimensionRegistry       - the source of truth; owns IDimension objects and fires events
+  ├── DimensionPersistence    - reads/writes the dimension manifest + player positions from the savegame
+  ├── WorldgenDispatcher      - drives active bounded-region generation per transit
+  ├── TransitService          - TeleportPlayer logic, event dispatch, game-mode enforcement
+  └── NetworkingService       - serialises the dimension list and pushes updates to clients
 ```
 
-Each service is an internal class in the `Manifold.Internal` namespace. Consumers never reference these types directly — they interact only through the `Manifold.Api` interfaces.
+Each service is an internal class in the `Manifold.Internal` namespace. Consumers never reference these types directly - they interact only through the `Manifold.Api` interfaces.
 
 ## Facades
 

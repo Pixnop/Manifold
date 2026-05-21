@@ -111,7 +111,7 @@ internal sealed class TransitService : ITransitionService
             }
             catch
             {
-                // Best effort — never block transit on a game-mode failure.
+                // Best effort - never block transit on a game-mode failure.
             }
         }
 

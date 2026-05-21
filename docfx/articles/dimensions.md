@@ -1,6 +1,6 @@
 # Dimensions
 
-A **dimension** in Manifold is a named, isolated world region with its own terrain, player positions, and travel policy. Each dimension is identified by an `AssetLocation` code (e.g., `mymod:nether`) and mapped to a VS engine dimension id (an integer 0–1023).
+A **dimension** in Manifold is a named, isolated world region with its own terrain, player positions, and travel policy. Each dimension is identified by an `AssetLocation` code (e.g., `mymod:nether`) and mapped to a VS engine dimension id (an integer 0-1023).
 
 ## Lifecycle
 
@@ -15,7 +15,7 @@ Dimensions follow a well-defined lifecycle:
 
 | Method | When to use |
 |--------|-------------|
-| `RegisterStatic()` | Boot-time, from `StartServerSide`. Idempotent — re-calling on a subsequent server start reuses the same internal id. Use this for dimensions that always exist while your mod is installed. |
+| `RegisterStatic()` | Boot-time, from `StartServerSide`. Idempotent - re-calling on a subsequent server start reuses the same internal id. Use this for dimensions that always exist while your mod is installed. |
 | `Create()` | Runtime, after boot. Use for player-created or event-driven dimensions. Lifetime must be `Ephemeral` or `Persistent`. |
 
 ### Persistent vs. Ephemeral
@@ -29,7 +29,7 @@ Ephemeral dimensions can be removed at runtime via `IDimensionRegistry.TryRemove
 
 ## The Registry
 
-`IManifoldServer.Registry` is the server-side source of truth. Obtain the **owner-scoped** facade with `sapi.GetManifoldServer(this)` — this is required when calling `Registry.Define` so that your mod id is recorded as the dimension owner.
+`IManifoldServer.Registry` is the server-side source of truth. Obtain the **owner-scoped** facade with `sapi.GetManifoldServer(this)` - this is required when calling `Registry.Define` so that your mod id is recorded as the dimension owner.
 
 ```csharp
 var manifold = sapi.GetManifoldServer(this);  // 'this' is your ModSystem
@@ -66,15 +66,15 @@ manifold.Registry.Destroyed += (_, e) =>
 
 ## Dimension Codes (AssetLocation)
 
-Codes follow the VS `AssetLocation` convention: `domain:path` — e.g., `mymod:nether`. Use your mod's id as the domain to avoid collisions with other mods.
+Codes follow the VS `AssetLocation` convention: `domain:path` - e.g., `mymod:nether`. Use your mod's id as the domain to avoid collisions with other mods.
 
-The built-in overworld is `manifold:overworld` (internal id 0). It is a first-class Manifold dimension — readable from the registry, transitable via `ITransitionService.TeleportPlayer`, but immutable (you cannot remove or redefine it).
+The built-in overworld is `manifold:overworld` (internal id 0). It is a first-class Manifold dimension - readable from the registry, transitable via `ITransitionService.TeleportPlayer`, but immutable (you cannot remove or redefine it).
 
 ## Dimension States
 
 | State | Meaning |
 |-------|---------|
-| `Active` | Normal operation — transit and worldgen permitted. |
+| `Active` | Normal operation - transit and worldgen permitted. |
 | `Pending` | Seen in a prior savegame but the owning mod has not yet re-registered it in this session. Typically resolves to Active within the same boot once the mod's `StartServerSide` runs. |
 | `Quarantined` | Owning mod is no longer installed. Chunks are kept on disk, but transit is refused. An admin can release the id with `/manifold purge <code>`. |
 

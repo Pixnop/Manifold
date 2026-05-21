@@ -76,7 +76,7 @@ internal sealed class DimensionPersistence
         }
         catch
         {
-            // Corrupted manifest — drop silently; consumers will re-register at boot.
+            // Corrupted manifest - drop silently; consumers will re-register at boot.
             yield break;
         }
 

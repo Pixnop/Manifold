@@ -11,7 +11,7 @@ namespace Manifold.Api.Helpers;
 /// teleports the player to <see cref="TargetDimensionCode"/> via Manifold's transition service.
 /// </summary>
 /// <remarks>
-/// <para>Server-side behaviour only — consumers subclass and override <see cref="TargetDimensionCode"/>
+/// <para>Server-side behaviour only - consumers subclass and override <see cref="TargetDimensionCode"/>
 /// (and optionally <see cref="Options"/>).</para>
 /// <para>Manifold does not register any portal block itself; this is opt-in.</para>
 /// </remarks>

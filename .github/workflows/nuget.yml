@@ -1,0 +1,50 @@
+name: nuget
+
+# Publishes the Manifold API as a NuGet package on a version tag (or manual run).
+# The package is a compile-time reference (Manifold.dll); the mod itself ships on the Mod DB.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Vintage Story server (for API DLLs)
+        run: |
+          set -e
+          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.21.0.tar.gz"
+          mkdir -p "$HOME/vs"
+          tar -xzf vs_server.tar.gz -C "$HOME/vs"
+          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
+          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+
+      - name: Pack
+        run: |
+          set -e
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev.$GITHUB_RUN_NUMBER"
+          fi
+          echo "Packing version $VERSION"
+          dotnet pack src/Manifold/Manifold.csproj -c Release -p:PackageVersion="$VERSION" -o nupkgs
+          ls -la nupkgs
+
+      - name: Push to NuGet
+        run: |
+          dotnet nuget push "nupkgs/*.nupkg" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate

@@ -3,7 +3,7 @@
   "modid": "manifold",
   "name": "Manifold",
   "version": "0.1.0",
-  "description": "Library for declaring and managing custom dimensions. Pure dependency — does not add in-game content.",
+  "description": "Library for declaring and managing custom dimensions. Pure dependency - does not add in-game content.",
   "authors": ["Fieve"],
   "side": "Universal",
   "dependencies": {
