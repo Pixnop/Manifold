@@ -102,8 +102,48 @@ Manifold ships a built-in no-op strategy for air-filled dimensions:
 
 `OnInitialize` and `GenerateColumn` are both empty. The allocated chunks contain only air blocks, which is the VS default for a freshly allocated column.
 
-## v1 Limitation: No Infinite Streaming
+## Streaming Worldgen
 
-The active generation model pre-generates a **bounded** region. Once a player walks beyond that region they will encounter unloaded (void) chunks. Infinite on-demand streaming for custom dimensions is a planned v1 feature and is **not available** in v0.1.
+Streaming is an opt-in alternative to bounded generation. Instead of pre-generating a fixed region and stopping, Manifold continuously generates chunks on demand as players move, keeping a window of `loadRadius` chunks generated around each player.
 
-To work around this in v0.1: use `WithGenerationRadius` generously for open-world exploration dimensions, or design your dimensions to be contained within the pre-generated area (e.g., dungeons, arenas, lobby spaces).
+### Opting in
+
+Call `.Streaming(loadRadius)` on the builder instead of (or in addition to) a large `WithGenerationRadius`:
+
+```csharp
+manifold.Registry
+    .Define(new AssetLocation("mymod", "openworld"))
+    .Persistent()
+    .WithWorldgen(new MyOpenWorldStrategy())
+    .WithGenerationRadius(2)   // landing pad: 5x5 columns generated synchronously on first transit
+    .Streaming(8)              // streaming window: 8 chunks around each player
+    .RegisterStatic();
+```
+
+`loadRadius` must be in the range **1..32**.
+
+### How transit works in a streaming dimension
+
+When a player enters a streaming dimension:
+
+1. The synchronous landing pad is generated first (`WithGenerationRadius` region, default 2). The player is teleported only after this completes, so they never spawn in void.
+2. The streaming driver then fills the surrounding window (`loadRadius`) over subsequent server ticks, spread across a per-tick budget so the server does not hitch.
+3. As the player moves, newly entered chunks are queued and generated the same way.
+4. Distant chunks that fall outside the window are handled by the engine's normal chunk unloading. Blocks placed in those chunks survive unload and reload correctly.
+
+### Bounded vs streaming comparison
+
+| | Bounded (default) | Streaming (opt-in) |
+|---|---|---|
+| Builder method | `WithGenerationRadius(r)` | `.Streaming(loadRadius)` |
+| When chunks are generated | Synchronously at transit | On demand as players move |
+| Region size | Fixed `(2r+1) x (2r+1)` columns | Follows each player continuously |
+| Walking past the edge | Ungenerated (void) | No edge - new chunks stream in |
+| Best for | Dungeons, arenas, lobby spaces | Open-world or exploration dimensions |
+
+The two modes coexist. A dimension can use only bounded generation, only streaming, or both (bounded for the initial landing pad, streaming for ongoing movement).
+
+### Known limitations
+
+- **Relight height**: the relight pass currently covers Y0-20. Content built above Y20 will be under-lit until the engine performs its own relight pass naturally. A configurable relight height range is a planned follow-up.
+- **Load radius not tied to render distance**: the `loadRadius` value is a fixed integer set at registration time and is not currently linked to the client's render distance setting. Adaptive radius is a planned follow-up.

@@ -24,7 +24,7 @@
 ## Features
 
 - **Custom dimensions** - declare persistent or ephemeral dimensions from any mod; boot-time (`RegisterStatic`) or runtime (`Create`).
-- **Active worldgen** - Manifold pre-generates a bounded chunk region around the transit target before the player arrives, so they never land in void. Configurable radius via `WithGenerationRadius`.
+- **Active worldgen** - two modes, both configurable per dimension. **Bounded** (default): Manifold pre-generates a fixed chunk region around the transit target before the player arrives, radius set via `WithGenerationRadius`. **Streaming** (opt-in): call `.Streaming(loadRadius)` and Manifold generates chunks on demand as players move, keeping a window of `loadRadius` chunks generated around each player - no invisible walls at a region edge.
 - **Player transit** - `ITransitionService.TeleportPlayer` moves a player between any two dimensions with a single call.
 - **Travel policy per dimension** - spawn behavior (`SameCoordinates` / `DimensionSpawn` / `LastVisited`), optional forced game mode, all configured through a fluent builder.
 - **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
@@ -32,7 +32,7 @@
 - **Zero Harmony patches** - built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
 - **Opt-in helpers** - `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy` to get started with minimal boilerplate.
 
-> **v0.1 note:** Infinite chunk streaming for custom dimensions (walking past the pre-generated region) is a planned v1 feature and is not available yet.
+> **Streaming note:** Opt-in streaming worldgen is now available via `.Streaming(loadRadius)` and will ship in the next release. Two refinements are still planned: configurable relight height (currently fixed at Y0-20, so content above Y20 is under-lit until the engine relights naturally) and tying the load radius to the client render distance.
 
 ---
 
