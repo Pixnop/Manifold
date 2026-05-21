@@ -23,12 +23,13 @@ internal sealed class DimensionGenerator
     private const int MaxConsecutiveFailures = 4;
 
     /// <summary>
-    /// Upper Y bound for the single post-generation relight pass. Relighting the full map height
-    /// per column is what made generation take ~40s; bounding it to a low band keeps a flat/void
-    /// floor correctly lit while staying cheap. Strategies that build above this band will be
-    /// under-lit until VS naturally relights (acceptable for v0; configurable later).
+    /// Upper Y bound for the relight pass. FullRelight cost scales with this height, and for
+    /// streaming we relight per tick, so a tight band is critical: profiling showed Y0-64 cost
+    /// ~180ms per 4-column tick (overloading the server), dominated entirely by relight. A low
+    /// band keeps a flat/void floor correctly lit while staying cheap. Strategies that build above
+    /// this band are under-lit until VS naturally relights (acceptable for v1; configurable later).
     /// </summary>
-    private const int RelightMaxY = 64;
+    private const int RelightMaxY = 20;
 
     private readonly DimensionRegistry _registry;
     private readonly GeneratedColumnStore _generatedColumns;
@@ -151,26 +152,27 @@ internal sealed class DimensionGenerator
         return GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
     }
 
-    /// <summary>Relights the bounding box of a batch of newly-generated columns (best-effort).</summary>
+    /// <summary>
+    /// Relights newly-generated columns (best-effort). Each column is relit over its own 32x32
+    /// footprint rather than the bounding box of the whole batch: profiling showed that relighting
+    /// the spanning rectangle of spread-out columns (common when a fast-moving player generates a
+    /// line of columns) re-lights many already-lit columns in between, and FullRelight cost scales
+    /// with that area. Per-column relight makes the cost proportional to the number of new columns,
+    /// independent of how spread out they are.
+    /// </summary>
     /// <param name="sapi">Server API.</param>
     /// <param name="columns">Newly-generated columns to relight.</param>
     public static void RelightColumns(ICoreServerAPI sapi, IReadOnlyList<(int Cx, int Cz)> columns)
     {
-        if (sapi is null || columns is null || columns.Count == 0)
+        if (sapi is null || columns is null)
         {
             return;
         }
 
-        int minCx = int.MaxValue, minCz = int.MaxValue, maxCx = int.MinValue, maxCz = int.MinValue;
         foreach (var (cx, cz) in columns)
         {
-            minCx = Math.Min(minCx, cx);
-            minCz = Math.Min(minCz, cz);
-            maxCx = Math.Max(maxCx, cx);
-            maxCz = Math.Max(maxCz, cz);
+            RelightChunkBounds(sapi, cx, cz, cx, cz);
         }
-
-        RelightChunkBounds(sapi, minCx, minCz, maxCx, maxCz);
     }
 
     /// <summary>
