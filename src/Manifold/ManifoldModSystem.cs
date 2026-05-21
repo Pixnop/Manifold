@@ -31,6 +31,7 @@ public sealed class ManifoldModSystem : ModSystem
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
+    private StreamingWorldgenDriver? _streamingDriver;
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
     private SaveGameManifestStore? _manifestStore;
@@ -119,6 +120,9 @@ public sealed class ManifoldModSystem : ModSystem
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
+
+        _streamingDriver = new StreamingWorldgenDriver(api, _registry, _generator);
+        _streamingDriver.Start();
 
         api.Event.GameWorldSave += OnGameWorldSave;
         api.Event.PlayerJoin += player => OnPlayerJoin(player, api);
@@ -300,6 +304,7 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnServerShutdown()
     {
+        _streamingDriver?.Stop();
         Dispose();
     }
 

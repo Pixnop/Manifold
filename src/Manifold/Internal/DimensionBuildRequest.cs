@@ -18,6 +18,8 @@ namespace Manifold.Internal;
 /// <param name="SpawnBehavior">How players land when entering this dimension.</param>
 /// <param name="SpawnPoint">Fixed spawn point for <see cref="Manifold.Api.Transitions.SpawnBehavior.DimensionSpawn"/>, or null.</param>
 /// <param name="ForcedGameMode">Game mode forced on entry, or null to preserve the player's current mode.</param>
+/// <param name="StreamingLoadRadius">If set, the dimension streams: chunk radius kept generated around each player. Null = bounded.</param>
+/// <param name="RelightHeight">Upper Y bound for the relight pass; content above is under-lit until the engine relights.</param>
 internal readonly record struct DimensionBuildRequest(
     AssetLocation Code,
     IWorldgenStrategy Worldgen,
@@ -27,4 +29,6 @@ internal readonly record struct DimensionBuildRequest(
     int GenerationRadius,
     SpawnBehavior SpawnBehavior,
     BlockPos? SpawnPoint,
-    EnumGameMode? ForcedGameMode);
+    EnumGameMode? ForcedGameMode,
+    int? StreamingLoadRadius,
+    int RelightHeight);

@@ -32,6 +32,15 @@ public interface IDimensionBuilder
     /// <returns>This builder.</returns>
     IDimensionBuilder WithGenerationRadius(int chunks);
 
+    /// <summary>
+    /// Sets the upper Y bound for the post-generation relight pass (default 20). Content built
+    /// above this height is under-lit until the engine relights naturally. Higher values light
+    /// taller dimensions correctly but cost more per relight. Range 1..1024.
+    /// </summary>
+    /// <param name="maxY">Top of the lit band.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithRelightHeight(int maxY);
+
     /// <summary>Sets how players land when entering this dimension. Default: <see cref="SpawnBehavior.SameCoordinates"/>.</summary>
     /// <param name="behavior">The spawn behavior.</param>
     /// <returns>This builder.</returns>
@@ -48,7 +57,16 @@ public interface IDimensionBuilder
     IDimensionBuilder WithForcedGameMode(EnumGameMode mode);
 
     /// <summary>
-    /// Finalises as a static, persistent dimension (boot-time use). Idempotent across server restarts —
+    /// Opts the dimension into streaming worldgen: chunks are generated on demand as players move,
+    /// keeping a radius of <paramref name="loadRadius"/> chunks around each player. Range 1..32.
+    /// Omit for bounded generation (see <see cref="WithGenerationRadius"/>).
+    /// </summary>
+    /// <param name="loadRadius">Chunk radius kept generated around each player.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder Streaming(int loadRadius);
+
+    /// <summary>
+    /// Finalises as a static, persistent dimension (boot-time use). Idempotent across server restarts -
     /// re-calling with the same code reuses the existing internal id.
     /// </summary>
     /// <returns>The registered dimension.</returns>

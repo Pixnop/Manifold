@@ -35,5 +35,7 @@ internal static class DimensionDescriptorMapper
         GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
         SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
         SpawnPoint: null,
-        ForcedGameMode: null);
+        ForcedGameMode: null,
+        StreamingLoadRadius: null,
+        RelightHeight: DimensionBuilderImpl.DefaultRelightHeight);
 }
