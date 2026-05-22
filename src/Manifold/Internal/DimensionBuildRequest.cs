@@ -20,6 +20,7 @@ namespace Manifold.Internal;
 /// <param name="ForcedGameMode">Game mode forced on entry, or null to preserve the player's current mode.</param>
 /// <param name="StreamingLoadRadius">If set, the dimension streams: chunk radius kept generated around each player. Null = bounded.</param>
 /// <param name="RelightHeight">Upper Y bound for the relight pass; content above is under-lit until the engine relights.</param>
+/// <param name="SeparateInventory">Inventory categories kept separate per dimension (None = shared).</param>
 internal readonly record struct DimensionBuildRequest(
     AssetLocation Code,
     IWorldgenStrategy Worldgen,
@@ -31,4 +32,5 @@ internal readonly record struct DimensionBuildRequest(
     BlockPos? SpawnPoint,
     EnumGameMode? ForcedGameMode,
     int? StreamingLoadRadius,
-    int RelightHeight);
+    int RelightHeight,
+    ManifoldInventory SeparateInventory);
