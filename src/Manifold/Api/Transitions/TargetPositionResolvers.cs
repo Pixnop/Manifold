@@ -1,5 +1,6 @@
 using System;
 using Manifold.Api;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
@@ -18,13 +19,13 @@ public static class TargetPositionResolvers
 
     private sealed class SameXZSurfaceYResolver : ITargetPositionResolver
     {
-        public BlockPos Resolve(IServerPlayer player, IDimension target, ICoreServerAPI api)
+        public BlockPos Resolve(Entity entity, IDimension target, ICoreServerAPI api)
         {
-            ArgumentNullException.ThrowIfNull(player);
+            ArgumentNullException.ThrowIfNull(entity);
             ArgumentNullException.ThrowIfNull(target);
             ArgumentNullException.ThrowIfNull(api);
 
-            var current = player.Entity.Pos.AsBlockPos;
+            var current = entity.Pos.AsBlockPos;
             int x = current.X;
             int z = current.Z;
 
@@ -56,7 +57,7 @@ public static class TargetPositionResolvers
             _pos = pos;
         }
 
-        public BlockPos Resolve(IServerPlayer player, IDimension target, ICoreServerAPI api) =>
+        public BlockPos Resolve(Entity entity, IDimension target, ICoreServerAPI api) =>
             new(_pos.X, _pos.Y, _pos.Z, target.InternalId);
     }
 }

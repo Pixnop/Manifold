@@ -103,7 +103,7 @@ public sealed class TransitServiceTests
         var teleporter = Substitute.For<IPlayerTeleporter>();
         var positionResolver = Substitute.For<ITargetPositionResolver>();
         positionResolver
-            .Resolve(Arg.Any<IServerPlayer>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
             .Returns(new BlockPos(100, 100, 100, 10));
 
         var sapi = Substitute.For<ICoreServerAPI>();

@@ -1,11 +1,12 @@
 using Manifold.Api;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 namespace Manifold.Api.Transitions;
 
 /// <summary>
-/// Resolves the target <see cref="BlockPos"/> in the destination dimension for a player transit.
+/// Resolves the target <see cref="BlockPos"/> in the destination dimension for a transit.
 /// </summary>
 /// <remarks>
 /// May be called more than once per transit; implementations should be deterministic and side-effect free.
@@ -16,9 +17,9 @@ namespace Manifold.Api.Transitions;
 public interface ITargetPositionResolver
 {
     /// <summary>Compute the target landing position for a transit.</summary>
-    /// <param name="player">Server player undergoing transit.</param>
+    /// <param name="entity">The entity undergoing transit (a player's entity, or a non-player entity).</param>
     /// <param name="target">Destination dimension.</param>
     /// <param name="api">Server API for surface queries.</param>
     /// <returns>A dimension-encoded <see cref="BlockPos"/>.</returns>
-    BlockPos Resolve(IServerPlayer player, IDimension target, ICoreServerAPI api);
+    BlockPos Resolve(Entity entity, IDimension target, ICoreServerAPI api);
 }

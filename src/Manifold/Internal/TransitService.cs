@@ -182,7 +182,7 @@ internal sealed class TransitService : ITransitionService
 
         if (options.Resolver is { } resolver)
         {
-            return resolver.Resolve(player, target, _sapi).SetDimension(target.InternalId);
+            return resolver.Resolve(player.Entity, target, _sapi).SetDimension(target.InternalId);
         }
 
         // Per-transit override beats the dimension's configured behavior.
@@ -192,7 +192,7 @@ internal sealed class TransitService : ITransitionService
             case SpawnBehavior.DimensionSpawn:
                 var spawn = targetImpl?.SpawnPoint ?? new BlockPos(0, 64, 0, target.InternalId);
                 return TargetPositionResolvers.FixedSpawn(spawn)
-                    .Resolve(player, target, _sapi)
+                    .Resolve(player.Entity, target, _sapi)
                     .SetDimension(target.InternalId);
 
             case SpawnBehavior.LastVisited:
@@ -201,10 +201,10 @@ internal sealed class TransitService : ITransitionService
                     return new BlockPos(x, y, z, target.InternalId);
                 }
 
-                return _defaultResolver.Resolve(player, target, _sapi).SetDimension(target.InternalId);
+                return _defaultResolver.Resolve(player.Entity, target, _sapi).SetDimension(target.InternalId);
 
             default:
-                return _defaultResolver.Resolve(player, target, _sapi).SetDimension(target.InternalId);
+                return _defaultResolver.Resolve(player.Entity, target, _sapi).SetDimension(target.InternalId);
         }
     }
 }
