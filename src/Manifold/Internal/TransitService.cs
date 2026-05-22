@@ -4,6 +4,7 @@ using Manifold.Api.Events;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
@@ -22,6 +23,7 @@ internal sealed class TransitService : ITransitionService
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
     private readonly InventorySwapper _inventory;
+    private readonly IEntityMover _entityMover;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -32,6 +34,7 @@ internal sealed class TransitService : ITransitionService
     /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
     /// <param name="positionStore">Per-player per-dimension last-position memory (for LastVisited behavior).</param>
     /// <param name="inventory">Inventory swapper for per-dimension inventory separation.</param>
+    /// <param name="entityMover">Cross-dimension entity re-home abstraction.</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
@@ -39,7 +42,8 @@ internal sealed class TransitService : ITransitionService
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
         PlayerPositionStore positionStore,
-        InventorySwapper inventory)
+        InventorySwapper inventory,
+        IEntityMover entityMover)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
@@ -48,6 +52,7 @@ internal sealed class TransitService : ITransitionService
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+        _entityMover = entityMover ?? throw new ArgumentNullException(nameof(entityMover));
     }
 
     /// <inheritdoc/>
@@ -127,6 +132,40 @@ internal sealed class TransitService : ITransitionService
         PlayerEntered?.Invoke(this, new PlayerEnteredDimensionEventArgs(player, source, target));
     }
 
+    /// <inheritdoc/>
+    public void TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(targetDim);
+        if (_unhealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; transit is disabled.");
+        }
+
+        if (entity is EntityPlayer)
+        {
+            throw new ArgumentException(
+                "TeleportEntity is for non-player entities; use TeleportPlayer for players.",
+                nameof(entity));
+        }
+
+        var target = _registry.Get(targetDim)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
+        if (target.State != DimensionState.Active)
+        {
+            throw new DimensionStateException(
+                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
+        }
+
+        // Preliminary position to center generation, then a final position after terrain exists.
+        var prelim = ResolveEntityPosition(entity, target, options);
+        _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, null);
+        var finalPos = ResolveEntityPosition(entity, target, options);
+
+        _entityMover.Move(entity, finalPos);
+    }
+
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
 
@@ -166,6 +205,21 @@ internal sealed class TransitService : ITransitionService
         }
 
         player.SetModdata(InventoryModdataKey, store.ToBytes());
+    }
+
+    /// <summary>
+    /// Landing position for a non-player entity: per-transit override, else the resolver (default
+    /// <see cref="TargetPositionResolvers.SameXZSurfaceY"/>). No spawn-behavior / last-visited (player-only).
+    /// </summary>
+    private BlockPos ResolveEntityPosition(Entity entity, IDimension target, TransitionOptions options)
+    {
+        if (options.OverridePosition is { } overridePos)
+        {
+            return overridePos.SetDimension(target.InternalId);
+        }
+
+        var resolver = options.Resolver ?? _defaultResolver;
+        return resolver.Resolve(entity, target, _sapi).SetDimension(target.InternalId);
     }
 
     /// <summary>

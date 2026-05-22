@@ -1,3 +1,4 @@
+using System;
 using Manifold.Api;
 using Manifold.Api.Events;
 using Manifold.Api.Transitions;
@@ -19,7 +20,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Throw_When_Target_Not_Found()
     {
-        var (svc, _, player, _) = NewService();
+        var (svc, _, player, _, _) = NewService();
         Assert.Throws<DimensionNotFoundException>(
             () => svc.TeleportPlayer(player, Code("nope:nope")));
     }
@@ -27,7 +28,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Raise_PlayerEntering()
     {
-        var (svc, _, player, _) = NewService();
+        var (svc, _, player, _, _) = NewService();
         bool entered = false;
         svc.PlayerEntering += (_, _) => entered = true;
         svc.TeleportPlayer(player, Code("owner:target"));
@@ -37,7 +38,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Abort_When_PlayerEntering_Cancelled()
     {
-        var (svc, _, player, tele) = NewService();
+        var (svc, _, player, tele, _) = NewService();
         bool entered = false;
         bool left = false;
         svc.PlayerEntering += (_, e) => e.Cancel = true;
@@ -52,7 +53,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Raise_Left_Then_Entered_In_Order()
     {
-        var (svc, _, player, _) = NewService();
+        var (svc, _, player, _, _) = NewService();
         var order = new System.Collections.Generic.List<string>();
         svc.PlayerLeft += (_, _) => order.Add("left");
         svc.PlayerEntered += (_, _) => order.Add("entered");
@@ -63,7 +64,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Call_Teleporter_When_Not_Cancelled()
     {
-        var (svc, _, player, tele) = NewService();
+        var (svc, _, player, tele, _) = NewService();
         svc.TeleportPlayer(player, Code("owner:target"));
         tele.Received(1).Teleport(player, Arg.Any<BlockPos>());
     }
@@ -71,7 +72,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Throw_When_Manifold_Unhealthy()
     {
-        var (svc, _, player, _) = NewService();
+        var (svc, _, player, _, _) = NewService();
         svc.MarkUnhealthy();
         Assert.Throws<ManifoldUnhealthyException>(
             () => svc.TeleportPlayer(player, Code("owner:target")));
@@ -80,7 +81,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Throw_When_Target_Quarantined()
     {
-        var (svc, registry, player, _) = NewService();
+        var (svc, registry, player, _, _) = NewService();
         var qCode = Code("ghost:dim");
         registry.SeedFromManifest(
             new ManifestEntry(qCode, 99, DimensionLifetime.Persistent, "ghost"),
@@ -89,9 +90,46 @@ public sealed class TransitServiceTests
             () => svc.TeleportPlayer(player, qCode));
     }
 
+    [Fact]
+    public void TeleportEntity_Should_Throw_When_Entity_Is_A_Player()
+    {
+        var (svc, _, _, _, _) = NewService();
+        var playerEntity = Substitute.For<EntityPlayer>();
+        Assert.Throws<ArgumentException>(() => svc.TeleportEntity(playerEntity, Code("owner:target")));
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Throw_When_Target_Not_Found()
+    {
+        var (svc, _, _, _, _) = NewService();
+        var entity = Substitute.For<Entity>();
+        Assert.Throws<DimensionNotFoundException>(() => svc.TeleportEntity(entity, Code("nope:nope")));
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Throw_When_Target_Quarantined()
+    {
+        var (svc, registry, _, _, _) = NewService();
+        var qCode = Code("ghost:edim");
+        registry.SeedFromManifest(
+            new ManifestEntry(qCode, 98, DimensionLifetime.Persistent, "ghost"),
+            DimensionState.Quarantined);
+        var entity = Substitute.For<Entity>();
+        Assert.Throws<DimensionStateException>(() => svc.TeleportEntity(entity, qCode));
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Call_Mover_With_Resolved_Position()
+    {
+        var (svc, _, _, _, mover) = NewService();
+        var entity = Substitute.For<Entity>();
+        svc.TeleportEntity(entity, Code("owner:target"));
+        mover.Received(1).Move(entity, Arg.Any<BlockPos>());
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
-    private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter)
+    private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover Mover)
         NewService()
     {
         var allocator = new DimensionAllocator();
@@ -108,11 +146,12 @@ public sealed class TransitServiceTests
 
         var sapi = Substitute.For<ICoreServerAPI>();
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
-        var svc = new TransitService(registry, sapi, teleporter, positionResolver, generator, new PlayerPositionStore(), new InventorySwapper(sapi));
+        var mover = Substitute.For<IEntityMover>();
+        var svc = new TransitService(registry, sapi, teleporter, positionResolver, generator, new PlayerPositionStore(), new InventorySwapper(sapi), mover);
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
 
-        return (svc, registry, player, teleporter);
+        return (svc, registry, player, teleporter, mover);
     }
 }
