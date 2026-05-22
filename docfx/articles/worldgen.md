@@ -143,7 +143,14 @@ When a player enters a streaming dimension:
 
 The two modes coexist. A dimension can use only bounded generation, only streaming, or both (bounded for the initial landing pad, streaming for ongoing movement).
 
-### Known limitations
+### Relight height
 
-- **Relight height**: the relight pass currently covers Y0-20. Content built above Y20 will be under-lit until the engine performs its own relight pass naturally. A configurable relight height range is a planned follow-up.
-- **Load radius not tied to render distance**: the `loadRadius` value is a fixed integer set at registration time and is not currently linked to the client's render distance setting. Adaptive radius is a planned follow-up.
+The relight pass covers Y0 up to the dimension's relight height (default 20), set with
+`WithRelightHeight(maxY)`. Content built above that height is under-lit until the engine performs
+its own relight pass naturally, so set a taller band for dimensions with tall terrain or structures.
+A tighter band is cheaper to relight, which matters most for streaming (relit per tick).
+
+### Load radius and render distance
+
+The effective streaming radius is `max(loadRadius, server view distance)`, so generated terrain
+always reaches at least as far as players can see, regardless of the configured `loadRadius`.
