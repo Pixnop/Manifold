@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-dimension inventory** - opt-in `IDimensionBuilder.WithSeparateInventory(ManifoldInventory categories)` (flags: `Hotbar`, `Backpack`, `Character`, `All`). A dimension keeps its own player inventory for the chosen categories: entering swaps to the dimension's set (empty on the first visit) and leaving restores the previous one. Profiles are stored in player moddata (saved together with the physical inventory) so they survive logout and server restarts with no item loss; the snapshot is always taken before any slot is cleared.
+
 ## [0.2.0] - 2026-05-22
 
 ### Added
