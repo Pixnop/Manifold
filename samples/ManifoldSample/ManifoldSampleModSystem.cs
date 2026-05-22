@@ -128,11 +128,14 @@ public sealed class ManifoldSampleModSystem : ModSystem
                     return TextCommandResult.Error("Test item not found.");
                 }
 
-                var entity = new EntityItem { Itemstack = new ItemStack(item) };
-                entity.Pos.SetFrom(serverPlayer.Entity.Pos);
-                api.World.SpawnEntity(entity);
+                var stack = new ItemStack(item);
+                var spawned = api.World.SpawnItemEntity(stack, serverPlayer.Entity.Pos.XYZ);
+                if (spawned is null)
+                {
+                    return TextCommandResult.Error("Failed to spawn the test item entity.");
+                }
 
-                manifold.Transitions.TeleportEntity(entity, new AssetLocation(ModId, "flat"));
+                manifold.Transitions.TeleportEntity(spawned, new AssetLocation(ModId, "flat"));
                 return TextCommandResult.Success("Sent a stick to the flat dimension; use /flatdim to find it near your X/Z.");
             });
 
