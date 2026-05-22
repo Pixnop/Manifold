@@ -31,6 +31,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private BlockPos? _spawnPoint;
     private EnumGameMode? _forcedGameMode;
     private int? _streamingLoadRadius;
+    private ManifoldInventory _separateInventory = ManifoldInventory.None;
     private int _relightHeight = DefaultRelightHeight;
     private bool _used;
 
@@ -136,6 +137,14 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder WithSeparateInventory(ManifoldInventory categories)
+    {
+        ThrowIfUsed();
+        _separateInventory = categories;
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimension RegisterStatic()
     {
         ThrowIfUsed();
@@ -164,7 +173,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _spawnPoint,
             _forcedGameMode,
             _streamingLoadRadius,
-            _relightHeight));
+            _relightHeight,
+            _separateInventory));
     }
 
     /// <inheritdoc/>
@@ -195,7 +205,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _spawnPoint,
             _forcedGameMode,
             _streamingLoadRadius,
-            _relightHeight));
+            _relightHeight,
+            _separateInventory));
     }
 
     private void ThrowIfUsed()

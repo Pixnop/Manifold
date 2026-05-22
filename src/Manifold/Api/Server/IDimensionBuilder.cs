@@ -1,3 +1,4 @@
+using Manifold.Api;
 using Manifold.Api.Transitions;
 using Manifold.Api.Worldgen;
 using Vintagestory.API.Common;
@@ -64,6 +65,15 @@ public interface IDimensionBuilder
     /// <param name="loadRadius">Chunk radius kept generated around each player.</param>
     /// <returns>This builder.</returns>
     IDimensionBuilder Streaming(int loadRadius);
+
+    /// <summary>
+    /// Opts the dimension into separate per-player inventories for the given categories. On entering
+    /// the dimension the player's chosen inventories are swapped to this dimension's set (empty on the
+    /// first visit) and restored on leaving. Omit for a shared inventory.
+    /// </summary>
+    /// <param name="categories">Inventory categories to keep separate.</param>
+    /// <returns>This builder.</returns>
+    IDimensionBuilder WithSeparateInventory(ManifoldInventory categories);
 
     /// <summary>
     /// Finalises as a static, persistent dimension (boot-time use). Idempotent across server restarts -
