@@ -85,6 +85,20 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .DescribedAs("Teleport to the streaming flat dimension (walk to watch chunks generate).")
             .Register(api);
 
+        manifold.Registry
+            .Define(new AssetLocation(ModId, "vault"))
+            .Persistent()
+            .WithWorldgen(new FlatWorldgenStrategy())
+            .WithSeparateInventory(Manifold.Api.ManifoldInventory.All)
+            .RegisterStatic();
+
+        new DimensionCommandBuilder()
+            .Command("vaultdim")
+            .TargetDimension(new AssetLocation(ModId, "vault"))
+            .RequiresPrivilege("chat")
+            .DescribedAs("Teleport to the vault dimension (separate inventory; your items wait in the overworld).")
+            .Register(api);
+
         // The overworld is a first-class Manifold dimension (manifold:overworld, id 0).
         // This command demonstrates a clean round-trip back to it via the transit API.
         new DimensionCommandBuilder()
@@ -96,6 +110,6 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .Register(api);
 
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void + flat + stream dimensions and /voiddim, /flatdim, /streamdim, /overworlddim commands.");
+            "[ManifoldSample] Registered void + flat + stream + vault dimensions and /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim commands.");
     }
 }

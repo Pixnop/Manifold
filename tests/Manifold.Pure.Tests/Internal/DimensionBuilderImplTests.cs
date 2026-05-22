@@ -342,5 +342,41 @@ public sealed class DimensionBuilderImplTests
         Assert.Throws<ArgumentOutOfRangeException>(() => b1.WithRelightHeight(0));
     }
 
+    [Fact]
+    public void WithSeparateInventory_Should_Flow_To_Request()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy())
+            .WithSeparateInventory(Manifold.Api.ManifoldInventory.Hotbar | Manifold.Api.ManifoldInventory.Backpack)
+            .RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(
+            Manifold.Api.ManifoldInventory.Hotbar | Manifold.Api.ManifoldInventory.Backpack,
+            captured.Value.SeparateInventory);
+    }
+
+    [Fact]
+    public void SeparateInventory_Should_Default_To_None()
+    {
+        DimensionBuildRequest? captured = null;
+        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        {
+            captured = req;
+            return Substitute.For<IDimension>();
+        });
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.NotNull(captured);
+        Assert.Equal(Manifold.Api.ManifoldInventory.None, captured.Value.SeparateInventory);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 }

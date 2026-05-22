@@ -109,13 +109,15 @@ public sealed class ManifoldModSystem : ModSystem
             Mod.Logger.Warning(
                 "[Manifold] Worldgen strategy auto-disabled for dim {0} after 4 consecutive throws.", dim);
 
+        var inventorySwapper = new InventorySwapper(api);
         var transit = new TransitService(
             _registry,
             api,
             new PlayerTeleporter(),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
-            _positionStore);
+            _positionStore,
+            inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, isHealthy: true);
@@ -181,7 +183,8 @@ public sealed class ManifoldModSystem : ModSystem
             new PlayerTeleporter(),
             TargetPositionResolvers.SameXZSurfaceY,
             generator,
-            new PlayerPositionStore());
+            new PlayerPositionStore(),
+            new InventorySwapper(sapi));
         transit.MarkUnhealthy();
         ServerFacade = new ManifoldServerFacade(registry, transit, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
