@@ -46,8 +46,9 @@ packages/
 *.zip
 release/
 
-# Local Mod DB submission helper (not part of the repo)
+# Local Mod DB / Discord submission helpers (not part of the repo)
 MODDB.md
+DISCORD.md
 *-logo-480.png
 
 # DocFX
