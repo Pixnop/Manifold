@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-22
+
 ### Added
 - **Per-dimension inventory** - opt-in `IDimensionBuilder.WithSeparateInventory(ManifoldInventory categories)` (flags: `Hotbar`, `Backpack`, `Character`, `All`). A dimension keeps its own player inventory for the chosen categories: entering swaps to the dimension's set (empty on the first visit) and leaving restores the previous one. Profiles are stored in player moddata (saved together with the physical inventory) so they survive logout and server restarts with no item loss; the snapshot is always taken before any slot is cleared.
+- **Non-player entity transit** - `ITransitionService.TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default)` moves items and other non-player entities between dimensions. The destination region is generated on demand, then the entity is re-homed into it. Use `TeleportPlayer` for players (`TeleportEntity` rejects player entities).
+
+### Changed
+- **Breaking:** `ITargetPositionResolver.Resolve` now takes the source `Entity` instead of `IServerPlayer`, so one resolver serves both player and entity transit. A custom resolver must change its parameter from `IServerPlayer player` to `Entity entity` and read the source X/Z from `entity.Pos`. The built-in resolvers and `TeleportPlayer` are unaffected.
 
 ## [0.2.0] - 2026-05-22
 

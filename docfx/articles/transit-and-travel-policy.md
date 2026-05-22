@@ -33,6 +33,23 @@ transitions.PlayerEntering += (_, e) =>
 transitions.TeleportPlayer(player, new AssetLocation("mymod", "nether"));
 ```
 
+## TeleportEntity
+
+`TeleportEntity` moves a non-player entity (a dropped item, a creature) between dimensions. It mirrors
+`TeleportPlayer`: the destination region is generated on demand, then the entity is re-homed into it.
+
+```csharp
+// e.g. send a dropped item entity to another dimension
+transitions.TeleportEntity(itemEntity, new AssetLocation("mymod", "nether"));
+```
+
+- It throws `ArgumentException` if given a player entity - use `TeleportPlayer` for players.
+- The landing position comes from `TransitionOptions.OverridePosition` or the resolver (default
+  `SameXZSurfaceY`); the per-dimension `SpawnBehavior`/`LastVisited` policy is player-only and is not
+  applied to entities.
+- Item entities are fully supported. Other entities (mobs) are supported on a best-effort basis;
+  verify AI and rendering behavior in your target dimension.
+
 ## TransitionOptions
 
 `TransitionOptions` is an immutable record struct used to override per-transit behavior. All fields are optional:
@@ -91,11 +108,14 @@ For fully custom landing logic, implement `ITargetPositionResolver`:
 ```csharp
 public interface ITargetPositionResolver
 {
-    BlockPos Resolve(IServerPlayer player, AssetLocation targetDim, IWorldAccessor world);
+    // The entity is the player's entity for player transit, or the moved entity for entity transit.
+    BlockPos Resolve(Entity entity, IDimension target, ICoreServerAPI api);
 }
 ```
 
-Pass it via `TransitionOptions.Resolver`. Built-in resolvers are in `TargetPositionResolvers` (static factory class).
+The resolver takes the source `Entity` (read its current X/Z from `entity.Pos`), so the same resolver
+serves both `TeleportPlayer` and `TeleportEntity`. Pass it via `TransitionOptions.Resolver`. Built-in
+resolvers are in `TargetPositionResolvers` (static factory class).
 
 ## WithForcedGameMode
 
