@@ -108,7 +108,7 @@ public sealed class TransitServiceTests
 
         var sapi = Substitute.For<ICoreServerAPI>();
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
-        var svc = new TransitService(registry, sapi, teleporter, positionResolver, generator, new PlayerPositionStore());
+        var svc = new TransitService(registry, sapi, teleporter, positionResolver, generator, new PlayerPositionStore(), new InventorySwapper(sapi));
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());

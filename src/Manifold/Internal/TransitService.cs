@@ -13,12 +13,15 @@ namespace Manifold.Internal;
 /// <remarks>Main thread only.</remarks>
 internal sealed class TransitService : ITransitionService
 {
+    private const string InventoryModdataKey = "manifold:inv";
+
     private readonly DimensionRegistry _registry;
     private readonly ICoreServerAPI _sapi;
     private readonly IPlayerTeleporter _teleporter;
     private readonly ITargetPositionResolver _defaultResolver;
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
+    private readonly InventorySwapper _inventory;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -28,13 +31,15 @@ internal sealed class TransitService : ITransitionService
     /// <param name="defaultResolver">Default target position resolver (used for SameCoordinates behavior).</param>
     /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
     /// <param name="positionStore">Per-player per-dimension last-position memory (for LastVisited behavior).</param>
+    /// <param name="inventory">Inventory swapper for per-dimension inventory separation.</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
         IPlayerTeleporter teleporter,
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
-        PlayerPositionStore positionStore)
+        PlayerPositionStore positionStore,
+        InventorySwapper inventory)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
@@ -42,6 +47,7 @@ internal sealed class TransitService : ITransitionService
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
+        _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
     }
 
     /// <inheritdoc/>
@@ -115,12 +121,52 @@ internal sealed class TransitService : ITransitionService
             }
         }
 
+        ApplyInventoryPolicy(player, target, targetImpl);
+
         PlayerLeft?.Invoke(this, new PlayerLeftDimensionEventArgs(player, source, target));
         PlayerEntered?.Invoke(this, new PlayerEnteredDimensionEventArgs(player, source, target));
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
+
+    /// <summary>
+    /// Swaps the player's separated inventory categories to the destination dimension's profile.
+    /// Snapshots the current contents before clearing, restores the destination set (empty on first
+    /// visit), and persists the profiles in the player's moddata so they save with the inventory.
+    /// </summary>
+    private void ApplyInventoryPolicy(IServerPlayer player, IDimension target, DimensionImpl? targetImpl)
+    {
+        var store = PlayerInventoryStore.FromBytes(player.GetModdata(InventoryModdataKey));
+        var plan = InventoryProfileResolver.Plan(
+            targetImpl?.SeparateInventory ?? ManifoldInventory.None,
+            target.Code.ToString(),
+            store.CurrentKey);
+
+        if (plan.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var swap in plan)
+        {
+            // Snapshot the current contents into the source key BEFORE touching any slot.
+            store.SetSnapshot(swap.Category, swap.FromKey, _inventory.Serialize(player, swap.Category));
+
+            if (store.HasSnapshot(swap.Category, swap.ToKey))
+            {
+                _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
+            }
+            else
+            {
+                _inventory.Clear(player, swap.Category);
+            }
+
+            store.SetCurrentKey(swap.Category, swap.ToKey);
+        }
+
+        player.SetModdata(InventoryModdataKey, store.ToBytes());
+    }
 
     /// <summary>
     /// Computes the landing position, honoring per-transit overrides first, then the target
