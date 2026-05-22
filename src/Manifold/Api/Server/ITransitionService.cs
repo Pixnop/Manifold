@@ -2,6 +2,7 @@ using System;
 using Manifold.Api.Events;
 using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Server;
 
 namespace Manifold.Api.Server;
@@ -30,4 +31,16 @@ public interface ITransitionService
     /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>
     /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
     void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
+
+    /// <summary>
+    /// Moves a non-player entity (item, mob) to another dimension. Generates the destination region if
+    /// needed, then re-homes the entity. For players use <see cref="TeleportPlayer"/> instead.
+    /// </summary>
+    /// <param name="entity">The non-player entity to move.</param>
+    /// <param name="targetDim">Destination dimension code.</param>
+    /// <param name="options">Optional position override / resolver.</param>
+    /// <exception cref="System.ArgumentException">The entity is a player.</exception>
+    /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
+    /// <exception cref="DimensionStateException">The destination is not active.</exception>
+    void TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default);
 }

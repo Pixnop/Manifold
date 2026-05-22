@@ -55,7 +55,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
             /d:sonar.scanner.scanAll=false \
-            /d:sonar.coverage.exclusions="samples/**,**/ManifoldModSystem.cs,**/HarmonyPatcher.cs,**/PlayerTeleporter.cs,**/PortalBlockBase.cs,**/ManifoldNetworkChannel.cs,**/CoreServerApiExtensions.cs,**/CoreClientApiExtensions.cs,**/ManifoldAccess.cs,**/*Facade.cs,**/WorldgenChunkContextFactory.cs,**/DimensionCommandBuilder.cs,**/StreamingWorldgenDriver.cs,**/DimensionGenerator.cs,**/InventorySwapper.cs"
+            /d:sonar.coverage.exclusions="samples/**,**/ManifoldModSystem.cs,**/HarmonyPatcher.cs,**/PlayerTeleporter.cs,**/PortalBlockBase.cs,**/ManifoldNetworkChannel.cs,**/CoreServerApiExtensions.cs,**/CoreClientApiExtensions.cs,**/ManifoldAccess.cs,**/*Facade.cs,**/WorldgenChunkContextFactory.cs,**/DimensionCommandBuilder.cs,**/StreamingWorldgenDriver.cs,**/DimensionGenerator.cs,**/InventorySwapper.cs,**/EntityMover.cs"
 
       - name: Build
         run: dotnet build Manifold.slnx -c Release
