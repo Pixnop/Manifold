@@ -212,7 +212,7 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)
     {
-        var pos = e.Player.Entity.Pos.AsBlockPos;
+        var pos = EntityPosAccess.Pos(e.Player.Entity).AsBlockPos;
         _network?.SendPlayerTransited(e.Player, new PlayerTransitedPacket
         {
             SourceCode = e.SourceDimension.Code.ToString(),
