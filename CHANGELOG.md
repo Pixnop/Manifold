@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-23
+
+### Fixed
+- **MissingFieldException at world load on Vintage Story 1.22.x.** VS 1.22 refactored `Entity.Pos` from a public field into a public property, and the IL emitted by 0.3.0 (built against the 1.21 API) throws `MissingFieldException` at runtime on 1.22 builds, which broke world generation for any player on 1.22.x. Manifold now resolves `Entity.Pos` through a small reflection-cached helper, so the same binary keeps working on every 1.21.x and 1.22.x release. The sample's `/sendtestitem` command uses `Entity.SidedPos` (a property in both shapes) for the same reason. Fixes #24.
+
+### Changed
+- The Manifold Sample now declares `manifold >= 0.3.0` in its modinfo (was 0.2.0), since it relies on the 0.3.0 `TeleportEntity` and `WithSeparateInventory` APIs.
+
 ## [0.3.0] - 2026-05-22
 
 ### Added
