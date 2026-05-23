@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/companions/">
+    <Project Path="companions/Chart/Chart.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/ManifoldSample/ManifoldSample.csproj" />
   </Folder>
