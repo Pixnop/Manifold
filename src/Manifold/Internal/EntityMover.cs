@@ -30,9 +30,12 @@ internal sealed class EntityMover : IEntityMover
         int y = targetWithDimension.Y;
         int z = targetWithDimension.Z;
 
-        entity.Pos.Dimension = dim;
-        entity.Pos.SetPos(x, y, z);
-        entity.Pos.Motion.Set(0, 0, 0);
+        // Use the binary-compat accessor: Entity.Pos is a field on 1.21.x and a property on 1.22.x,
+        // and direct field/property access would mismatch one of the two at runtime.
+        var pos = EntityPosAccess.Pos(entity);
+        pos.Dimension = dim;
+        pos.SetPos(x, y, z);
+        pos.Motion.Set(0, 0, 0);
         entity.IsTeleport = true; // do not interpolate the next position packet client-side
 
         // The dimension is encoded into the chunk Y (dim * 1024 chunk rows). Newer API builds mark the

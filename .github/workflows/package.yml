@@ -25,7 +25,7 @@ jobs:
       - name: Download Vintage Story server
         run: |
           set -e
-          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.21.0.tar.gz"
+          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
           mkdir -p "$HOME/vs"
           tar -xzf vs_server.tar.gz -C "$HOME/vs"
           DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"

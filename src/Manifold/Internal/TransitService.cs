@@ -83,7 +83,7 @@ internal sealed class TransitService : ITransitionService
                 $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
         }
 
-        int sourceId = player.Entity.Pos.Dimension;
+        int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
         var targetImpl = _registry.GetByInternalId(target.InternalId);
 
@@ -101,7 +101,7 @@ internal sealed class TransitService : ITransitionService
 
         // Record the player's current position in the SOURCE dimension before leaving,
         // so the LastVisited behavior can return them here later.
-        var srcPos = player.Entity.Pos;
+        var srcPos = EntityPosAccess.Pos(player.Entity);
         _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
 
         // Pre-generate / load the destination region so the player lands on solid ground.

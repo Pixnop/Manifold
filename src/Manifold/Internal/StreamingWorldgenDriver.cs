@@ -100,7 +100,7 @@ internal sealed class StreamingWorldgenDriver
 
         foreach (var player in _sapi.World.AllOnlinePlayers)
         {
-            if (player is not IServerPlayer sp || sp.Entity?.Pos is not { } pos)
+            if (player is not IServerPlayer sp || EntityPosAccess.PosOrNull(sp.Entity) is not { } pos)
             {
                 continue;
             }
