@@ -18,41 +18,37 @@ internal sealed class TransitService : ITransitionService
 
     private readonly DimensionRegistry _registry;
     private readonly ICoreServerAPI _sapi;
-    private readonly IPlayerTeleporter _teleporter;
+    private readonly TransitMovers _movers;
     private readonly ITargetPositionResolver _defaultResolver;
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
     private readonly InventorySwapper _inventory;
-    private readonly IEntityMover _entityMover;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
     /// <param name="sapi">Server API.</param>
-    /// <param name="teleporter">Player teleporter abstraction.</param>
+    /// <param name="movers">Player teleporter and entity re-home primitives (grouped to keep arity reasonable).</param>
     /// <param name="defaultResolver">Default target position resolver (used for SameCoordinates behavior).</param>
     /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
     /// <param name="positionStore">Per-player per-dimension last-position memory (for LastVisited behavior).</param>
     /// <param name="inventory">Inventory swapper for per-dimension inventory separation.</param>
-    /// <param name="entityMover">Cross-dimension entity re-home abstraction.</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
-        IPlayerTeleporter teleporter,
+        TransitMovers movers,
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
         PlayerPositionStore positionStore,
-        InventorySwapper inventory,
-        IEntityMover entityMover)
+        InventorySwapper inventory)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
-        _teleporter = teleporter ?? throw new ArgumentNullException(nameof(teleporter));
+        _movers = (movers ?? throw new ArgumentNullException(nameof(movers))).Required();
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
-        _entityMover = entityMover ?? throw new ArgumentNullException(nameof(entityMover));
     }
 
     /// <inheritdoc/>
@@ -83,7 +79,7 @@ internal sealed class TransitService : ITransitionService
                 $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
         }
 
-        int sourceId = player.Entity.Pos.Dimension;
+        int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
         var targetImpl = _registry.GetByInternalId(target.InternalId);
 
@@ -101,7 +97,7 @@ internal sealed class TransitService : ITransitionService
 
         // Record the player's current position in the SOURCE dimension before leaving,
         // so the LastVisited behavior can return them here later.
-        var srcPos = player.Entity.Pos;
+        var srcPos = EntityPosAccess.Pos(player.Entity);
         _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
 
         // Pre-generate / load the destination region so the player lands on solid ground.
@@ -110,7 +106,7 @@ internal sealed class TransitService : ITransitionService
         // Resolve the final landing position now that terrain exists.
         var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
 
-        _teleporter.Teleport(player, targetPos);
+        _movers.Player.Teleport(player, targetPos);
 
         // Apply a forced game mode if the destination dimension configures one.
         if (targetImpl?.ForcedGameMode is { } gameMode)
@@ -163,7 +159,7 @@ internal sealed class TransitService : ITransitionService
         _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, null);
         var finalPos = ResolveEntityPosition(entity, target, options);
 
-        _entityMover.Move(entity, finalPos);
+        _movers.Entity.Move(entity, finalPos);
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>

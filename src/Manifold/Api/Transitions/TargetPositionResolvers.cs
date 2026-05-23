@@ -1,5 +1,6 @@
 using System;
 using Manifold.Api;
+using Manifold.Internal;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -25,7 +26,7 @@ public static class TargetPositionResolvers
             ArgumentNullException.ThrowIfNull(target);
             ArgumentNullException.ThrowIfNull(api);
 
-            var current = entity.Pos.AsBlockPos;
+            var current = EntityPosAccess.Pos(entity).AsBlockPos;
             int x = current.X;
             int z = current.Z;
 

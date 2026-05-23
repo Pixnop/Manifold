@@ -129,7 +129,13 @@ public sealed class ManifoldSampleModSystem : ModSystem
                 }
 
                 var stack = new ItemStack(item);
-                var spawned = api.World.SpawnItemEntity(stack, serverPlayer.Entity.Pos.XYZ);
+
+                // SidedPos is a property in every 1.21.x and 1.22.x API; reading Entity.Pos directly
+                // would emit ldfld (against the 1.21 shape) or callvirt get_Pos (against 1.22), which
+                // mismatches one of the two at runtime. SidedPos is marked obsolete in 1.22 only.
+#pragma warning disable CS0618 // Type or member is obsolete
+                var spawned = api.World.SpawnItemEntity(stack, serverPlayer.Entity.SidedPos.XYZ);
+#pragma warning restore CS0618
                 if (spawned is null)
                 {
                     return TextCommandResult.Error("Failed to spawn the test item entity.");

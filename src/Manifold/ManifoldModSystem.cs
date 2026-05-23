@@ -110,16 +110,14 @@ public sealed class ManifoldModSystem : ModSystem
                 "[Manifold] Worldgen strategy auto-disabled for dim {0} after 4 consecutive throws.", dim);
 
         var inventorySwapper = new InventorySwapper(api);
-        var entityMover = new EntityMover(api);
         var transit = new TransitService(
             _registry,
             api,
-            new PlayerTeleporter(),
+            new TransitMovers(new PlayerTeleporter(), new EntityMover(api)),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore,
-            inventorySwapper,
-            entityMover);
+            inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, isHealthy: true);
@@ -182,12 +180,11 @@ public sealed class ManifoldModSystem : ModSystem
         var transit = new TransitService(
             registry,
             sapi,
-            new PlayerTeleporter(),
+            new TransitMovers(new PlayerTeleporter(), new EntityMover(sapi)),
             TargetPositionResolvers.SameXZSurfaceY,
             generator,
             new PlayerPositionStore(),
-            new InventorySwapper(sapi),
-            new EntityMover(sapi));
+            new InventorySwapper(sapi));
         transit.MarkUnhealthy();
         ServerFacade = new ManifoldServerFacade(registry, transit, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
@@ -212,7 +209,7 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)
     {
-        var pos = e.Player.Entity.Pos.AsBlockPos;
+        var pos = EntityPosAccess.Pos(e.Player.Entity).AsBlockPos;
         _network?.SendPlayerTransited(e.Player, new PlayerTransitedPacket
         {
             SourceCode = e.SourceDimension.Code.ToString(),

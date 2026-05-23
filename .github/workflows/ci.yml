@@ -34,7 +34,7 @@ jobs:
       - name: Download Vintage Story server (for API DLL references)
         run: |
           set -e
-          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.21.0.tar.gz"
+          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
           mkdir -p "$HOME/vs"
           tar -xzf vs_server.tar.gz -C "$HOME/vs"
           DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
@@ -55,7 +55,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
             /d:sonar.scanner.scanAll=false \
-            /d:sonar.coverage.exclusions="samples/**,**/ManifoldModSystem.cs,**/HarmonyPatcher.cs,**/PlayerTeleporter.cs,**/PortalBlockBase.cs,**/ManifoldNetworkChannel.cs,**/CoreServerApiExtensions.cs,**/CoreClientApiExtensions.cs,**/ManifoldAccess.cs,**/*Facade.cs,**/WorldgenChunkContextFactory.cs,**/DimensionCommandBuilder.cs,**/StreamingWorldgenDriver.cs,**/DimensionGenerator.cs,**/InventorySwapper.cs,**/EntityMover.cs"
+            /d:sonar.coverage.exclusions="samples/**,**/ManifoldModSystem.cs,**/HarmonyPatcher.cs,**/PlayerTeleporter.cs,**/PortalBlockBase.cs,**/ManifoldNetworkChannel.cs,**/CoreServerApiExtensions.cs,**/CoreClientApiExtensions.cs,**/ManifoldAccess.cs,**/*Facade.cs,**/WorldgenChunkContextFactory.cs,**/DimensionCommandBuilder.cs,**/StreamingWorldgenDriver.cs,**/DimensionGenerator.cs,**/InventorySwapper.cs,**/EntityMover.cs,**/EntityPosAccess.cs"
 
       - name: Build
         run: dotnet build Manifold.slnx -c Release
