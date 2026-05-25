@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Companion mods
+
+- **Chart 0.1.0** (alpha) released as a separate companion mod for dimension-aware world maps. Lives at [`companions/Chart/`](companions/Chart/) and has its own version line / tag scheme (`chart-vX.Y.Z`). Release: https://github.com/Pixnop/Manifold/releases/tag/chart-v0.1.0
+
 ## [0.3.1] - 2026-05-23
 
 ### Fixed

@@ -20,6 +20,10 @@
 - **Players:** [Manifold on the Mod DB](https://mods.vintagestory.at/manifold) - install this (the library other mods depend on). Optional demo: [Manifold Sample](https://mods.vintagestory.at/manifoldsample).
 - **Mod developers:** reference the API at compile time from NuGet - `dotnet add package Pixnop.Manifold`. Your mod still declares `manifold` as a runtime dependency in `modinfo.json`.
 
+### Companion mods
+
+- **[Chart](https://github.com/Pixnop/Manifold/releases/tag/chart-v0.1.0)** (0.1.0, alpha) - dimension-aware world map. Per-dimension tile cache, vanilla-style rendering pipeline (palette + hillshade + blur), hot-swap on transit. Client-side only. Requires Manifold 0.3.1+.
+
 ---
 
 ## Features
