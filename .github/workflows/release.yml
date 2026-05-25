@@ -2,7 +2,7 @@ name: release
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ['v*', 'chart-v*']
 
 permissions:
   contents: write
@@ -14,7 +14,8 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Skip prerelease tags (e.g. v0.1.0-alpha.1): those publish the NuGet package only.
+    # Skip prerelease tags for Manifold (e.g. v0.1.0-alpha.1): those publish the
+    # NuGet package only. Chart prerelease tags (chart-v*-*) are also skipped here.
     if: ${{ !contains(github.ref_name, '-') }}
 
     steps:
@@ -36,7 +37,9 @@ jobs:
       - name: Build
         run: dotnet build Manifold.slnx -c Release
 
-      - name: Package mod zips (library + demo companion)
+      - name: Package mod zips (Manifold + ManifoldSample)
+        # Only runs for Manifold tags (v*) - skipped for chart-v* tags.
+        if: ${{ !startsWith(github.ref_name, 'chart-v') }}
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
@@ -61,10 +64,37 @@ jobs:
 
           ls -la ./*.zip
 
-      - name: Create GitHub release
+      - name: Package Chart zip
+        # Only runs for Chart tags (chart-v*).
+        if: ${{ startsWith(github.ref_name, 'chart-v') }}
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#chart-v}"
+
+          # Chart (the map companion mod). Does NOT bundle Manifold.dll - players
+          # install Manifold separately as a library mod.
+          CHART_OUT="companions/Chart/bin/Release/net10.0"
+          mkdir -p package/chart
+          cp "$CHART_OUT/Chart.dll" package/chart/
+          cp "$CHART_OUT/modinfo.json" package/chart/
+          cp "$CHART_OUT/modicon.png" package/chart/
+          (cd package/chart && zip -r "$GITHUB_WORKSPACE/Chart-$VERSION.zip" .)
+
+          ls -la ./*.zip
+
+      - name: Create GitHub release (Manifold)
+        if: ${{ !startsWith(github.ref_name, 'chart-v') }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
             Manifold-*.zip
             ManifoldSample-*.zip
+          generate_release_notes: true
+
+      - name: Create GitHub release (Chart)
+        if: ${{ startsWith(github.ref_name, 'chart-v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Chart-*.zip
           generate_release_notes: true
