@@ -55,7 +55,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
             /d:sonar.scanner.scanAll=false \
-            /d:sonar.coverage.exclusions="samples/**,**/ManifoldModSystem.cs,**/HarmonyPatcher.cs,**/PlayerTeleporter.cs,**/PortalBlockBase.cs,**/ManifoldNetworkChannel.cs,**/CoreServerApiExtensions.cs,**/CoreClientApiExtensions.cs,**/ManifoldAccess.cs,**/*Facade.cs,**/WorldgenChunkContextFactory.cs,**/DimensionCommandBuilder.cs,**/StreamingWorldgenDriver.cs,**/DimensionGenerator.cs,**/InventorySwapper.cs,**/EntityMover.cs,**/EntityPosAccess.cs"
+            /d:sonar.coverage.exclusions="samples/**,**/ManifoldModSystem.cs,**/HarmonyPatcher.cs,**/PlayerTeleporter.cs,**/PortalBlockBase.cs,**/ManifoldNetworkChannel.cs,**/CoreServerApiExtensions.cs,**/CoreClientApiExtensions.cs,**/ManifoldAccess.cs,**/*Facade.cs,**/WorldgenChunkContextFactory.cs,**/DimensionCommandBuilder.cs,**/StreamingWorldgenDriver.cs,**/DimensionGenerator.cs,**/InventorySwapper.cs,**/EntityMover.cs,**/EntityPosAccess.cs,**/ChartModSystem.cs,**/DimensionAwareChunkMapLayer.cs,**/DimensionTracker.cs,**/PerDimensionMapStore.cs,**/BlurTool.cs,**/VanillaMapPalette.cs"
 
       - name: Build
         run: dotnet build Manifold.slnx -c Release
@@ -65,11 +65,18 @@ jobs:
         # build time via the collector, so we let dotnet test rebuild with the
         # coverage collector active.  The extra compile is cheap vs. a missing
         # coverage report.
-        run: >
-          dotnet test tests/Manifold.Pure.Tests
-          -c Release
-          --collect:"XPlat Code Coverage"
-          --settings coverlet.runsettings
+        # Chart.Pure.Tests is run separately because the test step targets a
+        # specific csproj path (not the full solution), so auto-discovery does
+        # not apply here.
+        run: |
+          dotnet test tests/Manifold.Pure.Tests \
+            -c Release \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings
+          dotnet test tests/Chart.Pure.Tests \
+            -c Release \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings
 
       - name: SonarCloud end
         env:

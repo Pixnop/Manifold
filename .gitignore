@@ -46,9 +46,10 @@ packages/
 *.zip
 release/
 
-# Local Mod DB / Discord submission helpers (not part of the repo)
+# Local Mod DB / Discord / GitHub-reply submission helpers (not part of the repo)
 MODDB.md
 DISCORD.md
+GITHUB-REPLIES.md
 *-logo-480.png
 
 # DocFX
