@@ -14,9 +14,10 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Skip prerelease tags for Manifold (e.g. v0.1.0-alpha.1): those publish the
-    # NuGet package only. Chart prerelease tags (chart-v*-*) are also skipped here.
-    if: ${{ !contains(github.ref_name, '-') }}
+    # Skip prerelease tags. A release tag is either `v<version>` (Manifold) or
+    # `chart-v<version>` (Chart). Prerelease markers are -alpha/-beta/-rc/-pre.
+    # GH expressions have no substring/regex, so we enumerate the known suffixes.
+    if: ${{ !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-pre') }}
 
     steps:
       - uses: actions/checkout@v4
