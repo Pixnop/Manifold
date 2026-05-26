@@ -14,6 +14,13 @@ public interface ITransitionService
     /// <summary>Raised before transit completes; set <c>Cancel = true</c> to abort.</summary>
     event EventHandler<PlayerEnteringDimensionEventArgs> PlayerEntering;
 
+    /// <summary>
+    /// Raised after the destination region has been generated but before the actual teleport.
+    /// Cancellable: setting <c>Cancel = true</c> aborts the transit and leaves the player in the
+    /// source dimension. Fires only on the player-transit path (<see cref="TeleportPlayer"/>).
+    /// </summary>
+    event EventHandler<PlayerArrivingDimensionEventArgs> PlayerArriving;
+
     /// <summary>Raised after the player has entered the target dimension.</summary>
     event EventHandler<PlayerEnteredDimensionEventArgs> PlayerEntered;
 
@@ -29,7 +36,8 @@ public interface ITransitionService
 
     /// <summary>
     /// Teleport a player to the dimension identified by <paramref name="targetDim"/>.
-    /// Raises <see cref="PlayerEntering"/> (cancellable), then <see cref="PlayerLeft"/> and <see cref="PlayerEntered"/>.
+    /// Raises <see cref="PlayerEntering"/> (cancellable, pre-generation), then <see cref="PlayerArriving"/>
+    /// (cancellable, post-generation), then <see cref="PlayerLeft"/> and <see cref="PlayerEntered"/>.
     /// </summary>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>

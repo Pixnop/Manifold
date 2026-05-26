@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`ITransitionService.PlayerArriving`** event - cancellable post-generation, pre-teleport hook on `TeleportPlayer`. Fires after the destination region has been generated and the final landing position resolved, but before the player is teleported. Subscribers can perform setup work that requires the target chunks to be loaded (place a welcome block, attach server-side state, log arrival metadata) or veto the transit by setting `Cancel = true`. The event fits between the existing `PlayerEntering` (pre-generation) and `PlayerLeft` / `PlayerEntered` (post-teleport). Closes #37.
 - **`ITransitionService.EntityChangedDimension`** event - raised on the server after `TeleportEntity` re-homes a non-player entity successfully. The post-event mirrors the engine's `IEventAPI.PlayerDimensionChanged` (which covers `EntityPlayer`) and never fires for player entities. `EntityChangedDimensionEventArgs` exposes the entity, the previous and new `IDimension`, and the final landing `BlockPos`. The event is not raised when `TeleportEntity` throws. Closes #41.
 
 ### Companion mods
