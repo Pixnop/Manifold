@@ -143,6 +143,36 @@ internal sealed class TransitService : ITransitionService
     }
 
     /// <inheritdoc/>
+    public bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(targetDim);
+        ArgumentNullException.ThrowIfNull(targetLocal);
+        if (_unhealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; transit is disabled.");
+        }
+
+        var target = _registry.Get(targetDim)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
+        if (target.State != DimensionState.Active)
+        {
+            throw new DimensionStateException(
+                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
+        }
+
+        var targetPos = targetLocal.Copy();
+        targetPos.dimension = target.InternalId;
+
+        // Pre-generate the destination region so the target column is loaded before we write the
+        // block. Same pre-load contract as TeleportEntity.
+        _generator.EnsureRegion(_sapi, target.InternalId, targetPos.X / 32, targetPos.Z / 32, null);
+
+        return _movers.Block.Move(source, targetPos);
+    }
+
+    /// <inheritdoc/>
     public void TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default)
     {
         ArgumentNullException.ThrowIfNull(entity);
