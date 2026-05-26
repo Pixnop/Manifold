@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`ITransitionService.EntityChangedDimension`** event - raised on the server after `TeleportEntity` re-homes a non-player entity successfully. The post-event mirrors the engine's `IEventAPI.PlayerDimensionChanged` (which covers `EntityPlayer`) and never fires for player entities. `EntityChangedDimensionEventArgs` exposes the entity, the previous and new `IDimension`, and the final landing `BlockPos`. The event is not raised when `TeleportEntity` throws. Closes #41.
+
 ### Companion mods
 
 - **Chart 0.1.0** (alpha) released as a separate companion mod for dimension-aware world maps. Lives at [`companions/Chart/`](companions/Chart/) and has its own version line / tag scheme (`chart-vX.Y.Z`). Release: https://github.com/Pixnop/Manifold/releases/tag/chart-v0.1.0
