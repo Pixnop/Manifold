@@ -23,6 +23,7 @@ namespace Manifold.Internal;
 /// <param name="RelightHeight">Upper Y bound for the relight pass; content above is under-lit until the engine relights.</param>
 /// <param name="SeparateInventory">Inventory categories kept separate per dimension (None = shared).</param>
 /// <param name="Metadata">Read-only metadata snapshot collected via WithMetadata calls (empty when none set).</param>
+/// <param name="StreamingBudgetPerTick">Per-dimension column budget for the streaming driver, or null to use the default.</param>
 internal readonly record struct DimensionBuildRequest(
     AssetLocation Code,
     IWorldgenStrategy Worldgen,
@@ -36,4 +37,5 @@ internal readonly record struct DimensionBuildRequest(
     int? StreamingLoadRadius,
     int RelightHeight,
     ManifoldInventory SeparateInventory,
-    IReadOnlyDictionary<string, object?> Metadata);
+    IReadOnlyDictionary<string, object?> Metadata,
+    int? StreamingBudgetPerTick);

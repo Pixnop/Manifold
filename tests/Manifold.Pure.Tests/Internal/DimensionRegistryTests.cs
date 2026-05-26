@@ -316,6 +316,45 @@ public sealed class DimensionRegistryTests
         Assert.Equal("fallback", dim.GetMetadata("count", "fallback"));
     }
 
+    [Fact]
+    public void WithStreamingBudget_Should_Propagate_To_DimensionImpl()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Streaming(loadRadius: 4)
+            .WithStreamingBudget(maxColumnsPerTick: 8)
+            .RegisterStatic();
+
+        var impl = (Manifold.Internal.DimensionImpl)dim;
+        Assert.Equal(8, impl.StreamingBudgetPerTick);
+    }
+
+    [Fact]
+    public void Dimension_Without_StreamingBudget_Should_Be_Null()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        var impl = (Manifold.Internal.DimensionImpl)dim;
+        Assert.Null(impl.StreamingBudgetPerTick);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(65)]
+    public void WithStreamingBudget_Should_Reject_Out_Of_Range(int value)
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy());
+
+        Assert.ThrowsAny<ArgumentException>(() => builder.WithStreamingBudget(value));
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static DimensionRegistry NewRegistry()

@@ -12,7 +12,6 @@ namespace Manifold.Internal;
 /// <remarks>Server-side, main thread. Logic lives in <see cref="StreamingPlanner"/>; this is glue.</remarks>
 internal sealed class StreamingWorldgenDriver
 {
-    private const int BudgetPerTick = 4;
     private const int TickIntervalMs = 250;
 
     private readonly ICoreServerAPI _sapi;
@@ -59,7 +58,7 @@ internal sealed class StreamingWorldgenDriver
             return;
         }
 
-        var planned = StreamingPlanner.Plan(players, IsColumnLoaded, BudgetPerTick);
+        var planned = StreamingPlanner.Plan(players, IsColumnLoaded, BudgetForDim);
         if (planned.Count == 0)
         {
             return;
@@ -128,4 +127,13 @@ internal sealed class StreamingWorldgenDriver
     /// <summary>In-memory loaded check. A dimension's columns sit at chunk-Y band dim*1024.</summary>
     private bool IsColumnLoaded(int dimId, int cx, int cz) =>
         _sapi.WorldManager.GetChunk(cx, dimId * 1024, cz) != null;
+
+    /// <summary>
+    /// Resolves the per-tick column budget for a dimension: dim-specific setting if configured,
+    /// otherwise the default. Falls back to the default when the dim is not in the registry
+    /// (defensive: in practice we only ask for streaming dims, which are all known).
+    /// </summary>
+    private int BudgetForDim(int dimId) =>
+        _registry.GetByInternalId(dimId)?.StreamingBudgetPerTick
+            ?? DimensionBuilderImpl.DefaultStreamingBudgetPerTick;
 }
