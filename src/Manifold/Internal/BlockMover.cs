@@ -1,0 +1,65 @@
+using System;
+using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
+using Vintagestory.API.MathTools;
+using Vintagestory.API.Server;
+
+namespace Manifold.Internal;
+
+/// <summary>
+/// Default <see cref="IBlockMover"/>. Snapshots the source block (and its <c>BlockEntity</c> via
+/// <c>ToTreeAttributes</c>), writes it at the target, restores the BE via <c>FromTreeAttributes</c>,
+/// then clears the source. Uses only public API.
+/// </summary>
+/// <remarks>Server-side, main thread.</remarks>
+internal sealed class BlockMover : IBlockMover
+{
+    private readonly ICoreServerAPI _sapi;
+
+    /// <summary>Initializes a new instance of the <see cref="BlockMover"/> class.</summary>
+    /// <param name="sapi">Server API.</param>
+    public BlockMover(ICoreServerAPI sapi) =>
+        _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
+
+    /// <inheritdoc/>
+    public bool Move(BlockPos source, BlockPos target)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(target);
+
+        var world = _sapi.World;
+        var accessor = world.BlockAccessor;
+
+        int sourceId = accessor.GetBlockId(source);
+        if (sourceId == 0)
+        {
+            // Air at source: nothing to move. Treat as a no-op (callers can act on the bool).
+            return false;
+        }
+
+        // Snapshot the BE state, if any. ToTreeAttributes is the documented save/sync path and
+        // captures inventory, attributes, and BE-behavior state in one tree.
+        ITreeAttribute? beTree = null;
+        var sourceBe = accessor.GetBlockEntity(source);
+        if (sourceBe is not null)
+        {
+            beTree = new TreeAttribute();
+            sourceBe.ToTreeAttributes(beTree);
+        }
+
+        // Write the block at the target. SetBlock spawns a BE if the block declares one, which we
+        // then rehydrate from the captured tree.
+        accessor.SetBlock(sourceId, target);
+        if (beTree is not null)
+        {
+            var targetBe = accessor.GetBlockEntity(target);
+            targetBe?.FromTreeAttributes(beTree, world);
+            targetBe?.MarkDirty(true);
+        }
+
+        // Clear the source slot. Done after the target write so an exception mid-flight leaves
+        // the source intact (the worst case is a duplicated block, never a lost one).
+        accessor.SetBlock(0, source);
+        return true;
+    }
+}

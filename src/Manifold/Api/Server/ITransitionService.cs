@@ -3,6 +3,7 @@ using Manifold.Api.Events;
 using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 namespace Manifold.Api.Server;
@@ -59,4 +60,22 @@ public interface ITransitionService
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
     /// <exception cref="DimensionStateException">The destination is not active.</exception>
     void TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default);
+
+    /// <summary>
+    /// Moves a single block plus its <c>BlockEntity</c> state (inventory, attributes, BE-behaviors)
+    /// from <paramref name="source"/> in any dimension to <paramref name="targetLocal"/> in
+    /// <paramref name="targetDim"/>. The destination region is generated on demand, then the block
+    /// is serialized via <c>BlockEntity.ToTreeAttributes</c> at the source, set at the target, and
+    /// rehydrated via <c>FromTreeAttributes</c>; finally the source slot is set to air. The source
+    /// dimension is taken from <c>source.dimension</c>; the target dimension overrides
+    /// <c>targetLocal.dimension</c>.
+    /// </summary>
+    /// <param name="source">Source position. <see cref="Vintagestory.API.MathTools.BlockPos.dimension"/> is the source dim.</param>
+    /// <param name="targetDim">Target dimension code.</param>
+    /// <param name="targetLocal">Target position; the dimension field is rewritten to the target.</param>
+    /// <returns><c>true</c> when a non-air block was moved; <c>false</c> when the source slot was air.</returns>
+    /// <exception cref="DimensionNotFoundException">Target code unknown.</exception>
+    /// <exception cref="DimensionStateException">Target is not Active.</exception>
+    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
+    bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal);
 }

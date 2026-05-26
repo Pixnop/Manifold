@@ -113,7 +113,7 @@ public sealed class ManifoldModSystem : ModSystem
         var transit = new TransitService(
             _registry,
             api,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(api)),
+            new TransitMovers(new PlayerTeleporter(), new EntityMover(api), new BlockMover(api)),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore,
@@ -180,7 +180,7 @@ public sealed class ManifoldModSystem : ModSystem
         var transit = new TransitService(
             registry,
             sapi,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(sapi)),
+            new TransitMovers(new PlayerTeleporter(), new EntityMover(sapi), new BlockMover(sapi)),
             TargetPositionResolvers.SameXZSurfaceY,
             generator,
             new PlayerPositionStore(),
