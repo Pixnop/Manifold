@@ -55,6 +55,9 @@ internal sealed class TransitService : ITransitionService
     public event EventHandler<PlayerEnteringDimensionEventArgs>? PlayerEntering;
 
     /// <inheritdoc/>
+    public event EventHandler<PlayerArrivingDimensionEventArgs>? PlayerArriving;
+
+    /// <inheritdoc/>
     public event EventHandler<PlayerEnteredDimensionEventArgs>? PlayerEntered;
 
     /// <inheritdoc/>
@@ -108,6 +111,14 @@ internal sealed class TransitService : ITransitionService
 
         // Resolve the final landing position now that terrain exists.
         var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
+
+        // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
+        var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
+        PlayerArriving?.Invoke(this, arrivingArgs);
+        if (arrivingArgs.Cancel)
+        {
+            return;
+        }
 
         _movers.Player.Teleport(player, targetPos);
 

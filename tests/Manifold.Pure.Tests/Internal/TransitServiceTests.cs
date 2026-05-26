@@ -62,6 +62,45 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Raise_PlayerArriving_With_Final_Position()
+    {
+        var (svc, _, player, _, _) = NewService();
+        PlayerArrivingDimensionEventArgs? captured = null;
+        svc.PlayerArriving += (_, e) => captured = e;
+        svc.TeleportPlayer(player, Code("owner:target"));
+        Assert.NotNull(captured);
+        Assert.Same(player, captured!.Player);
+        Assert.Equal("owner:target", captured.TargetDimension.Code.ToString());
+        Assert.Equal(new BlockPos(100, 100, 100, captured.TargetDimension.InternalId), captured.TargetPosition);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Raise_Entering_Then_Arriving_In_Order()
+    {
+        var (svc, _, player, _, _) = NewService();
+        var order = new System.Collections.Generic.List<string>();
+        svc.PlayerEntering += (_, _) => order.Add("entering");
+        svc.PlayerArriving += (_, _) => order.Add("arriving");
+        svc.TeleportPlayer(player, Code("owner:target"));
+        Assert.Equal(new[] { "entering", "arriving" }, order);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Abort_When_PlayerArriving_Cancelled()
+    {
+        var (svc, _, player, tele, _) = NewService();
+        bool entered = false;
+        bool left = false;
+        svc.PlayerArriving += (_, e) => e.Cancel = true;
+        svc.PlayerEntered += (_, _) => entered = true;
+        svc.PlayerLeft += (_, _) => left = true;
+        svc.TeleportPlayer(player, Code("owner:target"));
+        Assert.False(entered);
+        Assert.False(left);
+        tele.DidNotReceive().Teleport(Arg.Any<IServerPlayer>(), Arg.Any<BlockPos>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Call_Teleporter_When_Not_Cancelled()
     {
         var (svc, _, player, tele, _) = NewService();
