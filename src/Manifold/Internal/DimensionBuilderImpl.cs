@@ -22,6 +22,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     /// <summary>Default upper Y bound for the post-generation relight pass.</summary>
     internal const int DefaultRelightHeight = 20;
 
+    /// <summary>Default per-dimension streaming column budget per tick.</summary>
+    internal const int DefaultStreamingBudgetPerTick = 4;
+
     /// <summary>Empty metadata sentinel used when no <c>WithMetadata</c> was called.</summary>
     internal static readonly IReadOnlyDictionary<string, object?> EmptyMetadata =
         new Dictionary<string, object?>(0);
@@ -38,6 +41,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private int? _streamingLoadRadius;
     private ManifoldInventory _separateInventory = ManifoldInventory.None;
     private int _relightHeight = DefaultRelightHeight;
+    private int? _streamingBudgetPerTick;
     private Dictionary<string, object?>? _metadata;
     private bool _used;
 
@@ -143,6 +147,14 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder WithStreamingBudget(int maxColumnsPerTick)
+    {
+        ThrowIfUsed();
+        _streamingBudgetPerTick = Guards.InRange(maxColumnsPerTick, 1, 64, nameof(maxColumnsPerTick));
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimensionBuilder WithSeparateInventory(ManifoldInventory categories)
     {
         ThrowIfUsed();
@@ -205,7 +217,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _streamingLoadRadius,
             _relightHeight,
             _separateInventory,
-            _metadata ?? EmptyMetadata));
+            _metadata ?? EmptyMetadata,
+            _streamingBudgetPerTick));
     }
 
     /// <inheritdoc/>
@@ -238,7 +251,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _streamingLoadRadius,
             _relightHeight,
             _separateInventory,
-            _metadata ?? EmptyMetadata));
+            _metadata ?? EmptyMetadata,
+            _streamingBudgetPerTick));
     }
 
     private static bool IsSupportedMetadataType(Type t) =>

@@ -67,6 +67,17 @@ public interface IDimensionBuilder
     IDimensionBuilder Streaming(int loadRadius);
 
     /// <summary>
+    /// Caps how many columns the streaming driver may ensure for this dimension per tick. Default
+    /// is 4. Increase for dimensions with heavy traffic (a hub, a popular arena); decrease for
+    /// background dimensions that should not compete with the main world for scheduler slots.
+    /// Per-dimension caps are independent: a busy dim cannot starve a quiet one. Range 1..64.
+    /// Only meaningful on streaming dimensions (combine with <see cref="Streaming"/>).
+    /// </summary>
+    /// <param name="maxColumnsPerTick">Per-dimension column budget per tick (range 1..64).</param>
+    /// <returns>This builder, for chaining.</returns>
+    IDimensionBuilder WithStreamingBudget(int maxColumnsPerTick);
+
+    /// <summary>
     /// Opts the dimension into separate per-player inventories for the given categories. On entering
     /// the dimension the player's chosen inventories are swapped to this dimension's set (empty on the
     /// first visit) and restored on leaving. Omit for a shared inventory.

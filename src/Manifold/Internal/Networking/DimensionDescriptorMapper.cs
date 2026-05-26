@@ -39,5 +39,6 @@ internal static class DimensionDescriptorMapper
         StreamingLoadRadius: null,
         RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
         SeparateInventory: Manifold.Api.ManifoldInventory.None,
-        Metadata: DimensionBuilderImpl.EmptyMetadata);
+        Metadata: DimensionBuilderImpl.EmptyMetadata,
+        StreamingBudgetPerTick: null);
 }
