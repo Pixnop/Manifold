@@ -127,6 +127,36 @@ public sealed class TransitServiceTests
         mover.Received(1).Move(entity, Arg.Any<BlockPos>());
     }
 
+    [Fact]
+    public void TeleportEntity_Should_Raise_EntityChangedDimension_With_Final_Position()
+    {
+        var (svc, _, _, _, _) = NewService();
+        var entity = Substitute.For<Entity>();
+        EntityChangedDimensionEventArgs? captured = null;
+        svc.EntityChangedDimension += (_, e) => captured = e;
+
+        svc.TeleportEntity(entity, Code("owner:target"));
+
+        Assert.NotNull(captured);
+        Assert.Same(entity, captured!.Entity);
+        Assert.Equal("owner:target", captured.NewDimension.Code.ToString());
+        Assert.Equal(new BlockPos(100, 100, 100, captured.NewDimension.InternalId), captured.NewPosition);
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Not_Raise_EntityChangedDimension_When_Mover_Throws()
+    {
+        var (svc, _, _, _, mover) = NewService();
+        var entity = Substitute.For<Entity>();
+        mover.When(m => m.Move(Arg.Any<Entity>(), Arg.Any<BlockPos>()))
+             .Do(_ => throw new InvalidOperationException("boom"));
+        bool raised = false;
+        svc.EntityChangedDimension += (_, _) => raised = true;
+
+        Assert.Throws<InvalidOperationException>(() => svc.TeleportEntity(entity, Code("owner:target")));
+        Assert.False(raised);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover Mover)

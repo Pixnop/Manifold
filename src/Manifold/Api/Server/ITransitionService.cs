@@ -21,6 +21,13 @@ public interface ITransitionService
     event EventHandler<PlayerLeftDimensionEventArgs> PlayerLeft;
 
     /// <summary>
+    /// Raised after a non-player entity has been successfully moved to another dimension by
+    /// <see cref="TeleportEntity"/>. The engine's <c>PlayerDimensionChanged</c> covers players;
+    /// this event covers everything else and never fires for <c>EntityPlayer</c>.
+    /// </summary>
+    event EventHandler<EntityChangedDimensionEventArgs> EntityChangedDimension;
+
+    /// <summary>
     /// Teleport a player to the dimension identified by <paramref name="targetDim"/>.
     /// Raises <see cref="PlayerEntering"/> (cancellable), then <see cref="PlayerLeft"/> and <see cref="PlayerEntered"/>.
     /// </summary>
@@ -34,7 +41,8 @@ public interface ITransitionService
 
     /// <summary>
     /// Moves a non-player entity (item, mob) to another dimension. Generates the destination region if
-    /// needed, then re-homes the entity. For players use <see cref="TeleportPlayer"/> instead.
+    /// needed, re-homes the entity, then raises <see cref="EntityChangedDimension"/>. For players use
+    /// <see cref="TeleportPlayer"/> instead.
     /// </summary>
     /// <param name="entity">The non-player entity to move.</param>
     /// <param name="targetDim">Destination dimension code.</param>

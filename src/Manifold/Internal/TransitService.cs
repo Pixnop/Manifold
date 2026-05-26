@@ -61,6 +61,9 @@ internal sealed class TransitService : ITransitionService
     public event EventHandler<PlayerLeftDimensionEventArgs>? PlayerLeft;
 
     /// <inheritdoc/>
+    public event EventHandler<EntityChangedDimensionEventArgs>? EntityChangedDimension;
+
+    /// <inheritdoc/>
     public void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
     {
         ArgumentNullException.ThrowIfNull(player);
@@ -154,12 +157,20 @@ internal sealed class TransitService : ITransitionService
                 $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
         }
 
+        // Capture source dim BEFORE the move so the post-event reports the actual previous
+        // dimension. The default-to-overworld fallback mirrors TeleportPlayer's handling of
+        // entities whose pos.dimension does not (yet) match a registered dim.
+        int sourceId = EntityPosAccess.Pos(entity).Dimension;
+        var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
+
         // Preliminary position to center generation, then a final position after terrain exists.
         var prelim = ResolveEntityPosition(entity, target, options);
         _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, null);
         var finalPos = ResolveEntityPosition(entity, target, options);
 
         _movers.Entity.Move(entity, finalPos);
+
+        EntityChangedDimension?.Invoke(this, new EntityChangedDimensionEventArgs(entity, source, target, finalPos));
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
