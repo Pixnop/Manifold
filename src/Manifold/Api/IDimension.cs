@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Vintagestory.API.Common;
 
 namespace Manifold.Api;
@@ -32,4 +33,17 @@ public interface IDimension
 
     /// <summary>Current runtime state - controls eligibility for transit and worldgen.</summary>
     DimensionState State { get; }
+
+    /// <summary>
+    /// Read-only metadata attached to this dimension at registration time. Owning mods populate
+    /// it via <c>IDimensionBuilder.WithMetadata</c>; consumers query it directly or through the
+    /// typed <c>GetMetadata&lt;T&gt;</c> extension. Server-side only in v1 - not replicated to
+    /// client mirrors and not persisted across server restarts (re-declare in your boot path).
+    /// </summary>
+    /// <remarks>
+    /// Supported value types are primitives, <c>string</c>, <c>enum</c>, and <c>byte[]</c>; passing
+    /// other types to <c>WithMetadata</c> throws. Empty for the built-in overworld and for
+    /// dimensions reloaded from the manifest.
+    /// </remarks>
+    IReadOnlyDictionary<string, object?> Metadata { get; }
 }

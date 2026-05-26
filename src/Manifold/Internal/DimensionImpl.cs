@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Transitions;
 using Manifold.Api.Worldgen;
@@ -24,6 +25,7 @@ namespace Manifold.Internal;
 /// <param name="StreamingLoadRadius">If set, the dimension streams (chunk radius around each player); null = bounded.</param>
 /// <param name="RelightHeight">Upper Y bound for the relight pass; content above is under-lit until the engine relights.</param>
 /// <param name="SeparateInventory">Inventory categories kept separate per dimension (None = shared).</param>
+/// <param name="Metadata">Read-only registration-time metadata (empty by default).</param>
 internal sealed record DimensionImpl(
     AssetLocation Code,
     int InternalId,
@@ -38,7 +40,8 @@ internal sealed record DimensionImpl(
     EnumGameMode? ForcedGameMode,
     int? StreamingLoadRadius,
     int RelightHeight,
-    ManifoldInventory SeparateInventory) : IDimension
+    ManifoldInventory SeparateInventory,
+    IReadOnlyDictionary<string, object?> Metadata) : IDimension
 {
     /// <summary>Return a copy with the supplied <see cref="State"/>.</summary>
     /// <param name="newState">The new state.</param>
