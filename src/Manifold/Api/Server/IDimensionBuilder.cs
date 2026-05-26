@@ -76,6 +76,22 @@ public interface IDimensionBuilder
     IDimensionBuilder WithSeparateInventory(ManifoldInventory categories);
 
     /// <summary>
+    /// Attaches a typed metadata entry to the dimension, exposed through <see cref="IDimension.Metadata"/>.
+    /// Useful for storing labels, categories, opt-in flags, and other registration-time hints that
+    /// other systems can read without going through the owning mod.
+    /// </summary>
+    /// <param name="key">Metadata key. Must be non-empty.</param>
+    /// <param name="value">Value. Supported: primitives, <c>string</c>, <c>enum</c>, <c>byte[]</c>, or <c>null</c>.</param>
+    /// <returns>This builder, for chaining.</returns>
+    /// <exception cref="System.ArgumentException">Thrown when the value is of an unsupported type, or the same key is set twice.</exception>
+    /// <remarks>
+    /// Metadata is server-side only in v1; it is not replicated to client mirrors and not persisted
+    /// across server restarts. For static dimensions this is harmless (the owner re-declares them on
+    /// boot). For runtime <c>Create</c> dimensions, treat metadata as ephemeral.
+    /// </remarks>
+    IDimensionBuilder WithMetadata(string key, object? value);
+
+    /// <summary>
     /// Finalises as a static, persistent dimension (boot-time use). Idempotent across server restarts -
     /// re-calling with the same code reuses the existing internal id.
     /// </summary>

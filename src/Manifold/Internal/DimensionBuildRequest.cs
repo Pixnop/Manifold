@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Transitions;
 using Manifold.Api.Worldgen;
@@ -21,6 +22,7 @@ namespace Manifold.Internal;
 /// <param name="StreamingLoadRadius">If set, the dimension streams: chunk radius kept generated around each player. Null = bounded.</param>
 /// <param name="RelightHeight">Upper Y bound for the relight pass; content above is under-lit until the engine relights.</param>
 /// <param name="SeparateInventory">Inventory categories kept separate per dimension (None = shared).</param>
+/// <param name="Metadata">Read-only metadata snapshot collected via WithMetadata calls (empty when none set).</param>
 internal readonly record struct DimensionBuildRequest(
     AssetLocation Code,
     IWorldgenStrategy Worldgen,
@@ -33,4 +35,5 @@ internal readonly record struct DimensionBuildRequest(
     EnumGameMode? ForcedGameMode,
     int? StreamingLoadRadius,
     int RelightHeight,
-    ManifoldInventory SeparateInventory);
+    ManifoldInventory SeparateInventory,
+    IReadOnlyDictionary<string, object?> Metadata);
