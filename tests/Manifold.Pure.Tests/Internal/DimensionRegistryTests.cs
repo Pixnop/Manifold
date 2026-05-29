@@ -1,3 +1,4 @@
+using System;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
@@ -217,6 +218,141 @@ public sealed class DimensionRegistryTests
 
         var impl = (Manifold.Internal.DimensionImpl)dim;
         Assert.Equal(DimensionBuilderImpl.DefaultGenerationRadius, impl.GenerationRadius);
+    }
+
+    [Fact]
+    public void WithMetadata_Should_Attach_Values_To_Dimension()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithMetadata("display_name", "Test Dim")
+            .WithMetadata("level", 5)
+            .WithMetadata("hub_visible", true)
+            .RegisterStatic();
+
+        Assert.Equal("Test Dim", dim.GetMetadata<string>("display_name"));
+        Assert.Equal(5, dim.GetMetadata<int>("level"));
+        Assert.True(dim.GetMetadata<bool>("hub_visible"));
+        Assert.True(dim.HasMetadata("display_name"));
+    }
+
+    [Fact]
+    public void Dimension_Without_Metadata_Should_Expose_Empty_Map()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Empty(dim.Metadata);
+        Assert.False(dim.HasMetadata("anything"));
+        Assert.Null(dim.GetMetadata<string>("missing"));
+        Assert.Equal("default", dim.GetMetadata("missing", "default"));
+    }
+
+    [Fact]
+    public void Overworld_Should_Have_Empty_Metadata()
+    {
+        var registry = NewRegistry();
+        var overworld = registry.Get(new AssetLocation("manifold:overworld"));
+        Assert.NotNull(overworld);
+        Assert.Empty(overworld!.Metadata);
+    }
+
+    [Fact]
+    public void WithMetadata_Should_Reject_Unsupported_Value_Type()
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy());
+
+        Assert.Throws<ArgumentException>(() => builder.WithMetadata("bad", new System.Collections.Generic.List<int> { 1 }));
+    }
+
+    [Fact]
+    public void WithMetadata_Should_Reject_Duplicate_Key()
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithMetadata("name", "first");
+
+        Assert.Throws<ArgumentException>(() => builder.WithMetadata("name", "second"));
+    }
+
+    [Fact]
+    public void WithMetadata_Should_Reject_Empty_Key()
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy());
+
+        Assert.ThrowsAny<ArgumentException>(() => builder.WithMetadata(string.Empty, "value"));
+    }
+
+    [Fact]
+    public void WithMetadata_Should_Accept_Null_Value()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithMetadata("absent", null)
+            .RegisterStatic();
+
+        Assert.True(dim.HasMetadata("absent"));
+        Assert.Null(dim.GetMetadata<string>("absent"));
+    }
+
+    [Fact]
+    public void GetMetadata_Should_Return_Default_When_Wrong_Type()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithMetadata("count", 7)
+            .RegisterStatic();
+
+        Assert.Equal("fallback", dim.GetMetadata("count", "fallback"));
+    }
+
+    [Fact]
+    public void WithStreamingBudget_Should_Propagate_To_DimensionImpl()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Streaming(loadRadius: 4)
+            .WithStreamingBudget(maxColumnsPerTick: 8)
+            .RegisterStatic();
+
+        var impl = (Manifold.Internal.DimensionImpl)dim;
+        Assert.Equal(8, impl.StreamingBudgetPerTick);
+    }
+
+    [Fact]
+    public void Dimension_Without_StreamingBudget_Should_Be_Null()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        var impl = (Manifold.Internal.DimensionImpl)dim;
+        Assert.Null(impl.StreamingBudgetPerTick);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(65)]
+    public void WithStreamingBudget_Should_Reject_Out_Of_Range(int value)
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy());
+
+        Assert.ThrowsAny<ArgumentException>(() => builder.WithStreamingBudget(value));
     }
 
     private static AssetLocation Code(string s) => new(s);

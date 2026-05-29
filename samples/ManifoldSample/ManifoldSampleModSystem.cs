@@ -38,6 +38,26 @@ public sealed class ManifoldSampleModSystem : ModSystem
             return;
         }
 
+        // Demonstrates the 0.4.0 transit events. These log lines make PlayerArriving (#37) and
+        // EntityChangedDimension (#41) observable in the server console during testing.
+        manifold.Transitions.PlayerArriving += (_, e) =>
+        {
+            Mod.Logger.Notification(
+                "[ManifoldSample] PlayerArriving: {0} -> {1} @ {2}",
+                e.Player.PlayerName,
+                e.TargetDimension.Code,
+                e.TargetPosition);
+        };
+        manifold.Transitions.EntityChangedDimension += (_, e) =>
+        {
+            Mod.Logger.Notification(
+                "[ManifoldSample] EntityChangedDimension: {0} {1} -> {2} @ {3}",
+                e.Entity.Code,
+                e.PreviousDimension.Code,
+                e.NewDimension.Code,
+                e.NewPosition);
+        };
+
         manifold.Registry
             .Define(new AssetLocation(ModId, "void"))
             .Persistent()
@@ -145,7 +165,41 @@ public sealed class ManifoldSampleModSystem : ModSystem
                 return TextCommandResult.Success("Sent a stick to the flat dimension; use /flatdim to find it near your X/Z.");
             });
 
+        // Demonstrates TeleportBlock (#36): teleports the block the caller is looking at - with its
+        // BlockEntity contents (e.g. a chest's inventory) - to the flat dimension. Place a chest,
+        // put items in it, look at it, then run /sendtestblock and check the chest in /flatdim.
+        api.ChatCommands.Create("sendtestblock")
+            .WithDescription("Teleport the block you are looking at (with its contents) to the flat dimension.")
+            .RequiresPrivilege("chat")
+            .RequiresPlayer()
+            .HandleWith(cmdArgs =>
+            {
+                if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
+                {
+                    return TextCommandResult.Error("Players only.");
+                }
+
+                if (serverPlayer.CurrentBlockSelection?.Position is not { } src)
+                {
+                    return TextCommandResult.Error("Look at a block first, then run /sendtestblock.");
+                }
+
+#pragma warning disable CS0618 // SidedPos is obsolete in 1.22 only; used for 1.21/1.22 binary compat.
+                var ppos = serverPlayer.Entity.SidedPos;
+#pragma warning restore CS0618
+                var targetLocal = new BlockPos((int)ppos.X, 64, (int)ppos.Z, 0);
+
+                bool moved = manifold.Transitions.TeleportBlock(
+                    src, new AssetLocation(ModId, "flat"), targetLocal);
+
+                return moved
+                    ? TextCommandResult.Success(
+                        $"Teleported the block to flat dim at ({targetLocal.X}, 64, {targetLocal.Z}). " +
+                        "Use /flatdim and go to that X/Z to verify it (and its contents) arrived; the source slot is now air.")
+                    : TextCommandResult.Error("Nothing moved - the targeted block was air.");
+            });
+
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void + flat + stream + vault dimensions and /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem commands.");
+            "[ManifoldSample] Registered void + flat + stream + vault dimensions and /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock commands.");
     }
 }

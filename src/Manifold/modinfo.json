@@ -2,7 +2,7 @@
   "type": "code",
   "modid": "manifold",
   "name": "Manifold",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Library for declaring and managing custom dimensions. Pure dependency - does not add in-game content.",
   "authors": ["Pixnop"],
   "side": "Universal",

@@ -55,10 +55,16 @@ internal sealed class TransitService : ITransitionService
     public event EventHandler<PlayerEnteringDimensionEventArgs>? PlayerEntering;
 
     /// <inheritdoc/>
+    public event EventHandler<PlayerArrivingDimensionEventArgs>? PlayerArriving;
+
+    /// <inheritdoc/>
     public event EventHandler<PlayerEnteredDimensionEventArgs>? PlayerEntered;
 
     /// <inheritdoc/>
     public event EventHandler<PlayerLeftDimensionEventArgs>? PlayerLeft;
+
+    /// <inheritdoc/>
+    public event EventHandler<EntityChangedDimensionEventArgs>? EntityChangedDimension;
 
     /// <inheritdoc/>
     public void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
@@ -106,6 +112,14 @@ internal sealed class TransitService : ITransitionService
         // Resolve the final landing position now that terrain exists.
         var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
 
+        // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
+        var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
+        PlayerArriving?.Invoke(this, arrivingArgs);
+        if (arrivingArgs.Cancel)
+        {
+            return;
+        }
+
         _movers.Player.Teleport(player, targetPos);
 
         // Apply a forced game mode if the destination dimension configures one.
@@ -126,6 +140,36 @@ internal sealed class TransitService : ITransitionService
 
         PlayerLeft?.Invoke(this, new PlayerLeftDimensionEventArgs(player, source, target));
         PlayerEntered?.Invoke(this, new PlayerEnteredDimensionEventArgs(player, source, target));
+    }
+
+    /// <inheritdoc/>
+    public bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(targetDim);
+        ArgumentNullException.ThrowIfNull(targetLocal);
+        if (_unhealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; transit is disabled.");
+        }
+
+        var target = _registry.Get(targetDim)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
+        if (target.State != DimensionState.Active)
+        {
+            throw new DimensionStateException(
+                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
+        }
+
+        var targetPos = targetLocal.Copy();
+        targetPos.dimension = target.InternalId;
+
+        // Pre-generate the destination region so the target column is loaded before we write the
+        // block. Same pre-load contract as TeleportEntity.
+        _generator.EnsureRegion(_sapi, target.InternalId, targetPos.X / 32, targetPos.Z / 32, null);
+
+        return _movers.Block.Move(source, targetPos);
     }
 
     /// <inheritdoc/>
@@ -154,12 +198,20 @@ internal sealed class TransitService : ITransitionService
                 $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
         }
 
+        // Capture source dim BEFORE the move so the post-event reports the actual previous
+        // dimension. The default-to-overworld fallback mirrors TeleportPlayer's handling of
+        // entities whose pos.dimension does not (yet) match a registered dim.
+        int sourceId = EntityPosAccess.Pos(entity).Dimension;
+        var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
+
         // Preliminary position to center generation, then a final position after terrain exists.
         var prelim = ResolveEntityPosition(entity, target, options);
         _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, null);
         var finalPos = ResolveEntityPosition(entity, target, options);
 
         _movers.Entity.Move(entity, finalPos);
+
+        EntityChangedDimension?.Invoke(this, new EntityChangedDimensionEventArgs(entity, source, target, finalPos));
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>

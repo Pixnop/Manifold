@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
@@ -21,6 +22,13 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     /// <summary>Default upper Y bound for the post-generation relight pass.</summary>
     internal const int DefaultRelightHeight = 20;
 
+    /// <summary>Default per-dimension streaming column budget per tick.</summary>
+    internal const int DefaultStreamingBudgetPerTick = 4;
+
+    /// <summary>Empty metadata sentinel used when no <c>WithMetadata</c> was called.</summary>
+    internal static readonly IReadOnlyDictionary<string, object?> EmptyMetadata =
+        new Dictionary<string, object?>(0);
+
     private readonly AssetLocation _code;
     private readonly string _ownerModId;
     private readonly System.Func<DimensionBuildRequest, IDimension> _completion;
@@ -33,6 +41,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private int? _streamingLoadRadius;
     private ManifoldInventory _separateInventory = ManifoldInventory.None;
     private int _relightHeight = DefaultRelightHeight;
+    private int? _streamingBudgetPerTick;
+    private Dictionary<string, object?>? _metadata;
     private bool _used;
 
     /// <summary>
@@ -137,10 +147,42 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder WithStreamingBudget(int maxColumnsPerTick)
+    {
+        ThrowIfUsed();
+        _streamingBudgetPerTick = Guards.InRange(maxColumnsPerTick, 1, 64, nameof(maxColumnsPerTick));
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimensionBuilder WithSeparateInventory(ManifoldInventory categories)
     {
         ThrowIfUsed();
         _separateInventory = categories;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IDimensionBuilder WithMetadata(string key, object? value)
+    {
+        ThrowIfUsed();
+        Guards.NotNullOrWhiteSpace(key, nameof(key));
+        if (value is not null && !IsSupportedMetadataType(value.GetType()))
+        {
+            throw new ArgumentException(
+                $"Unsupported metadata value type '{value.GetType()}' for key '{key}'. " +
+                "Supported types: primitives, string, enum, byte[].",
+                nameof(value));
+        }
+
+        _metadata ??= new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (!_metadata.TryAdd(key, value))
+        {
+            throw new ArgumentException(
+                $"Metadata key '{key}' is already set on this builder.",
+                nameof(key));
+        }
+
         return this;
     }
 
@@ -174,7 +216,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _forcedGameMode,
             _streamingLoadRadius,
             _relightHeight,
-            _separateInventory));
+            _separateInventory,
+            _metadata ?? EmptyMetadata,
+            _streamingBudgetPerTick));
     }
 
     /// <inheritdoc/>
@@ -206,8 +250,13 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _forcedGameMode,
             _streamingLoadRadius,
             _relightHeight,
-            _separateInventory));
+            _separateInventory,
+            _metadata ?? EmptyMetadata,
+            _streamingBudgetPerTick));
     }
+
+    private static bool IsSupportedMetadataType(Type t) =>
+        t.IsPrimitive || t == typeof(string) || t.IsEnum || t == typeof(byte[]);
 
     private void ThrowIfUsed()
     {
