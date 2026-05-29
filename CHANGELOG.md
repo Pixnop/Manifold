@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-29
+
 ### Added
 - **`ITransitionService.TeleportBlock`** - cross-dimension block transit primitive. Moves a single block plus its `BlockEntity` state (inventory, attributes, BE-behaviors) from any source position to any target position in another dimension. The destination region is generated on demand (same `EnsureRegion` path as `TeleportEntity`); the `BlockEntity` is round-tripped through `BlockEntity.ToTreeAttributes` / `FromTreeAttributes` so inventories and attached state follow the block. Source slot is cleared after a successful move. Returns `true` when a non-air block was moved, `false` when the source slot was air. This completes the transit triplet (Player / Entity / Block). Engine glue lives in the new `BlockMover` (coverage-excluded, same pattern as `EntityMover`). Closes #36.
 - **Per-dimension streaming budget** - `IDimensionBuilder.WithStreamingBudget(int maxColumnsPerTick)` (range 1..64) caps how many columns the streaming driver may ensure for the dimension per tick. Budgets are independent across dimensions: a busy dim cannot starve a quiet one. Default per-dim budget is 4 (matches the previous global cap). The streaming planner now partitions candidate columns by dimension and applies each dimension's budget separately; the driver resolves the per-dim budget from the registry on every tick. Closes #40.
