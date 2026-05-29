@@ -16,6 +16,20 @@ trim_trailing_whitespace = false
 
 [*.cs]
 # Style - PascalCase publics, camelCase locals, _camelCase private fields
+
+# Constants are PascalCase regardless of accessibility. Declared first so it wins over the
+# private-field rule below (a const is a 'field' kind, so that rule would otherwise force the
+# _underscore style onto private consts, which is wrong for constants).
+dotnet_naming_rule.constants_pascal_case.severity = warning
+dotnet_naming_rule.constants_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constants_pascal_case.style = pascal_case_style
+
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
 dotnet_naming_rule.private_fields_underscore.severity = warning
 dotnet_naming_rule.private_fields_underscore.symbols = private_fields
 dotnet_naming_rule.private_fields_underscore.style = underscore_prefix
