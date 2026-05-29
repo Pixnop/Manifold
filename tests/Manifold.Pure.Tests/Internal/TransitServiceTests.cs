@@ -16,6 +16,7 @@ namespace Manifold.Pure.Tests.Internal;
 public sealed class TransitServiceTests
 {
     private static readonly string[] LeftThenEntered = ["left", "entered"];
+    private static readonly string[] EnteringThenArriving = ["entering", "arriving"];
 
     [Fact]
     public void TeleportPlayer_Should_Throw_When_Target_Not_Found()
@@ -82,7 +83,7 @@ public sealed class TransitServiceTests
         svc.PlayerEntering += (_, _) => order.Add("entering");
         svc.PlayerArriving += (_, _) => order.Add("arriving");
         svc.TeleportPlayer(player, Code("owner:target"));
-        Assert.Equal(new[] { "entering", "arriving" }, order);
+        Assert.Equal(EnteringThenArriving, order);
     }
 
     [Fact]
