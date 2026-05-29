@@ -14,6 +14,12 @@ namespace Manifold.Internal;
 /// <remarks>Server-side, main thread.</remarks>
 internal sealed class BlockMover : IBlockMover
 {
+    // Vintage Story embeds the dimension into a block entity's stored Y coordinate:
+    // internalY = localY + dimension * 32768 (32 blocks * 1024 chunk rows per dimension).
+    // SetAndCorrectDimension decodes it back. We re-encode the target position into the
+    // serialized tree so the rehydrated BlockEntity knows it lives at the destination.
+    private const int DimensionYStride = 32768;
+
     private readonly ICoreServerAPI _sapi;
 
     /// <summary>Initializes a new instance of the <see cref="BlockMover"/> class.</summary>
@@ -38,17 +44,25 @@ internal sealed class BlockMover : IBlockMover
         }
 
         // Snapshot the BE state, if any. ToTreeAttributes is the documented save/sync path and
-        // captures inventory, attributes, and BE-behavior state in one tree.
+        // captures inventory, attributes, and BE-behavior state in one tree - including the source
+        // position (posx/posy/posz).
         ITreeAttribute? beTree = null;
         var sourceBe = accessor.GetBlockEntity(source);
         if (sourceBe is not null)
         {
             beTree = new TreeAttribute();
             sourceBe.ToTreeAttributes(beTree);
+
+            // Re-stamp the embedded position to the target. Without this the rehydrated BlockEntity
+            // keeps the source coordinates and the engine cannot route interactions to it (e.g. a
+            // chest teleports but cannot be opened). posy is dimension-encoded.
+            beTree.SetInt("posx", target.X);
+            beTree.SetInt("posy", target.Y + (target.dimension * DimensionYStride));
+            beTree.SetInt("posz", target.Z);
         }
 
         // Write the block at the target. SetBlock spawns a BE if the block declares one, which we
-        // then rehydrate from the captured tree.
+        // then rehydrate from the captured (position-corrected) tree.
         accessor.SetBlock(sourceId, target);
         if (beTree is not null)
         {
