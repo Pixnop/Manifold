@@ -13,11 +13,13 @@ void TeleportPlayer(
 
 Must be called on the **main thread**. The method:
 
-1. Raises `PlayerEntering` (cancellable - set `e.Cancel = true` to abort).
-2. Resolves the landing position using the dimension's spawn behavior (or the `options` override).
+1. Raises `PlayerEntering` (cancellable, pre-generation - set `e.Cancel = true` to abort).
+2. Resolves a preliminary landing position using the dimension's spawn behavior (or the `options` override).
 3. Pre-generates terrain around the landing position if needed.
-4. Teleports the player and adjusts their game mode if the dimension forces one.
-5. Raises `PlayerLeft` (source dimension) and `PlayerEntered` (target dimension).
+4. Resolves the final landing position now that terrain exists.
+5. Raises `PlayerArriving` (cancellable, post-generation, pre-teleport).
+6. Teleports the player and adjusts their game mode if the dimension forces one.
+7. Raises `PlayerLeft` (source dimension) and `PlayerEntered` (target dimension).
 
 Throws `DimensionNotFoundException` if the code is unknown, `DimensionStateException` if the dimension is not `Active`, or `ManifoldUnhealthyException` if Manifold failed to initialize.
 
@@ -49,6 +51,80 @@ transitions.TeleportEntity(itemEntity, new AssetLocation("mymod", "nether"));
   applied to entities.
 - Item entities are fully supported. Other entities (mobs) are supported on a best-effort basis;
   verify AI and rendering behavior in your target dimension.
+
+After a successful move, `ITransitionService.EntityChangedDimension` is raised with the entity, its
+previous and new `IDimension`, and the final landing `BlockPos`. The event is the non-player
+counterpart of the engine's `IEventAPI.PlayerDimensionChanged` and is not raised when `TeleportEntity`
+throws.
+
+## TeleportBlock
+
+`TeleportBlock` (0.4.0) moves a single block, plus its `BlockEntity` state (inventory, attributes,
+BE-behaviors), from one dimension to another. It completes the transit triplet alongside
+`TeleportPlayer` and `TeleportEntity`.
+
+```csharp
+bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal);
+```
+
+The destination region is generated on demand (same `EnsureRegion` path as `TeleportEntity`). The
+source block is snapshotted via `BlockEntity.ToTreeAttributes`, written at the target, and rehydrated
+via `FromTreeAttributes`; the source slot is then set to air. The target write happens before the
+source clear, so an exception mid-flight leaves the block intact (the worst case is a duplicate,
+never a lost block).
+
+- The `targetLocal.dimension` field is overwritten with the target dimension's internal id; the
+  caller's `BlockPos` is not mutated.
+- Returns `true` when a non-air block was moved; `false` when the source slot was air (no-op).
+- The `BlockEntity`'s embedded position (`posx/posy/posz`, with `posy` dimension-encoded as
+  `localY + dim * 32768`) is re-stamped to the target before rehydration so interactions (opening a
+  chest, etc.) route correctly to the new position.
+
+```csharp
+// Move the looked-at block to a vault dimension.
+var sel = serverPlayer.CurrentBlockSelection;
+if (sel?.Position is { } src)
+{
+    var target = new BlockPos(0, 64, 0, 0); // dimension overwritten by the service
+    bool moved = transitions.TeleportBlock(src, new AssetLocation("mymod", "vault"), target);
+}
+```
+
+Throws the same `DimensionNotFoundException` / `DimensionStateException` / `ManifoldUnhealthyException`
+as `TeleportPlayer`.
+
+## Transit events
+
+`ITransitionService` exposes the full lifecycle as server-side events. Subscribe via the transitions
+facade (`manifold.Transitions`):
+
+| Event | When | Cancellable | Carries |
+|-------|------|-------------|---------|
+| `PlayerEntering` | Before any work, before generation. | Yes (`Cancel = true`) | Player, source, target, preliminary position. |
+| `PlayerArriving` (0.4.0) | After region generation, before the teleport. | Yes | Player, source, target, final position. |
+| `PlayerLeft` | After the player has left the source dimension. | No | Player, source, target. |
+| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target. |
+| `EntityChangedDimension` (0.4.0) | After `TeleportEntity` re-homes a non-player entity. | No | Entity, previous and new `IDimension`, final position. |
+
+`PlayerEntering` is the right hook for veto logic (blocked players, missing prerequisites).
+`PlayerArriving` is the right hook for setup work that needs the destination chunks already loaded
+(place a welcome block, attach server-side state, log arrival metadata) - it can still cancel the
+transit. `PlayerLeft` / `PlayerEntered` are post-teleport; use them for cleanup and state propagation.
+
+```csharp
+transitions.PlayerArriving += (_, e) =>
+{
+    // Place a welcome sign one block above the landing spot.
+    var sign = sapi.World.GetBlock(new AssetLocation("game:sign-wallup-east"));
+    sapi.World.BlockAccessor.SetBlock(sign.BlockId, e.TargetPosition.UpCopy());
+};
+
+transitions.EntityChangedDimension += (_, e) =>
+    sapi.Logger.Notification("[mymod] {0} arrived in {1}", e.Entity.Code, e.NewDimension.Code);
+```
+
+For players the engine also raises its own `IEventAPI.PlayerDimensionChanged`; Manifold's
+`EntityChangedDimension` covers everything else.
 
 ## TransitionOptions
 
