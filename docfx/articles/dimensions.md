@@ -83,3 +83,46 @@ The built-in overworld is `manifold:overworld` (internal id 0). It is a first-cl
 When a savegame is loaded and Manifold finds a persisted dimension whose owning mod is absent from the loaded mod list, the dimension enters the `Quarantined` state. This prevents id collision and chunk loss: the engine dimension slot and the saved chunks are preserved until an admin explicitly purges the entry.
 
 If you reinstall the owning mod, the dimension automatically transitions from `Pending` back to `Active` at the next server start.
+
+## Dimension Metadata (0.4.0)
+
+`IDimensionBuilder.WithMetadata(string key, object? value)` attaches typed registration-time hints to a dimension. Other systems (a hub UI, another mod, an admin tool) can then query them without going through the owning mod:
+
+```csharp
+manifold.Registry
+    .Define(new AssetLocation("mymod", "vault"))
+    .Persistent()
+    .WithWorldgen(new BasicVoidWorldgenStrategy())
+    .WithMetadata("display_name", "The Vault")
+    .WithMetadata("category", "storage")
+    .WithMetadata("hub_visible", true)
+    .RegisterStatic();
+
+// Anywhere a consumer has an IDimension reference:
+string? name = dim.GetMetadata<string>("display_name");
+bool visible = dim.GetMetadata<bool>("hub_visible");
+if (dim.HasMetadata("category")) { /* ... */ }
+```
+
+- Supported value types: primitives, `string`, `enum`, `byte[]`, and `null`. Other types throw `ArgumentException`.
+- Setting the same key twice on a builder throws.
+- `IDimension.Metadata` is an `IReadOnlyDictionary<string, object?>`; the typed `GetMetadata<T>` extension returns the default value if the key is absent or the stored value is not a `T`.
+- Server-side only in v1: metadata is not replicated to client mirrors and not persisted across server restarts. For `RegisterStatic` dimensions this is harmless (the owning mod re-declares them on every boot); for runtime `Create` dimensions, treat metadata as ephemeral.
+
+## Per-Dimension Streaming Budget (0.4.0)
+
+`IDimensionBuilder.WithStreamingBudget(int maxColumnsPerTick)` (range 1..64) caps how many columns the streaming driver may ensure for that dimension per tick. Default is 4 - matching the previous global cap.
+
+Budgets are independent across dimensions: a busy dim cannot starve a quiet one, and a background dim can opt into a lower budget so it does not compete with the main world for scheduler slots.
+
+```csharp
+manifold.Registry
+    .Define(new AssetLocation("mymod", "arena"))
+    .Persistent()
+    .WithWorldgen(new ArenaWorldgen())
+    .Streaming(loadRadius: 8)
+    .WithStreamingBudget(maxColumnsPerTick: 16) // heavy traffic, more slots
+    .RegisterStatic();
+```
+
+`WithStreamingBudget` is only meaningful in combination with `.Streaming(loadRadius)`.
