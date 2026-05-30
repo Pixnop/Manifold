@@ -46,7 +46,7 @@ internal sealed class BlockMover : IBlockMover
         // Snapshot the BE state, if any. ToTreeAttributes is the documented save/sync path and
         // captures inventory, attributes, and BE-behavior state in one tree - including the source
         // position (posx/posy/posz).
-        ITreeAttribute? beTree = null;
+        TreeAttribute? beTree = null;
         var sourceBe = accessor.GetBlockEntity(source);
         if (sourceBe is not null)
         {

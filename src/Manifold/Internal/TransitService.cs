@@ -238,7 +238,7 @@ internal sealed class TransitService : ITransitionService
         foreach (var swap in plan)
         {
             // Snapshot the current contents into the source key BEFORE touching any slot.
-            store.SetSnapshot(swap.Category, swap.FromKey, _inventory.Serialize(player, swap.Category));
+            store.SetSnapshot(swap.Category, swap.FromKey, InventorySwapper.Serialize(player, swap.Category));
 
             if (store.HasSnapshot(swap.Category, swap.ToKey))
             {
@@ -246,7 +246,7 @@ internal sealed class TransitService : ITransitionService
             }
             else
             {
-                _inventory.Clear(player, swap.Category);
+                InventorySwapper.Clear(player, swap.Category);
             }
 
             store.SetCurrentKey(swap.Category, swap.ToKey);
