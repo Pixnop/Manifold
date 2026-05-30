@@ -22,7 +22,7 @@
 
 ### Companion mods
 
-- **[Chart](https://github.com/Pixnop/Manifold/releases/tag/chart-v0.1.0)** (0.1.0, alpha) - dimension-aware world map. Per-dimension tile cache, vanilla-style rendering pipeline (palette + hillshade + blur), hot-swap on transit. Client-side only. Requires Manifold 0.3.1+.
+- **[Chart](https://mods.vintagestory.at/chart)** (0.1.0, alpha) - dimension-aware world map. Per-dimension tile cache, vanilla-style rendering pipeline (palette + hillshade + blur), hot-swap on transit. Client-side only. Requires Manifold 0.3.1+. Source under [`companions/Chart/`](companions/Chart/).
 
 ---
 
