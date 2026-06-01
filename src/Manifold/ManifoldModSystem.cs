@@ -308,6 +308,22 @@ public sealed class ManifoldModSystem : ModSystem
     private void OnServerShutdown()
     {
         _streamingDriver?.Stop();
+
+        // Remove every Ephemeral dimension so companions subscribed to Destroyed (or its client
+        // mirror) can clean up state owned by the dim (e.g. cached map tiles) before shutdown.
+        // The manifest already skips ephemeral entries, so the dim disappears at next boot
+        // regardless - this exists purely to fire the Destroyed event for listeners.
+        if (_registry is not null)
+        {
+            int removed = EphemeralCleanup.RemoveAll(_registry);
+            if (removed > 0)
+            {
+                Mod.Logger.Notification(
+                    "[Manifold] Shutdown: removed {0} ephemeral dimension(s); Destroyed events fired.",
+                    removed);
+            }
+        }
+
         Dispose();
     }
 
