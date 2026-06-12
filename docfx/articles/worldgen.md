@@ -155,6 +155,14 @@ structures, light only fixing itself when you break and re-place a light source)
 to check is whether your content sits above the relight band. A hut at Y 65 with the default band
 of 20 is entirely outside the relit volume.
 
+**Day/night inside custom dimensions:** once a dimension is correctly relit, sky-exposed blocks
+carry full sunlight values, and the engine currently renders them at full brightness regardless
+of the time of day - custom dimensions do not follow the overworld's day/night cycle visually.
+There is no public hook to attenuate this per dimension today. If your dimension previously
+looked dark and you were compensating for it, expect it to be properly lit from Manifold 0.4.2.
+Per-dimension time of day (which would give real nights) is tracked in
+[issue #55](https://github.com/Pixnop/Manifold/issues/55).
+
 ### Relighting at runtime (`RelightRegion`)
 
 Worldgen relight only covers what the strategy generated. If your mod places blocks **after**
