@@ -108,7 +108,7 @@ internal sealed class DimensionGenerator
         // (Per-column full-height relight was the ~40s bottleneck.)
         if (anyGenerated)
         {
-            RelightChunkBounds(sapi, centerCx - radius, centerCz - radius, centerCx + radius, centerCz + radius, dim.RelightHeight);
+            RelightChunkBounds(sapi, dimId, centerCx - radius, centerCz - radius, centerCx + radius, centerCz + radius, dim.RelightHeight);
         }
     }
 
@@ -154,9 +154,10 @@ internal sealed class DimensionGenerator
     /// <see cref="Manifold.Api.Server.IDimensionBuilder.WithRelightHeight"/>.
     /// </summary>
     /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id the columns belong to.</param>
     /// <param name="columns">Newly-generated columns to relight.</param>
     /// <param name="maxRelightY">Upper Y bound for the relight pass (per-dimension value).</param>
-    public static void RelightColumns(ICoreServerAPI sapi, IReadOnlyList<(int Cx, int Cz)> columns, int maxRelightY)
+    public static void RelightColumns(ICoreServerAPI sapi, int dimId, IReadOnlyList<(int Cx, int Cz)> columns, int maxRelightY)
     {
         if (sapi is null || columns is null)
         {
@@ -165,7 +166,32 @@ internal sealed class DimensionGenerator
 
         foreach (var (cx, cz) in columns)
         {
-            RelightChunkBounds(sapi, cx, cz, cx, cz, maxRelightY);
+            RelightChunkBounds(sapi, dimId, cx, cz, cx, cz, maxRelightY);
+        }
+    }
+
+    /// <summary>
+    /// Dim-aware wrapper over the engine's <c>FullRelight</c>: relights the block bounds in the
+    /// given dimension. The dimension field of both positions is overwritten with
+    /// <paramref name="dimId"/> so callers cannot accidentally relight the overworld (which is
+    /// exactly the bug this guards against - a <c>BlockPos</c> built without a dimension targets
+    /// dim 0). Best-effort: lighting failures never propagate.
+    /// </summary>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id to relight in.</param>
+    /// <param name="min">Minimum corner (local coordinates).</param>
+    /// <param name="max">Maximum corner (local coordinates).</param>
+    public static void RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max)
+    {
+        var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
+        var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
+        try
+        {
+            sapi.WorldManager.FullRelight(minPos, maxPos, false);
+        }
+        catch
+        {
+            // FullRelight is best-effort; never block on a lighting failure.
         }
     }
 
@@ -232,26 +258,20 @@ internal sealed class DimensionGenerator
 
     /// <summary>Relights a rectangle of chunk columns over a bounded Y band (best-effort).</summary>
     /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id the columns belong to.</param>
     /// <param name="minCx">Minimum chunk X.</param>
     /// <param name="minCz">Minimum chunk Z.</param>
     /// <param name="maxCx">Maximum chunk X.</param>
     /// <param name="maxCz">Maximum chunk Z.</param>
     /// <param name="maxRelightY">Upper Y bound for the relight pass (per-dimension).</param>
-    private static void RelightChunkBounds(ICoreServerAPI sapi, int minCx, int minCz, int maxCx, int maxCz, int maxRelightY)
+    private static void RelightChunkBounds(ICoreServerAPI sapi, int dimId, int minCx, int minCz, int maxCx, int maxCz, int maxRelightY)
     {
         int minX = minCx * 32;
         int minZ = minCz * 32;
         int maxX = (maxCx * 32) + 31;
         int maxZ = (maxCz * 32) + 31;
         int maxY = Math.Min(maxRelightY, sapi.WorldManager.MapSizeY - 1);
-        try
-        {
-            sapi.WorldManager.FullRelight(new BlockPos(minX, 0, minZ), new BlockPos(maxX, maxY, maxZ), false);
-        }
-        catch
-        {
-            // FullRelight is best-effort; never block on a lighting failure.
-        }
+        RelightBlockBounds(sapi, dimId, new BlockPos(minX, 0, minZ, dimId), new BlockPos(maxX, maxY, maxZ, dimId));
     }
 
     private bool InvokeInitialize(IWorldgenStrategy strategy, ICoreServerAPI sapi, int dimId)

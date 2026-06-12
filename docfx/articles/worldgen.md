@@ -150,6 +150,50 @@ The relight pass covers Y0 up to the dimension's relight height (default 20), se
 its own relight pass naturally, so set a taller band for dimensions with tall terrain or structures.
 A tighter band is cheaper to relight, which matters most for streaming (relit per tick).
 
+**Symptom checklist:** if light inside your dimension looks wrong (stale block light, dark
+structures, light only fixing itself when you break and re-place a light source), the first thing
+to check is whether your content sits above the relight band. A hut at Y 65 with the default band
+of 20 is entirely outside the relit volume.
+
+**Day/night inside custom dimensions:** once a dimension is correctly relit, sky-exposed blocks
+carry full sunlight values, and the engine currently renders them at full brightness regardless
+of the time of day - custom dimensions do not follow the overworld's day/night cycle visually.
+There is no public hook to attenuate this per dimension today. If your dimension previously
+looked dark and you were compensating for it, expect it to be properly lit from Manifold 0.4.2.
+Per-dimension time of day (which would give real nights) is tracked in
+[issue #55](https://github.com/Pixnop/Manifold/issues/55).
+
+### Relighting at runtime (`RelightRegion`)
+
+Worldgen relight only covers what the strategy generated. If your mod places blocks **after**
+generation - a schematic paste, a structure stamp, a room builder - the engine does not
+recalculate light for them in a custom dimension, and the vanilla `/debug chunk relight` command
+is dimension-blind. Request a dim-aware relight explicitly:
+
+```csharp
+var manifold = sapi.GetManifoldServer(this);
+manifold.RelightRegion(
+    new AssetLocation("mymod", "pocket"),
+    new BlockPos(0, 60, 0, 0),      // min corner (dimension field is overwritten)
+    new BlockPos(47, 80, 47, 0));   // max corner
+```
+
+The call is synchronous and best-effort; its cost scales with the relit volume, so keep the region
+bounded to what you actually changed. Throws `DimensionNotFoundException` for unknown codes and
+`ManifoldUnhealthyException` if Manifold failed to initialize.
+
+### `/manifold relight` admin command
+
+For in-game diagnosis, server admins (privilege `controlserver`) can run:
+
+```
+/manifold relight [radius]
+```
+
+It relights the chunk columns around the caller in the dimension they are standing in, over the
+full world height. `radius` is in chunks (default 1, max 4). Use it to confirm whether a lighting
+glitch is a stale-light problem (the command fixes it) or something else (it does not).
+
 ### Load radius and render distance
 
 The effective streaming radius is `max(loadRadius, server view distance)`, so generated terrain
