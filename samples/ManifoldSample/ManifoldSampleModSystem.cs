@@ -199,7 +199,50 @@ public sealed class ManifoldSampleModSystem : ModSystem
                     : TextCommandResult.Error("Nothing moved - the targeted block was air.");
             });
 
+        // Demonstrates the ephemeral-dim lifecycle (Define.Ephemeral.Create + Registry.TryRemove).
+        // Useful for verifying companions that subscribe to IManifoldClient.Destroyed (e.g. Chart's
+        // per-dim cache cleanup): create the dim, generate tiles by walking around, then destroy it
+        // and watch the companion drop its state.
+        api.ChatCommands.Create("createtempdim")
+            .WithDescription("Create the ephemeral manifoldsample:tempdim and teleport into it.")
+            .RequiresPrivilege("chat")
+            .RequiresPlayer()
+            .HandleWith(cmdArgs =>
+            {
+                if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
+                {
+                    return TextCommandResult.Error("Players only.");
+                }
+
+                var tempCode = new AssetLocation(ModId, "tempdim");
+                if (manifold.Registry.Get(tempCode) is null)
+                {
+                    manifold.Registry
+                        .Define(tempCode)
+                        .Ephemeral()
+                        .WithWorldgen(new FlatWorldgenStrategy())
+                        .Create();
+                }
+
+                manifold.Transitions.TeleportPlayer(serverPlayer, tempCode);
+                return TextCommandResult.Success(
+                    "Inside " + tempCode + ". Walk around to generate Chart tiles, then /destroytempdim to remove it.");
+            });
+
+        api.ChatCommands.Create("destroytempdim")
+            .WithDescription("Destroy manifoldsample:tempdim. Demo for companion dim-lifecycle cleanup (e.g. Chart cache).")
+            .RequiresPrivilege("chat")
+            .HandleWith(cmdArgs =>
+            {
+                bool removed = manifold.Registry.TryRemove(new AssetLocation(ModId, "tempdim"));
+                return removed
+                    ? TextCommandResult.Success(
+                        "Destroyed manifoldsample:tempdim. Chart should now drop its .bin cache "
+                        + "and clear rendered components if you were inside.")
+                    : TextCommandResult.Error("manifoldsample:tempdim is not currently registered.");
+            });
+
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void + flat + stream + vault dimensions and /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock commands.");
+            "[ManifoldSample] Registered void + flat + stream + vault dimensions and /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim commands.");
     }
 }

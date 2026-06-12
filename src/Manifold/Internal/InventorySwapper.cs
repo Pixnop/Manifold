@@ -25,7 +25,7 @@ internal sealed class InventorySwapper
     /// <param name="player">The player.</param>
     /// <param name="category">The inventory category.</param>
     /// <returns>Serialised inventory bytes.</returns>
-    public byte[] Serialize(IServerPlayer player, ManifoldInventory category)
+    public static byte[] Serialize(IServerPlayer player, ManifoldInventory category)
     {
         var inv = GetInventory(player, category);
         if (inv is null)
@@ -60,7 +60,7 @@ internal sealed class InventorySwapper
     /// <summary>Empties a category's inventory.</summary>
     /// <param name="player">The player.</param>
     /// <param name="category">The inventory category.</param>
-    public void Clear(IServerPlayer player, ManifoldInventory category)
+    public static void Clear(IServerPlayer player, ManifoldInventory category)
     {
         var inv = GetInventory(player, category);
         if (inv is null)
