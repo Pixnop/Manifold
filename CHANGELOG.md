@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-13
+
+### Fixed
+- **Ephemeral dimensions never fired `Destroyed` on server shutdown.** The registry now removes every `Ephemeral` dimension during `ServerRunPhase.Shutdown`, firing the existing `Destroyed` event for each so companions (and any consumer subscribed to `IDimensionRegistry.Destroyed` or the client mirror's `IManifoldClient.Destroyed`) get a chance to clean up per-dimension state during a graceful stop. The manifest already skipped ephemeral entries when persisting, so on-disk savegame data is unchanged.
+
+### Changed
+- **ManifoldSample**: new `/createtempdim` and `/destroytempdim` commands exercising the ephemeral lifecycle (`Define().Ephemeral().Create()` + `Registry.TryRemove`), useful for verifying companions that subscribe to dimension destruction.
+
+### Companion mods
+
+- **Chart 0.2.0** released alongside. Highlights: a major performance fix (the map's dirty queue looped forever between adjacent chunks and re-rendered each column once per vertical chunk slice, pegging the client CPU inside custom dimensions - both loops are fixed and custom dims are now smooth), ephemeral-dim cache cleanup (reactive on `Destroyed` plus a defensive orphan scan at world load, closes #31), and an internal renderer refactor. Requires Manifold 0.4.1+. Release: https://github.com/Pixnop/Manifold/releases/tag/chart-v0.2.0
+
 ## [0.4.0] - 2026-05-29
 
 ### Added
