@@ -64,12 +64,21 @@ internal sealed class StreamingWorldgenDriver
             return;
         }
 
-        var generated = new List<(int Cx, int Cz)>();
+        // Group generated columns per dimension: since per-dim budgets (0.4.0) a single tick can
+        // legitimately carry columns from several streaming dimensions, and each dim needs its
+        // own relight height plus its own dim id for the dim-aware relight.
+        var generatedByDim = new Dictionary<int, List<(int Cx, int Cz)>>();
         foreach (var col in planned)
         {
             if (_generator.EnsureColumn(_sapi, col.DimId, col.Cx, col.Cz))
             {
-                generated.Add((col.Cx, col.Cz));
+                if (!generatedByDim.TryGetValue(col.DimId, out var list))
+                {
+                    list = new List<(int Cx, int Cz)>();
+                    generatedByDim[col.DimId] = list;
+                }
+
+                list.Add((col.Cx, col.Cz));
             }
 
             foreach (var uid in col.PlayerUids)
@@ -81,13 +90,11 @@ internal sealed class StreamingWorldgenDriver
             }
         }
 
-        if (generated.Count > 0)
+        foreach (var (dimId, columns) in generatedByDim)
         {
-            // All columns in a tick are from a single streaming dimension in practice; look up the
-            // relight height from the first column's dimension.
-            int relightHeight = _registry.GetByInternalId(planned[0].DimId)?.RelightHeight
+            int relightHeight = _registry.GetByInternalId(dimId)?.RelightHeight
                 ?? DimensionBuilderImpl.DefaultRelightHeight;
-            DimensionGenerator.RelightColumns(_sapi, generated, relightHeight);
+            DimensionGenerator.RelightColumns(_sapi, dimId, columns, relightHeight);
         }
     }
 

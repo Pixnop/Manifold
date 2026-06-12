@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Relight pass targeted dimension 0 instead of the custom dimension.** The positions handed to the engine's `FullRelight` were built without a dimension, so the post-generation relight band lit the overworld coordinates rather than the dim being generated. All relight paths are now dimension-aware. Reported by Spaturno (stale block light inside a pocket dimension, only fixed by manually resetting light sources). Fixes #59.
+- **Streaming relight used the first column's dimension for the whole batch.** Since per-dimension budgets (0.4.0) a single streaming tick can carry columns from several dimensions; generated columns are now grouped per dim and relit with each dimension's own relight height.
+
+### Added
+- **`IManifoldServer.RelightRegion(dimension, min, max)`** - public dim-aware relight for mods that place blocks after generation (schematic paste, structure stamp, room builder). The engine's own relight paths and the vanilla `/debug chunk relight` command are dimension-blind; this is the supported way to recalculate light inside a custom dimension. Synchronous and best-effort; cost scales with the relit volume.
+- **`/manifold relight [radius]`** admin command (privilege `controlserver`) - relights the chunk columns around the caller in their current dimension over the full world height. Radius in chunks, default 1, max 4. First subcommand of the new `/manifold` admin command.
+
 ## [0.4.1] - 2026-06-13
 
 ### Fixed

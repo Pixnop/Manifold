@@ -11,6 +11,7 @@ using Manifold.Internal.HarmonyPatches;
 using Manifold.Internal.Networking;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 namespace Manifold;
@@ -120,8 +121,10 @@ public sealed class ManifoldModSystem : ModSystem
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, isHealthy: true);
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
+
+        RegisterManifoldCommand(api);
 
         _streamingDriver = new StreamingWorldgenDriver(api, _registry, _generator);
         _streamingDriver.Start();
@@ -186,8 +189,50 @@ public sealed class ManifoldModSystem : ModSystem
             new PlayerPositionStore(),
             new InventorySwapper(sapi));
         transit.MarkUnhealthy();
-        ServerFacade = new ManifoldServerFacade(registry, transit, isHealthy: false);
+        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
+    }
+
+    /// <summary>
+    /// Registers the <c>/manifold</c> admin command. Currently one subcommand:
+    /// <c>/manifold relight [radius]</c> relights the chunk columns around the caller in the
+    /// dimension they are standing in, over the full world height. Exists because the engine's
+    /// own relight paths (including <c>/debug chunk relight</c>) are dimension-blind.
+    /// </summary>
+    private void RegisterManifoldCommand(ICoreServerAPI api)
+    {
+        api.ChatCommands.Create("manifold")
+            .WithDescription("Manifold admin utilities.")
+            .RequiresPrivilege(Privilege.controlserver)
+            .BeginSubCommand("relight")
+                .WithDescription("Relight the chunks around you in your current dimension (radius in chunks, default 1, max 4).")
+                .RequiresPlayer()
+                .WithArgs(api.ChatCommands.Parsers.OptionalInt("radius", 1))
+                .HandleWith(args =>
+                {
+                    if (args.Caller.Player is not IServerPlayer player)
+                    {
+                        return TextCommandResult.Error("Players only.");
+                    }
+
+                    int radius = Math.Clamp((int)args[0], 0, 4);
+                    var pos = EntityPosAccess.Pos(player.Entity);
+                    int dimId = pos.Dimension;
+                    int cx = (int)pos.X / 32;
+                    int cz = (int)pos.Z / 32;
+
+                    var min = new BlockPos((cx - radius) * 32, 0, (cz - radius) * 32, dimId);
+                    var max = new BlockPos(
+                        ((cx + radius) * 32) + 31,
+                        api.WorldManager.MapSizeY - 1,
+                        ((cz + radius) * 32) + 31,
+                        dimId);
+
+                    DimensionGenerator.RelightBlockBounds(api, dimId, min, max);
+                    return TextCommandResult.Success(
+                        $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.");
+                })
+            .EndSubCommand();
     }
 
     private void OnRegistryCreated(object? sender, DimensionCreatedEventArgs e)
