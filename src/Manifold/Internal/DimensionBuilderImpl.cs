@@ -42,6 +42,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private ManifoldInventory _separateInventory = ManifoldInventory.None;
     private int _relightHeight = DefaultRelightHeight;
     private int? _streamingBudgetPerTick;
+    private int? _skyCapY;
     private Dictionary<string, object?>? _metadata;
     private bool _used;
 
@@ -155,6 +156,19 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
+    public IDimensionBuilder WithDarkSky(int ceilingY)
+    {
+        ThrowIfUsed();
+        _skyCapY = Guards.InRange(ceilingY, 1, 1024, nameof(ceilingY));
+
+        // The cap only takes effect if it sits inside the relit band: Manifold's bounded relight
+        // clears + recomputes light only up to RelightHeight, so a cap above that height is never
+        // recomputed and the dimension stays bright. Auto-raise the band to cover the cap layer.
+        _relightHeight = System.Math.Max(_relightHeight, _skyCapY.Value + 1);
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IDimensionBuilder WithSeparateInventory(ManifoldInventory categories)
     {
         ThrowIfUsed();
@@ -218,7 +232,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _relightHeight,
             _separateInventory,
             _metadata ?? EmptyMetadata,
-            _streamingBudgetPerTick));
+            _streamingBudgetPerTick,
+            _skyCapY));
     }
 
     /// <inheritdoc/>
@@ -252,7 +267,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _relightHeight,
             _separateInventory,
             _metadata ?? EmptyMetadata,
-            _streamingBudgetPerTick));
+            _streamingBudgetPerTick,
+            _skyCapY));
     }
 
     private static bool IsSupportedMetadataType(Type t) =>

@@ -78,6 +78,27 @@ public interface IDimensionBuilder
     IDimensionBuilder WithStreamingBudget(int maxColumnsPerTick);
 
     /// <summary>
+    /// Makes the dimension dark by sealing every generated column with an opaque ceiling at
+    /// <paramref name="ceilingY"/>. Vintage Story floods skylight downward from the top of a
+    /// dimension's column and does not gate it per dimension, so an open / mostly-air custom
+    /// dimension renders fully lit regardless of the time of day. An opaque cap stops that flood:
+    /// everything below <paramref name="ceilingY"/> stays dark and is lit only by block light
+    /// (torches, lava, lamps). Capping every generated column also makes those chunks non-empty,
+    /// which suppresses a client-side full-bright bleed from neighbouring empty chunks.
+    /// </summary>
+    /// <param name="ceilingY">Y of the opaque ceiling layer (range 1..1024). Place it one block above your tallest content.</param>
+    /// <returns>This builder, for chaining.</returns>
+    /// <remarks>
+    /// Manifold raises the relight band to <c>ceilingY + 1</c> automatically (the cap must be inside
+    /// the relit band to take effect), so you do not need to also call <see cref="WithRelightHeight"/>.
+    /// Best for enclosed / underground dimensions. The outermost ring of the generated region can
+    /// still leak some light from the un-generated chunks beyond it; generate a chunk of margin
+    /// around the playable area if that edge is visible. Solid-filled dimensions (terrain that is
+    /// solid except for carved-out rooms) are dark without this option.
+    /// </remarks>
+    IDimensionBuilder WithDarkSky(int ceilingY);
+
+    /// <summary>
     /// Opts the dimension into separate per-player inventories for the given categories. On entering
     /// the dimension the player's chosen inventories are swapped to this dimension's set (empty on the
     /// first visit) and restored on leaving. Omit for a shared inventory.
