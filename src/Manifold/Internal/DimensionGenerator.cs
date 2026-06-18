@@ -181,13 +181,21 @@ internal sealed class DimensionGenerator
     /// <param name="dimId">Engine dimension id to relight in.</param>
     /// <param name="min">Minimum corner (local coordinates).</param>
     /// <param name="max">Maximum corner (local coordinates).</param>
-    public static void RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max)
+    /// <param name="sendToClients">
+    /// When <c>true</c>, the recomputed light is pushed to clients immediately. Required for
+    /// runtime relights of chunks already loaded on the client (e.g. the relight command, or
+    /// after a runtime block placement) - otherwise the server light is correct but the client
+    /// never re-meshes and the change is invisible. Worldgen passes <c>false</c> because the
+    /// freshly generated column is sent to the client separately (on transit / by the streaming
+    /// driver).
+    /// </param>
+    public static void RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
     {
         var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
         var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
         try
         {
-            sapi.WorldManager.FullRelight(minPos, maxPos, false);
+            sapi.WorldManager.FullRelight(minPos, maxPos, sendToClients);
         }
         catch
         {
@@ -271,7 +279,10 @@ internal sealed class DimensionGenerator
         int maxX = (maxCx * 32) + 31;
         int maxZ = (maxCz * 32) + 31;
         int maxY = Math.Min(maxRelightY, sapi.WorldManager.MapSizeY - 1);
-        RelightBlockBounds(sapi, dimId, new BlockPos(minX, 0, minZ, dimId), new BlockPos(maxX, maxY, maxZ, dimId));
+
+        // Worldgen relight: sendToClients = false. The freshly generated column is sent to the
+        // client separately (on transit, or by the streaming driver's ForceSendChunkColumn).
+        RelightBlockBounds(sapi, dimId, new BlockPos(minX, 0, minZ, dimId), new BlockPos(maxX, maxY, maxZ, dimId), sendToClients: false);
     }
 
     private bool InvokeInitialize(IWorldgenStrategy strategy, ICoreServerAPI sapi, int dimId)
