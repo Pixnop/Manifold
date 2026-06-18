@@ -228,7 +228,9 @@ public sealed class ManifoldModSystem : ModSystem
                         ((cz + radius) * 32) + 31,
                         dimId);
 
-                    DimensionGenerator.RelightBlockBounds(api, dimId, min, max);
+                    // Runtime relight of already-loaded chunks: must push to clients or the
+                    // recomputed light is invisible (server-correct, client never re-meshes).
+                    DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
                     return TextCommandResult.Success(
                         $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.");
                 })

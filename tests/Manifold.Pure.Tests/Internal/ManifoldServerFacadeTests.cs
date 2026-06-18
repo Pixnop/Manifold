@@ -57,7 +57,8 @@ public sealed class ManifoldServerFacadeTests
         facade.RelightRegion(
             new AssetLocation("owner:target"), new BlockPos(0, 0, 0, 0), new BlockPos(31, 64, 31, 0));
 
-        sapi.WorldManager.Received(1).FullRelight(Arg.Any<BlockPos>(), Arg.Any<BlockPos>(), false);
+        // Runtime relight must push to clients (sendToClients: true) or the change is invisible.
+        sapi.WorldManager.Received(1).FullRelight(Arg.Any<BlockPos>(), Arg.Any<BlockPos>(), true);
     }
 
     private static (ManifoldServerFacade Facade, ICoreServerAPI Sapi) NewFacade(bool healthy)

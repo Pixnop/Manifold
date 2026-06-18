@@ -53,6 +53,8 @@ internal sealed class ManifoldServerFacade : IManifoldServer
         var dim = Registry.Get(dimension)
             ?? throw new DimensionNotFoundException($"No dimension registered with code '{dimension}'.");
 
-        DimensionGenerator.RelightBlockBounds(_sapi, dim.InternalId, min, max);
+        // Runtime relight (consumer placed blocks at runtime): push to clients so the change is
+        // visible - the chunks are already loaded client-side, the server light alone is invisible.
+        DimensionGenerator.RelightBlockBounds(_sapi, dim.InternalId, min, max, sendToClients: true);
     }
 }
