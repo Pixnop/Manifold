@@ -27,7 +27,8 @@ public sealed class DimensionDescriptorMapperTests
             RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
             SeparateInventory: Manifold.Api.ManifoldInventory.None,
             Metadata: DimensionBuilderImpl.EmptyMetadata,
-            StreamingBudgetPerTick: null);
+            StreamingBudgetPerTick: null,
+            SkyCapY: null);
 
         var d = DimensionDescriptorMapper.ToDescriptor(dim);
         Assert.Equal("mod:nether", d.Code);
@@ -57,7 +58,8 @@ public sealed class DimensionDescriptorMapperTests
             RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
             SeparateInventory: Manifold.Api.ManifoldInventory.None,
             Metadata: DimensionBuilderImpl.EmptyMetadata,
-            StreamingBudgetPerTick: null);
+            StreamingBudgetPerTick: null,
+            SkyCapY: null);
 
         var roundtrip = DimensionDescriptorMapper.ToImpl(DimensionDescriptorMapper.ToDescriptor(original));
 

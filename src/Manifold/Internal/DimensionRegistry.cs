@@ -50,7 +50,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
             SeparateInventory: ManifoldInventory.None,
             Metadata: DimensionBuilderImpl.EmptyMetadata,
-            StreamingBudgetPerTick: null);
+            StreamingBudgetPerTick: null,
+            SkyCapY: null);
         _snapshot = _snapshot.Add(OverworldCode, overworld);
     }
 
@@ -163,7 +164,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
             SeparateInventory: ManifoldInventory.None,
             Metadata: DimensionBuilderImpl.EmptyMetadata,
-            StreamingBudgetPerTick: null);
+            StreamingBudgetPerTick: null,
+            SkyCapY: null);
         _snapshot = _snapshot.Add(entry.Code, dim);
     }
 
@@ -191,6 +193,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
                 SeparateInventory = request.SeparateInventory,
                 Metadata = request.Metadata,
                 StreamingBudgetPerTick = request.StreamingBudgetPerTick,
+                SkyCapY = request.SkyCapY,
             };
             _snapshot = _snapshot.SetItem(request.Code, promoted);
             Created?.Invoke(this, new DimensionCreatedEventArgs(promoted));
@@ -214,7 +217,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             RelightHeight: request.RelightHeight,
             SeparateInventory: request.SeparateInventory,
             Metadata: request.Metadata,
-            StreamingBudgetPerTick: request.StreamingBudgetPerTick);
+            StreamingBudgetPerTick: request.StreamingBudgetPerTick,
+            SkyCapY: request.SkyCapY);
         _snapshot = _snapshot.Add(request.Code, dim);
         Created?.Invoke(this, new DimensionCreatedEventArgs(dim));
         return dim;

@@ -24,6 +24,7 @@ namespace Manifold.Internal;
 /// <param name="SeparateInventory">Inventory categories kept separate per dimension (None = shared).</param>
 /// <param name="Metadata">Read-only metadata snapshot collected via WithMetadata calls (empty when none set).</param>
 /// <param name="StreamingBudgetPerTick">Per-dimension column budget for the streaming driver, or null to use the default.</param>
+/// <param name="SkyCapY">If set, worldgen seals each generated column with an opaque ceiling at this Y so no skylight floods the dimension (dark-sky dimensions). Null = no cap.</param>
 internal readonly record struct DimensionBuildRequest(
     AssetLocation Code,
     IWorldgenStrategy Worldgen,
@@ -38,4 +39,5 @@ internal readonly record struct DimensionBuildRequest(
     int RelightHeight,
     ManifoldInventory SeparateInventory,
     IReadOnlyDictionary<string, object?> Metadata,
-    int? StreamingBudgetPerTick);
+    int? StreamingBudgetPerTick,
+    int? SkyCapY);

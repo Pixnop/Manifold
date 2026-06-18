@@ -29,6 +29,19 @@ internal sealed class DimensionGenerator
     private readonly ConcurrentDictionary<int, bool> _disabled = new();
 
     /// <summary>
+    /// Candidate opaque block codes for the dark-sky ceiling cap, tried in order. The first that
+    /// resolves and fully blocks light (LightAbsorption &gt; 32) is used. Solid rock is always opaque.
+    /// </summary>
+    private static readonly string[] CapBlockCandidates =
+    {
+        "game:rock-granite", "game:rock-andesite", "game:rock-basalt", "game:rock-sandstone",
+    };
+
+    // Resolved cap block id (LightAbsorption-validated), cached after the first lookup. -1 = not yet
+    // resolved, 0 = no suitable block found (dark-sky becomes a no-op, logged once).
+    private int _capBlockId = -1;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DimensionGenerator"/> class.
     /// </summary>
     /// <param name="registry">Dimension registry used to look up strategies.</param>
@@ -328,9 +341,75 @@ internal sealed class DimensionGenerator
         var ctx = new WorldgenChunkContext(dimId, cx, cz, accessor, rng);
 
         InvokeStrategyColumn(strategy, ctx, dimId);
+        PlaceSkyCapIfConfigured(sapi, dimId, cx, cz, accessor);
         accessor.Commit();
         _generatedColumns.MarkGenerated(dimId, cx, cz);
         return true;
+    }
+
+    /// <summary>
+    /// For dark-sky dimensions (<c>WithDarkSky</c>), seals this freshly-generated column with an
+    /// opaque ceiling layer at the configured Y across the full 32x32 footprint, on the same bulk
+    /// accessor (committed by the caller). The cap stops the engine's top-down skylight flood so the
+    /// dimension stays dark below it, and makes the chunk non-empty so the client does not bleed
+    /// full-bright skylight from neighbouring empty chunks. No-op when the dimension has no cap.
+    /// </summary>
+    private void PlaceSkyCapIfConfigured(ICoreServerAPI sapi, int dimId, int cx, int cz, IBulkBlockAccessor accessor)
+    {
+        var dim = _registry.GetByInternalId(dimId);
+        if (dim?.SkyCapY is not { } capY)
+        {
+            return;
+        }
+
+        int capBlockId = ResolveCapBlock(sapi);
+        if (capBlockId <= 0)
+        {
+            return;
+        }
+
+        int baseX = cx * 32;
+        int baseZ = cz * 32;
+        var pos = new BlockPos(baseX, capY, baseZ, dimId);
+        for (int lx = 0; lx < 32; lx++)
+        {
+            for (int lz = 0; lz < 32; lz++)
+            {
+                pos.Set(baseX + lx, capY, baseZ + lz);
+                pos.dimension = dimId;
+                accessor.SetBlock(capBlockId, pos);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resolves (and caches) an opaque block for the dark-sky cap. Picks the first candidate that
+    /// resolves and fully blocks light (<c>LightAbsorption &gt; 32</c>). Returns 0 and logs once if
+    /// none is suitable, in which case dark-sky silently does nothing rather than capping with a
+    /// translucent block.
+    /// </summary>
+    private int ResolveCapBlock(ICoreServerAPI sapi)
+    {
+        if (_capBlockId >= 0)
+        {
+            return _capBlockId;
+        }
+
+        foreach (var code in CapBlockCandidates)
+        {
+            var block = sapi.World.GetBlock(new AssetLocation(code));
+            if (block is not null && block.Id != 0 && block.LightAbsorption > 32)
+            {
+                _capBlockId = block.Id;
+                return _capBlockId;
+            }
+        }
+
+        _capBlockId = 0;
+        sapi.Logger.Warning(
+            "[Manifold] WithDarkSky: no fully-opaque cap block resolved (tried {0}); dark-sky has no effect.",
+            string.Join(", ", CapBlockCandidates));
+        return 0;
     }
 
     private void RecordFailure(IWorldgenStrategy strategy, int dimId, Exception ex)

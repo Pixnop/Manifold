@@ -91,6 +91,25 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .DescribedAs("Teleport to the Manifold sample flat dimension (solid floor for movement testing).")
             .Register(api);
 
+        // Dark-sky demo: a flat dimension sealed with an opaque ceiling at Y12 so no skylight
+        // floods in. Inside it stays dark (block light only), even though the overworld is daytime -
+        // contrast with /flatdim, which renders fully lit because it is open to the sky.
+        manifold.Registry
+            .Define(new AssetLocation(ModId, "dark"))
+            .Persistent()
+            .WithWorldgen(new FlatWorldgenStrategy())
+            .WithSpawnBehavior(SpawnBehavior.LastVisited)
+            .WithGenerationRadius(4)
+            .WithDarkSky(ceilingY: 12)
+            .RegisterStatic();
+
+        new DimensionCommandBuilder()
+            .Command("darkdim")
+            .TargetDimension(new AssetLocation(ModId, "dark"))
+            .RequiresPrivilege("chat")
+            .DescribedAs("Teleport to the dark dimension (opaque ceiling - dark inside, place torches to light it).")
+            .Register(api);
+
         manifold.Registry
             .Define(new AssetLocation(ModId, "stream"))
             .Persistent()
@@ -243,6 +262,6 @@ public sealed class ManifoldSampleModSystem : ModSystem
             });
 
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void + flat + stream + vault dimensions and /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim commands.");
+            "[ManifoldSample] Registered void + flat + dark + stream + vault dimensions and /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim commands.");
     }
 }

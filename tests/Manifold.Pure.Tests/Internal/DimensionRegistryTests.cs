@@ -221,6 +221,59 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
+    public void WithDarkSky_Should_Set_SkyCapY_And_Bump_RelightHeight()
+    {
+        var registry = NewRegistry();
+        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithDarkSky(ceilingY: 30)
+            .RegisterStatic();
+
+        Assert.Equal(30, dim.SkyCapY);
+
+        // Relight band must cover the cap (capY + 1) or the cap never takes effect.
+        Assert.Equal(31, dim.RelightHeight);
+    }
+
+    [Fact]
+    public void WithDarkSky_Should_Not_Lower_An_Already_Higher_RelightHeight()
+    {
+        var registry = NewRegistry();
+        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithRelightHeight(200)
+            .WithDarkSky(ceilingY: 30)
+            .RegisterStatic();
+
+        Assert.Equal(30, dim.SkyCapY);
+        Assert.Equal(200, dim.RelightHeight);
+    }
+
+    [Fact]
+    public void Dimension_Without_DarkSky_Should_Have_Null_SkyCapY()
+    {
+        var registry = NewRegistry();
+        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Null(dim.SkyCapY);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(1025)]
+    public void WithDarkSky_Should_Reject_Out_Of_Range(int ceilingY)
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy());
+
+        Assert.ThrowsAny<ArgumentException>(() => builder.WithDarkSky(ceilingY));
+    }
+
+    [Fact]
     public void WithMetadata_Should_Attach_Values_To_Dimension()
     {
         var registry = NewRegistry();
