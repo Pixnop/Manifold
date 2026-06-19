@@ -218,10 +218,10 @@ public sealed class ManifoldSampleModSystem : ModSystem
                     : TextCommandResult.Error("Nothing moved - the targeted block was air.");
             });
 
-        // Demonstrates the ephemeral-dim lifecycle (Define.Ephemeral.Create + Registry.TryRemove).
-        // Useful for verifying companions that subscribe to IManifoldClient.Destroyed (e.g. Chart's
-        // per-dim cache cleanup): create the dim, generate tiles by walking around, then destroy it
-        // and watch the companion drop its state.
+        // Demonstrates the ephemeral-dim lifecycle (Define.Ephemeral.Create). An ephemeral dimension
+        // is reaped automatically when its last occupant transits out, so just leaving it via
+        // /overworlddim removes it - watch a companion (e.g. Chart) drop its per-dim state.
+        // Disconnecting keeps it (you reconnect into it); /destroytempdim force-evacuates and removes.
         api.ChatCommands.Create("createtempdim")
             .WithDescription("Create the ephemeral manifoldsample:tempdim and teleport into it.")
             .RequiresPrivilege("chat")
@@ -245,19 +245,22 @@ public sealed class ManifoldSampleModSystem : ModSystem
 
                 manifold.Transitions.TeleportPlayer(serverPlayer, tempCode);
                 return TextCommandResult.Success(
-                    "Inside " + tempCode + ". Walk around to generate Chart tiles, then /destroytempdim to remove it.");
+                    "Inside " + tempCode + ". Walk around to generate Chart tiles. Leave (/overworlddim) "
+                    + "and it auto-reaps when empty, or /destroytempdim to force it now.");
             });
 
         api.ChatCommands.Create("destroytempdim")
-            .WithDescription("Destroy manifoldsample:tempdim. Demo for companion dim-lifecycle cleanup (e.g. Chart cache).")
+            .WithDescription("Force-destroy manifoldsample:tempdim (evacuates you out first). Demo for companion dim-lifecycle cleanup (e.g. Chart cache).")
             .RequiresPrivilege("chat")
             .HandleWith(cmdArgs =>
             {
-                bool removed = manifold.Registry.TryRemove(new AssetLocation(ModId, "tempdim"));
+                // Force teardown: ForceRemoveDimension evacuates any occupants to the overworld, then
+                // removes the dim. The plain Registry.TryRemove would refuse while you are inside.
+                bool removed = manifold.ForceRemoveDimension(new AssetLocation(ModId, "tempdim"));
                 return removed
                     ? TextCommandResult.Success(
-                        "Destroyed manifoldsample:tempdim. Chart should now drop its .bin cache "
-                        + "and clear rendered components if you were inside.")
+                        "Destroyed manifoldsample:tempdim (you were evacuated to the overworld if inside). "
+                        + "Chart should now drop its .bin cache and clear rendered components.")
                     : TextCommandResult.Error("manifoldsample:tempdim is not currently registered.");
             });
 

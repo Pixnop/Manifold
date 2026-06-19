@@ -408,11 +408,81 @@ public sealed class DimensionRegistryTests
         Assert.ThrowsAny<ArgumentException>(() => builder.WithStreamingBudget(value));
     }
 
+    [Fact]
+    public void TryRemove_Should_Refuse_When_Dimension_Is_Occupied()
+    {
+        // Occupancy predicate reports the (first-allocated, id 10) dimension as occupied.
+        var registry = NewRegistry(internalId => internalId == 10);
+        registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+
+        bool destroyedFired = false;
+        registry.Destroyed += (_, _) => destroyedFired = true;
+
+        Assert.False(registry.TryRemove(Code("a:b")));
+        Assert.NotNull(registry.Get(Code("a:b")));
+        Assert.False(destroyedFired);
+    }
+
+    [Fact]
+    public void TryRemove_Should_Succeed_When_Occupancy_Predicate_Reports_Empty()
+    {
+        var registry = NewRegistry(_ => false);
+        registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+
+        Assert.True(registry.TryRemove(Code("a:b")));
+        Assert.Null(registry.Get(Code("a:b")));
+    }
+
+    [Fact]
+    public void TryRemove_Occupancy_Guard_Does_Not_Run_For_Persistent_Dimensions()
+    {
+        // Persistent removal still throws before any occupancy check (immutability wins).
+        var registry = NewRegistry(_ => false);
+        registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        Assert.Throws<DimensionStateException>(() => registry.TryRemove(Code("a:b")));
+    }
+
+    [Fact]
+    public void DefineForOwner_Should_Reject_Pending_Dimension_Owned_By_Another_Mod()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner_a:dim"), 42, DimensionLifetime.Persistent, "owner_a"),
+            DimensionState.Pending);
+
+        Assert.Throws<DimensionAlreadyRegisteredException>(
+            () => registry.DefineForOwner(Code("owner_a:dim"), "owner_b"));
+    }
+
+    [Fact]
+    public void DefineForOwner_Should_Let_Rightful_Owner_Complete_Pending_Dimension()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner_a:dim"), 42, DimensionLifetime.Persistent, "owner_a"),
+            DimensionState.Pending);
+
+        var dim = registry.DefineForOwner(Code("owner_a:dim"), "owner_a")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Equal(DimensionState.Active, dim.State);
+        Assert.Equal("owner_a", dim.OwnerModId);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static DimensionRegistry NewRegistry()
     {
         var allocator = new DimensionAllocator();
         return new DimensionRegistry(allocator);
+    }
+
+    private static DimensionRegistry NewRegistry(System.Func<int, bool> isOccupied)
+    {
+        var allocator = new DimensionAllocator();
+        return new DimensionRegistry(allocator, isOccupied);
     }
 }
