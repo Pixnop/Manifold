@@ -230,9 +230,9 @@ internal sealed class DimensionGenerator
         }
     }
 
-    /// <summary>Iterates all chunk columns in the radius square, generating or loading each.
-    /// Returns <c>true</c> if at least one column was newly generated.</summary>
-    private bool FillRegionColumns(
+    /// <summary>Iterates all chunk columns in the radius square, generating or loading each and
+    /// force-sending it to the player. No return value: there is no automatic relight to drive.</summary>
+    private void FillRegionColumns(
         ICoreServerAPI sapi,
         int dimId,
         int centerCx,
@@ -241,7 +241,6 @@ internal sealed class DimensionGenerator
         IWorldgenStrategy strategy,
         IServerPlayer? player)
     {
-        bool anyGenerated = false;
         for (int dx = -radius; dx <= radius; dx++)
         {
             for (int dz = -radius; dz <= radius; dz++)
@@ -254,7 +253,7 @@ internal sealed class DimensionGenerator
                     continue;
                 }
 
-                anyGenerated |= GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
+                GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
 
                 if (player != null)
                 {
@@ -262,8 +261,6 @@ internal sealed class DimensionGenerator
                 }
             }
         }
-
-        return anyGenerated;
     }
 
     private bool InvokeInitialize(IWorldgenStrategy strategy, ICoreServerAPI sapi, int dimId)
