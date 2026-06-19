@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Manifold.Internal;
@@ -47,6 +49,27 @@ internal sealed class PlayerPositionStore
 
         x = y = z = 0;
         return false;
+    }
+
+    /// <summary>
+    /// Drops every recorded position for the given dimension id. Called when a dimension is
+    /// destroyed so a later dimension reusing the same engine id does not inherit stale
+    /// LastVisited coordinates, and so the store does not grow unbounded over a session.
+    /// </summary>
+    /// <param name="dimId">Engine dimension id being released.</param>
+    public void RemoveDimension(int dimId)
+    {
+        string suffix = "|" + dimId.ToString(CultureInfo.InvariantCulture);
+        var stale = _positions.Keys.Where(k => k.EndsWith(suffix, StringComparison.Ordinal)).ToList();
+        foreach (var key in stale)
+        {
+            _positions.Remove(key);
+        }
+
+        if (stale.Count > 0)
+        {
+            IsDirty = true;
+        }
     }
 
     /// <summary>Serialise the store to a byte array.</summary>

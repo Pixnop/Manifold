@@ -3,6 +3,7 @@ using Manifold.Api;
 using Manifold.Api.Events;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
+using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
@@ -107,7 +108,7 @@ internal sealed class TransitService : ITransitionService
         _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
 
         // Pre-generate / load the destination region so the player lands on solid ground.
-        _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, player);
+        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
 
         // Resolve the final landing position now that terrain exists.
         var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
@@ -167,7 +168,7 @@ internal sealed class TransitService : ITransitionService
 
         // Pre-generate the destination region so the target column is loaded before we write the
         // block. Same pre-load contract as TeleportEntity.
-        _generator.EnsureRegion(_sapi, target.InternalId, targetPos.X / 32, targetPos.Z / 32, null);
+        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(targetPos.X), ChunkMath.ToChunk(targetPos.Z), null);
 
         return _movers.Block.Move(source, targetPos);
     }
@@ -206,7 +207,7 @@ internal sealed class TransitService : ITransitionService
 
         // Preliminary position to center generation, then a final position after terrain exists.
         var prelim = ResolveEntityPosition(entity, target, options);
-        _generator.EnsureRegion(_sapi, target.InternalId, prelim.X / 32, prelim.Z / 32, null);
+        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), null);
         var finalPos = ResolveEntityPosition(entity, target, options);
 
         _movers.Entity.Move(entity, finalPos);

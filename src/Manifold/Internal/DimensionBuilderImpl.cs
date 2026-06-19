@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Manifold.Api;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
@@ -25,9 +26,10 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     /// <summary>Default per-dimension streaming column budget per tick.</summary>
     internal const int DefaultStreamingBudgetPerTick = 4;
 
-    /// <summary>Empty metadata sentinel used when no <c>WithMetadata</c> was called.</summary>
+    /// <summary>Empty metadata sentinel used when no <c>WithMetadata</c> was called. Immutable so it
+    /// cannot be mutated through a downcast of the shared instance.</summary>
     internal static readonly IReadOnlyDictionary<string, object?> EmptyMetadata =
-        new Dictionary<string, object?>(0);
+        ImmutableDictionary<string, object?>.Empty;
 
     private readonly AssetLocation _code;
     private readonly string _ownerModId;
@@ -231,7 +233,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _streamingLoadRadius,
             _relightHeight,
             _separateInventory,
-            _metadata ?? EmptyMetadata,
+            BuildMetadata(),
             _streamingBudgetPerTick,
             _skyCapY));
     }
@@ -266,13 +268,20 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _streamingLoadRadius,
             _relightHeight,
             _separateInventory,
-            _metadata ?? EmptyMetadata,
+            BuildMetadata(),
             _streamingBudgetPerTick,
             _skyCapY));
     }
 
     private static bool IsSupportedMetadataType(Type t) =>
         t.IsPrimitive || t == typeof(string) || t.IsEnum || t == typeof(byte[]);
+
+    /// <summary>
+    /// Snapshots the builder's metadata into an immutable dictionary stored on the dimension, so the
+    /// published <c>IReadOnlyDictionary</c> cannot be mutated through a downcast back to Dictionary.
+    /// </summary>
+    private IReadOnlyDictionary<string, object?> BuildMetadata() =>
+        _metadata is null ? EmptyMetadata : _metadata.ToImmutableDictionary(StringComparer.Ordinal);
 
     private void ThrowIfUsed()
     {

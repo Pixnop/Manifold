@@ -135,7 +135,6 @@ For players the engine also raises its own `IEventAPI.PlayerDimensionChanged`; M
 | `OverridePosition` | Hard-coded landing `BlockPos` (dimension-encoded). Skips all resolver logic. |
 | `Resolver` | Custom `ITargetPositionResolver` - used when `OverridePosition` is null. |
 | `SpawnBehavior` | Per-transit override of the dimension's configured spawn behavior. |
-| `PreserveInventory` | Keep the player's inventory across transit (default: `true`). |
 
 ```csharp
 // Transit to a specific absolute position.

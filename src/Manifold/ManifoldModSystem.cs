@@ -9,6 +9,7 @@ using Manifold.Api.Transitions;
 using Manifold.Internal;
 using Manifold.Internal.HarmonyPatches;
 using Manifold.Internal.Networking;
+using Manifold.Internal.Util;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
@@ -182,8 +183,20 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         _disposed = true;
-        ManifoldAccess.SetServerResolver(null);
-        ManifoldAccess.SetClientResolver(null);
+
+        // Clear only the resolver this instance installed. In a singleplayer host the client and
+        // server are two ModSystem instances sharing ManifoldAccess's process-global statics; clearing
+        // the other side here would strip a still-live facade out from under it.
+        if (ServerFacade is not null)
+        {
+            ManifoldAccess.SetServerResolver(null);
+        }
+
+        if (ClientFacade is not null)
+        {
+            ManifoldAccess.SetClientResolver(null);
+        }
+
         _harmony?.Dispose();
         base.Dispose();
     }
@@ -233,8 +246,8 @@ public sealed class ManifoldModSystem : ModSystem
                     int radius = Math.Clamp((int)args[0], 0, 4);
                     var pos = EntityPosAccess.Pos(player.Entity);
                     int dimId = pos.Dimension;
-                    int cx = (int)pos.X / 32;
-                    int cz = (int)pos.Z / 32;
+                    int cx = ChunkMath.ToChunk(pos.X);
+                    int cz = ChunkMath.ToChunk(pos.Z);
 
                     var min = new BlockPos((cx - radius) * 32, 0, (cz - radius) * 32, dimId);
                     var max = new BlockPos(
@@ -269,9 +282,11 @@ public sealed class ManifoldModSystem : ModSystem
         });
 
         // The engine id is released back to the allocator on removal and may be reused by a later
-        // dimension. Drop the destroyed dim's generator state so a reused id does not inherit a
-        // stale auto-disabled / initialised flag (common now that ephemeral dims reap on empty).
+        // dimension. Drop the destroyed dim's generator state and saved player positions so a reused
+        // id does not inherit a stale auto-disabled / initialised flag or stale LastVisited coords
+        // (common now that ephemeral dims reap on empty).
         _generator?.ForgetDimension(e.Dimension.InternalId);
+        _positionStore?.RemoveDimension(e.Dimension.InternalId);
 
         // No occupant evacuation here: a dimension is never removed while occupied (TryRemove refuses,
         // ForceRemoveDimension evacuates before removing), so by the time Destroyed fires it is empty.
@@ -471,8 +486,8 @@ public sealed class ManifoldModSystem : ModSystem
                 if (d is { State: DimensionState.Active })
                 {
                     // Valid custom dimension: pre-generate their region so they land on solid ground.
-                    int cx = (int)entityPos.X / 32;
-                    int cz = (int)entityPos.Z / 32;
+                    int cx = ChunkMath.ToChunk(entityPos.X);
+                    int cz = ChunkMath.ToChunk(entityPos.Z);
                     _generator.EnsureRegion(sapi, dim, cx, cz, player);
                 }
 
@@ -533,30 +548,10 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnClientPlayerTransited(PlayerTransitedPacket packet)
     {
-        if (_clientMirror is null || ClientFacade is null)
-        {
-            return;
-        }
-
-        var source = _clientMirror.Get(new AssetLocation(packet.SourceCode));
-        var target = _clientMirror.Get(new AssetLocation(packet.TargetCode));
-        if (source is null || target is null)
-        {
-            return;
-        }
-
-        // Player parameter is awkward on the client (we'd need to look up the local IServerPlayer
-        // equivalent, but on the client side that's the local EntityPlayer's player handle).
-        // For v0 we raise with the local player from the game world; consumers typically filter by code.
-        // The IServerPlayer cast is the simplest path - VS exposes ClientPlayer.Player as IServerPlayer
-        // on the integrated server only. On a dedicated client we omit the player.
-        // To avoid the cast complexity, we don't construct PlayerEnteredDimensionEventArgs here
-        // for v0 - instead consumers should subscribe to ClientMirror.Added/Removed for state changes,
-        // and use IClientPlayer events for player-local hooks.
-
-        // Future(v1): wire LocalPlayerTransited with a proper player handle if/when needed.
-        _ = source;
-        _ = target;
+        // Reserved scaffolding for IManifoldClient.LocalPlayerTransited (not raised yet - the event
+        // args require an IServerPlayer the client does not have; see the event's XML doc). The packet
+        // type stays registered so v1 can light up the event without a protocol change. No per-packet
+        // work until then: consumers use ClientMirror Added/Removed + IClientPlayer events for now.
     }
 
     private int CountByState(DimensionState state)

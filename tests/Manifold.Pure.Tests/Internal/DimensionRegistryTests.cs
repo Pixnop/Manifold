@@ -291,6 +291,20 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
+    public void Metadata_Should_Not_Be_Downcastable_To_A_Mutable_Dictionary()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithMetadata("k", "v")
+            .RegisterStatic();
+
+        // The published read-only map must be immutable so a consumer cannot downcast it back to a
+        // Dictionary and mutate the registry's snapshot value out-of-band.
+        Assert.False(dim.Metadata is System.Collections.Generic.Dictionary<string, object?>);
+    }
+
+    [Fact]
     public void Dimension_Without_Metadata_Should_Expose_Empty_Map()
     {
         var registry = NewRegistry();
