@@ -19,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ephemeral dimensions are reaped automatically when emptied by a transit.** When a player *transits out* of an `Ephemeral` dimension and leaves it empty, it is removed (firing `Destroyed` for companion cleanup); it is also removed at server shutdown. Disconnecting does NOT reap it - a logged-out player keeps their dimension and reconnects straight back into it while the server stays up. Use `Persistent` for a dimension that must survive a restart.
 - **Void rescue for stranded players.** A player whose saved position points to a dimension that no longer exists or is no longer `Active` (ephemeral gone after a restart, owning mod uninstalled, crash) is sent back to the overworld on join instead of loading into the void. The rescue teleport is deferred to `PlayerNowPlaying` so it never races the still-connecting client. Fixes #61.
 
+### Removed
+- **`TransitionOptions.PreserveInventory`** - the option was never read by the transit pipeline (inventory behavior is driven entirely by the destination dimension's `WithSeparateInventory` policy), and its name/default conflicted with that policy. The dead, misleading knob is removed rather than wired with confusing semantics.
+
+### Fixed
+- **A pending dimension could be claimed by a different owner mod.** `DefineForOwner` now rejects a pending dimension whose recorded owner mod id does not match the caller, so a colliding code cannot hijack another mod's dimension or corrupt owner attribution.
+- **A failed `OnInitialize` is retried instead of generating uninitialized terrain.** The dimension is no longer marked initialized before init succeeds, so a transient init failure no longer leaves the strategy generating columns with unresolved block ids.
+- **A corrupt manifest entry no longer aborts boot.** `SeedFromManifest` failures (out-of-range id, bad code) are logged and skipped, matching the manifest loader's drop-silently policy.
+- **`TeleportBlock` no longer deletes the block** when the source and target resolve to the same position.
+- **Stale `LastVisited` after engine-id reuse.** `PlayerPositionStore` entries for a destroyed dimension are evicted, so a later dimension reusing that id does not inherit old coordinates (also bounds the store's growth).
+- **`Dispose` cleared the wrong side's service resolver.** In a singleplayer host the client and server share `ManifoldAccess`'s process-global resolvers; each `ModSystem` instance now clears only the resolver it installed.
+- **Binary-compat shim** now used for all `Entity.Pos` reads (three player-lifecycle handlers were reading `entity.Pos` directly, which would crash on the other VS field/property shape).
+- **Chunk-index math** uses floor division (correct for negative world coordinates) via a shared `ChunkMath` helper; the engine constants (chunk size, per-dimension chunk-Y stride) are centralized.
+- **`DimensionAllocator`** validates a null code with `ArgumentNullException.ThrowIfNull` instead of a misleading empty-string guard.
+
+### Changed
+- **Dimension metadata is now immutable.** `IDimension.Metadata` is backed by an `ImmutableDictionary` (and the shared empty sentinel is `ImmutableDictionary.Empty`), so a consumer cannot downcast the read-only map back to `Dictionary` and mutate a registered dimension's snapshot out-of-band.
+
 ## [0.4.1] - 2026-06-13
 
 ### Fixed

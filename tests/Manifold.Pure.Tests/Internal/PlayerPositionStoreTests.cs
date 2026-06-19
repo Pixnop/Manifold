@@ -86,4 +86,34 @@ public sealed class PlayerPositionStoreTests
         store.ClearDirty();
         Assert.False(store.IsDirty);
     }
+
+    [Fact]
+    public void RemoveDimension_Should_Drop_Only_That_Dimensions_Entries()
+    {
+        var store = new PlayerPositionStore();
+        store.Record("alice", 10, 1, 2, 3);
+        store.Record("bob", 10, 4, 5, 6);
+        store.Record("alice", 11, 7, 8, 9);
+        store.ClearDirty();
+
+        store.RemoveDimension(10);
+
+        Assert.False(store.TryGet("alice", 10, out _, out _, out _));
+        Assert.False(store.TryGet("bob", 10, out _, out _, out _));
+        Assert.True(store.TryGet("alice", 11, out _, out _, out _)); // other dim untouched
+        Assert.True(store.IsDirty);
+    }
+
+    [Fact]
+    public void RemoveDimension_Should_Not_Match_A_Different_Dim_With_A_Shared_Suffix()
+    {
+        var store = new PlayerPositionStore();
+        store.Record("uid", 10, 1, 2, 3);
+        store.Record("uid", 110, 4, 5, 6);
+
+        store.RemoveDimension(10);
+
+        Assert.False(store.TryGet("uid", 10, out _, out _, out _));
+        Assert.True(store.TryGet("uid", 110, out _, out _, out _)); // 110 must not be matched by "|10"
+    }
 }

@@ -7,12 +7,6 @@ namespace Manifold.Api.Transitions;
 /// </summary>
 public readonly record struct TransitionOptions
 {
-    /// <summary>Initializes a new instance of the <see cref="TransitionOptions"/> struct.</summary>
-    public TransitionOptions()
-    {
-        PreserveInventory = true;
-    }
-
     /// <summary>If set, overrides the resolver-computed target position. Caller-supplied dim encoding mandatory.</summary>
     public BlockPos? OverridePosition { get; init; }
 
@@ -25,7 +19,4 @@ public readonly record struct TransitionOptions
     /// Useful for transiting to the built-in overworld with <see cref="SpawnBehavior.LastVisited"/>.
     /// </summary>
     public SpawnBehavior? SpawnBehavior { get; init; }
-
-    /// <summary>If <c>true</c> (default), the player's inventory remains untouched across transit.</summary>
-    public bool PreserveInventory { get; init; }
 }
