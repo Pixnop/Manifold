@@ -11,6 +11,11 @@ public enum DimensionLifetime
     /// <summary>Declared at boot, survives across sessions. Chunks persist with the savegame.</summary>
     Persistent,
 
-    /// <summary>Created at runtime, discarded on server shutdown.</summary>
+    /// <summary>
+    /// Created at runtime. Reaped automatically when its last occupant transits out, and discarded on
+    /// server shutdown; chunks are never persisted. Disconnecting does not reap it (a logged-out
+    /// player reconnects back into it while the server is up). Use <see cref="Persistent"/> for a
+    /// runtime dimension that must survive a restart.
+    /// </summary>
     Ephemeral,
 }

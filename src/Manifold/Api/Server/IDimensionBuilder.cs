@@ -21,7 +21,13 @@ public interface IDimensionBuilder
     /// <returns>This builder, for chaining.</returns>
     IDimensionBuilder Persistent();
 
-    /// <summary>Marks the dimension as ephemeral. Mutually exclusive with <see cref="Persistent"/>.</summary>
+    /// <summary>
+    /// Marks the dimension as ephemeral. Mutually exclusive with <see cref="Persistent"/>. An
+    /// ephemeral dimension is removed automatically when its last occupant transits out (firing
+    /// <c>IDimensionRegistry.Destroyed</c>) and at server shutdown; its chunks are never persisted.
+    /// Disconnecting does not remove it - a logged-out player reconnects back into it while the server
+    /// is up. Use <see cref="Persistent"/> if the dimension must survive a restart.
+    /// </summary>
     /// <returns>This builder, for chaining.</returns>
     IDimensionBuilder Ephemeral();
 

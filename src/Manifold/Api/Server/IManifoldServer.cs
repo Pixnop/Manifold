@@ -36,4 +36,24 @@ public interface IManifoldServer
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
     /// <exception cref="ManifoldUnhealthyException">Manifold failed to initialize at boot.</exception>
     void RelightRegion(AssetLocation dimension, BlockPos min, BlockPos max);
+
+    /// <summary>
+    /// Forcibly removes an Ephemeral dimension even if players are still inside it: every occupant is
+    /// first evacuated to the overworld (last-visited position), then the dimension is removed
+    /// (firing <c>IDimensionRegistry.Destroyed</c>). Use for deliberate teardown of an occupied
+    /// instance (session ended, arena closed). The everyday case - a dimension emptying on its own -
+    /// is handled automatically; the plain <see cref="IDimensionRegistry.TryRemove"/> refuses while
+    /// occupied so it never strands a player.
+    /// </summary>
+    /// <param name="dimension">The dimension to remove.</param>
+    /// <returns>
+    /// <c>true</c> if the dimension was removed (including when evacuating the last occupant already
+    /// auto-reaped it); <c>false</c> if no dimension with that code exists, or if an occupant could
+    /// not be evacuated and the dimension is therefore still in use.
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="dimension"/> is null.</exception>
+    /// <exception cref="ManifoldUnhealthyException">Manifold failed to initialize at boot.</exception>
+    /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
+    /// <exception cref="DimensionStateException">The dimension is Persistent (use the admin purge).</exception>
+    bool ForceRemoveDimension(AssetLocation dimension);
 }

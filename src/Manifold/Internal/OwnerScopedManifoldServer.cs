@@ -40,4 +40,8 @@ internal sealed class OwnerScopedManifoldServer : IManifoldServer
     /// <inheritdoc/>
     public void RelightRegion(AssetLocation dimension, BlockPos min, BlockPos max) =>
         _shared.RelightRegion(dimension, min, max);
+
+    /// <inheritdoc/>
+    public bool ForceRemoveDimension(AssetLocation dimension) =>
+        _shared.ForceRemoveDimension(dimension);
 }

@@ -40,10 +40,14 @@ public interface IDimensionRegistry
     IDimensionBuilder Define(AssetLocation code);
 
     /// <summary>
-    /// Remove an Ephemeral dimension. Throws if the code is not found, refers to a Persistent or BuiltIn dim,
-    /// or to a Pending/Quarantined entry.
+    /// Remove an Ephemeral dimension. Must be called on the main thread. Refuses (returns
+    /// <c>false</c>) while a player is still inside it - a dimension is never destroyed out from under
+    /// its occupants. Move everyone out first, or use <see cref="IManifoldServer.ForceRemoveDimension"/>
+    /// to evacuate occupants then remove.
     /// </summary>
     /// <param name="code">The dimension to remove.</param>
-    /// <returns><c>true</c> if removed; <c>false</c> if code not found.</returns>
+    /// <returns><c>true</c> if removed; <c>false</c> if the code is not found or the dimension is occupied.</returns>
+    /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
+    /// <exception cref="DimensionStateException">The dimension is Persistent (use the admin purge command).</exception>
     bool TryRemove(AssetLocation code);
 }

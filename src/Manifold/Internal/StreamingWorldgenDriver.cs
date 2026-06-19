@@ -64,22 +64,13 @@ internal sealed class StreamingWorldgenDriver
             return;
         }
 
-        // Group generated columns per dimension: since per-dim budgets (0.4.0) a single tick can
-        // legitimately carry columns from several streaming dimensions, and each dim needs its
-        // own relight height plus its own dim id for the dim-aware relight.
-        var generatedByDim = new Dictionary<int, List<(int Cx, int Cz)>>();
+        // Generate (or load) each planned column and force-send it to the players streaming it. No
+        // server-side relight: the client lights received chunk columns natively, as it has in every
+        // released version. See DimensionGenerator.EnsureRegion for why the automatic relight was
+        // removed (it floods skylight and breaks client lighting).
         foreach (var col in planned)
         {
-            if (_generator.EnsureColumn(_sapi, col.DimId, col.Cx, col.Cz))
-            {
-                if (!generatedByDim.TryGetValue(col.DimId, out var list))
-                {
-                    list = new List<(int Cx, int Cz)>();
-                    generatedByDim[col.DimId] = list;
-                }
-
-                list.Add((col.Cx, col.Cz));
-            }
+            _generator.EnsureColumn(_sapi, col.DimId, col.Cx, col.Cz);
 
             foreach (var uid in col.PlayerUids)
             {
@@ -88,13 +79,6 @@ internal sealed class StreamingWorldgenDriver
                     _sapi.WorldManager.ForceSendChunkColumn(player, col.Cx, col.Cz, col.DimId);
                 }
             }
-        }
-
-        foreach (var (dimId, columns) in generatedByDim)
-        {
-            int relightHeight = _registry.GetByInternalId(dimId)?.RelightHeight
-                ?? DimensionBuilderImpl.DefaultRelightHeight;
-            DimensionGenerator.RelightColumns(_sapi, dimId, columns, relightHeight);
         }
     }
 

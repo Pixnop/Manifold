@@ -63,6 +63,21 @@ internal sealed class DimensionGenerator
     /// <returns><c>true</c> if disabled.</returns>
     public bool IsDisabled(int dimId) => _disabled.TryGetValue(dimId, out var d) && d;
 
+    /// <summary>
+    /// Drops all per-dimension generator state (initialised flag, failure count, auto-disabled flag)
+    /// for <paramref name="dimId"/>. Must be called when a dimension is destroyed: the engine id is
+    /// released back to the allocator and may be reused by a later dimension, which would otherwise
+    /// inherit this one's stale flags (e.g. a reused id born permanently auto-disabled, or skipping
+    /// <c>OnInitialize</c>). With ephemeral reap-on-empty, id reuse within a session is routine.
+    /// </summary>
+    /// <param name="dimId">Engine dimension id being released.</param>
+    public void ForgetDimension(int dimId)
+    {
+        _initialized.TryRemove(dimId, out _);
+        _failureCounts.TryRemove(dimId, out _);
+        _disabled.TryRemove(dimId, out _);
+    }
+
     /// <summary>Returns the consecutive failure count for the given dimension.</summary>
     /// <param name="dimId">Engine dimension id.</param>
     /// <returns>Count of consecutive failures since last success.</returns>
@@ -104,25 +119,24 @@ internal sealed class DimensionGenerator
 
         int radius = dim.GenerationRadius;
 
-        // Ensure OnInitialize is called once per dimension.
-        if (_initialized.TryAdd(dimId, true))
+        // Ensure OnInitialize runs SUCCESSFULLY once per dimension. On failure, remove the marker so the
+        // next visit retries init rather than generating uninitialized terrain (block ids unresolved).
+        // The failure still counts toward auto-disable via RecordFailure inside InvokeInitialize.
+        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
         {
-            bool initOk = InvokeInitialize(strategy, sapi, dimId);
-            if (!initOk)
-            {
-                // init failure counts toward auto-disable
-                return;
-            }
+            _initialized.TryRemove(dimId, out _);
+            return;
         }
 
-        bool anyGenerated = FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
+        FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
 
-        // Relight ONCE for the whole freshly-generated region, over a bounded Y band.
-        // (Per-column full-height relight was the ~40s bottleneck.)
-        if (anyGenerated)
-        {
-            RelightChunkBounds(sapi, dimId, centerCx - radius, centerCz - radius, centerCx + radius, centerCz + radius, dim.RelightHeight);
-        }
+        // No automatic server-side relight here. The client lights freshly-received chunk columns
+        // natively (sunlight flood on receipt + incremental relight on block edits), exactly as it
+        // did in every released version - where this relight was a dim-0 no-op and custom-dim
+        // lighting was correct. Forcing a server FullRelight on the custom dim (#60) floods skylight
+        // and is force-sent by the streaming driver, overriding the correct client lighting (dims
+        // full-bright, torches/edits not relighting). Modders who need an explicit relight after a
+        // runtime edit use IManifoldServer.RelightRegion / the /manifold relight command.
     }
 
     /// <summary>
@@ -150,37 +164,12 @@ internal sealed class DimensionGenerator
 
         if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
         {
+            // Retry init on the next visit instead of generating uninitialized terrain.
+            _initialized.TryRemove(dimId, out _);
             return false;
         }
 
         return GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
-    }
-
-    /// <summary>
-    /// Relights newly-generated columns (best-effort). Each column is relit over its own 32x32
-    /// footprint rather than the bounding box of the whole batch: profiling showed that relighting
-    /// the spanning rectangle of spread-out columns (common when a fast-moving player generates a
-    /// line of columns) re-lights many already-lit columns in between, and FullRelight cost scales
-    /// with that area. Per-column relight makes the cost proportional to the number of new columns,
-    /// independent of how spread out they are. The relight band is capped at
-    /// <paramref name="maxRelightY"/>, configured per dimension via
-    /// <see cref="Manifold.Api.Server.IDimensionBuilder.WithRelightHeight"/>.
-    /// </summary>
-    /// <param name="sapi">Server API.</param>
-    /// <param name="dimId">Engine dimension id the columns belong to.</param>
-    /// <param name="columns">Newly-generated columns to relight.</param>
-    /// <param name="maxRelightY">Upper Y bound for the relight pass (per-dimension value).</param>
-    public static void RelightColumns(ICoreServerAPI sapi, int dimId, IReadOnlyList<(int Cx, int Cz)> columns, int maxRelightY)
-    {
-        if (sapi is null || columns is null)
-        {
-            return;
-        }
-
-        foreach (var (cx, cz) in columns)
-        {
-            RelightChunkBounds(sapi, dimId, cx, cz, cx, cz, maxRelightY);
-        }
     }
 
     /// <summary>
@@ -275,27 +264,6 @@ internal sealed class DimensionGenerator
         }
 
         return anyGenerated;
-    }
-
-    /// <summary>Relights a rectangle of chunk columns over a bounded Y band (best-effort).</summary>
-    /// <param name="sapi">Server API.</param>
-    /// <param name="dimId">Engine dimension id the columns belong to.</param>
-    /// <param name="minCx">Minimum chunk X.</param>
-    /// <param name="minCz">Minimum chunk Z.</param>
-    /// <param name="maxCx">Maximum chunk X.</param>
-    /// <param name="maxCz">Maximum chunk Z.</param>
-    /// <param name="maxRelightY">Upper Y bound for the relight pass (per-dimension).</param>
-    private static void RelightChunkBounds(ICoreServerAPI sapi, int dimId, int minCx, int minCz, int maxCx, int maxCz, int maxRelightY)
-    {
-        int minX = minCx * 32;
-        int minZ = minCz * 32;
-        int maxX = (maxCx * 32) + 31;
-        int maxZ = (maxCz * 32) + 31;
-        int maxY = Math.Min(maxRelightY, sapi.WorldManager.MapSizeY - 1);
-
-        // Worldgen relight: sendToClients = false. The freshly generated column is sent to the
-        // client separately (on transit, or by the streaming driver's ForceSendChunkColumn).
-        RelightBlockBounds(sapi, dimId, new BlockPos(minX, 0, minZ, dimId), new BlockPos(maxX, maxY, maxZ, dimId), sendToClients: false);
     }
 
     private bool InvokeInitialize(IWorldgenStrategy strategy, ICoreServerAPI sapi, int dimId)

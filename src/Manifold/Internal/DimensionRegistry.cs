@@ -22,6 +22,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     private static readonly AssetLocation OverworldCode = new("manifold", "overworld");
 
     private readonly DimensionAllocator _allocator;
+    private readonly System.Func<int, bool>? _isOccupied;
 
     private volatile ImmutableDictionary<AssetLocation, DimensionImpl> _snapshot =
         ImmutableDictionary<AssetLocation, DimensionImpl>.Empty;
@@ -30,9 +31,15 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     /// Initializes a new instance of the <see cref="DimensionRegistry"/> class with the built-in overworld and dependencies.
     /// </summary>
     /// <param name="allocator">Dimension id allocator.</param>
-    public DimensionRegistry(DimensionAllocator allocator)
+    /// <param name="isOccupied">
+    /// Optional predicate that returns <c>true</c> when at least one connected player is currently
+    /// inside the dimension with the given engine id. When supplied, <see cref="TryRemove"/> refuses
+    /// (returns <c>false</c>) to remove an occupied dimension. <c>null</c> disables the check.
+    /// </param>
+    public DimensionRegistry(DimensionAllocator allocator, System.Func<int, bool>? isOccupied = null)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
+        _isOccupied = isOccupied;
 
         var overworld = new DimensionImpl(
             Code: OverworldCode,
@@ -98,6 +105,13 @@ internal sealed class DimensionRegistry : IDimensionRegistry
                 $"Dimension '{code}' is persistent; removal requires the admin purge command.");
         }
 
+        // Refuse to destroy a dimension while a player is inside it. The caller must move occupants
+        // out first (or use IManifoldServer.ForceRemoveDimension, which evacuates then removes).
+        if (_isOccupied is not null && _isOccupied(dim.InternalId))
+        {
+            return false;
+        }
+
         _snapshot = _snapshot.Remove(code);
         _allocator.Release(dim.InternalId);
         Destroyed?.Invoke(this, new DimensionDestroyedEventArgs(dim));
@@ -117,10 +131,22 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     {
         DimensionCodeValidator.Validate(code);
         Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
-        if (_snapshot.TryGetValue(code, out var existing) && existing.State != DimensionState.Pending)
+        if (_snapshot.TryGetValue(code, out var existing))
         {
-            throw new DimensionAlreadyRegisteredException(
-                $"Dimension '{code}' is already registered in this boot.");
+            if (existing.State != DimensionState.Pending)
+            {
+                throw new DimensionAlreadyRegisteredException(
+                    $"Dimension '{code}' is already registered in this boot.");
+            }
+
+            // A Pending entry is owned by a specific mod (recorded in the manifest). Only that owner
+            // may complete it - otherwise a second mod could claim another mod's dimension and the
+            // promoted record would silently keep the original owner id (broken attribution).
+            if (!string.Equals(existing.OwnerModId, ownerModId, StringComparison.Ordinal))
+            {
+                throw new DimensionAlreadyRegisteredException(
+                    $"Dimension '{code}' is pending under owner '{existing.OwnerModId}' and cannot be claimed by '{ownerModId}'.");
+            }
         }
 
         return new DimensionBuilderImpl(code, ownerModId, Complete);
