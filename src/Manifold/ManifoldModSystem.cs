@@ -38,7 +38,6 @@ public sealed class ManifoldModSystem : ModSystem
     private PlayerPositionStore? _positionStore;
     private SaveGameManifestStore? _manifestStore;
     private ManifoldNetworkChannel? _network;
-    private ClientDimensionMirror? _clientMirror;
     private ICoreServerAPI? _sapi;
     private bool _disposed;
 
@@ -161,16 +160,18 @@ public sealed class ManifoldModSystem : ModSystem
         base.StartClientSide(api);
 
         _network = new ManifoldNetworkChannel();
-        _clientMirror = new ClientDimensionMirror();
 
-        _network.OnClientDimensionAdded += _clientMirror.ApplyAdded;
-        _network.OnClientDimensionRemoved += _clientMirror.ApplyRemoved;
-        _network.OnClientManifest += _clientMirror.ApplyManifest;
+        // The mirror is held alive by the network-event delegates and ClientFacade below; it needs no
+        // field (OnClientPlayerTransited no longer references it - see its v1-scaffolding note).
+        var clientMirror = new ClientDimensionMirror();
+        _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
+        _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
+        _network.OnClientManifest += clientMirror.ApplyManifest;
         _network.OnClientPlayerTransited += OnClientPlayerTransited;
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(_clientMirror);
+        ClientFacade = new ManifoldClientFacade(clientMirror);
         ManifoldAccess.SetClientResolver(_ => ClientFacade);
     }
 
