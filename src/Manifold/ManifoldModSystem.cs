@@ -283,11 +283,14 @@ public sealed class ManifoldModSystem : ModSystem
         });
 
         // The engine id is released back to the allocator on removal and may be reused by a later
-        // dimension. Drop the destroyed dim's generator state and saved player positions so a reused
-        // id does not inherit a stale auto-disabled / initialised flag or stale LastVisited coords
-        // (common now that ephemeral dims reap on empty).
+        // dimension. Drop the destroyed dim's generator state, saved player positions, and generated
+        // -column markers so a reused id does not inherit a stale auto-disabled / initialised flag,
+        // stale LastVisited coords, or "already generated" markers that would make the new dimension
+        // load the old one's chunks instead of running its own worldgen (common now that ephemeral
+        // dims reap on empty and ids recycle within a session).
         _generator?.ForgetDimension(e.Dimension.InternalId);
         _positionStore?.RemoveDimension(e.Dimension.InternalId);
+        _generatedColumns?.RemoveDimension(e.Dimension.InternalId);
 
         // No occupant evacuation here: a dimension is never removed while occupied (TryRemove refuses,
         // ForceRemoveDimension evacuates before removing), so by the time Destroyed fires it is empty.

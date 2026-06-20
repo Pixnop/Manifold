@@ -73,4 +73,59 @@ public sealed class GeneratedColumnStoreTests
         store.LoadFromBytes(System.Array.Empty<byte>());
         Assert.False(store.IsGenerated(10, 5, 7));
     }
+
+    [Fact]
+    public void RemoveDimension_Should_Drop_Only_That_Dimensions_Columns()
+    {
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(10, 5, 7);
+        store.MarkGenerated(10, 6, 8);
+        store.MarkGenerated(11, 5, 7);
+
+        store.RemoveDimension(10);
+
+        Assert.False(store.IsGenerated(10, 5, 7));
+        Assert.False(store.IsGenerated(10, 6, 8));
+        Assert.True(store.IsGenerated(11, 5, 7)); // other dimension untouched
+    }
+
+    [Fact]
+    public void RemoveDimension_Should_Set_Dirty_When_Something_Removed()
+    {
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(10, 5, 7);
+        store.ClearDirty();
+
+        store.RemoveDimension(10);
+
+        Assert.True(store.IsDirty);
+    }
+
+    [Fact]
+    public void RemoveDimension_Should_Not_Set_Dirty_When_Nothing_Removed()
+    {
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(10, 5, 7);
+        store.ClearDirty();
+
+        store.RemoveDimension(999); // unknown dimension
+
+        Assert.False(store.IsDirty);
+        Assert.True(store.IsGenerated(10, 5, 7));
+    }
+
+    [Fact]
+    public void RemoveDimension_Should_Not_Affect_Columns_Sharing_Coords_In_Other_Dims()
+    {
+        // A reused engine id must not inherit the prior occupant's column markers, but a
+        // different live dimension that happens to share coords must survive the prune.
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(10, 0, 0);
+        store.MarkGenerated(1023, 0, 0);
+
+        store.RemoveDimension(10);
+
+        Assert.False(store.IsGenerated(10, 0, 0));
+        Assert.True(store.IsGenerated(1023, 0, 0));
+    }
 }
