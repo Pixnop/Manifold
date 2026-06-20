@@ -264,7 +264,68 @@ public sealed class ManifoldModSystem : ModSystem
                     return TextCommandResult.Success(
                         $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.");
                 })
+            .EndSubCommand()
+            .BeginSubCommand("purge")
+                .WithDescription(
+                    "Force-remove a dimension by code, releasing its engine id. Evacuates any occupants "
+                    + "to the overworld first. Use for a dimension whose owning mod was uninstalled (Quarantined).")
+                .WithArgs(api.ChatCommands.Parsers.Word("code"))
+                .HandleWith(args => PurgeCommand(api, args))
             .EndSubCommand();
+    }
+
+    /// <summary>
+    /// Handles <c>/manifold purge &lt;code&gt;</c>: evacuates any occupants of the named dimension to
+    /// the overworld, then force-removes it (releasing its engine id and firing <c>Destroyed</c>, which
+    /// drives the per-dimension cleanup). The documented recovery path for a Quarantined dimension and
+    /// the admin teardown for a Persistent one - both of which the plain remove path refuses.
+    /// </summary>
+    private TextCommandResult PurgeCommand(ICoreServerAPI api, TextCommandCallingArgs args)
+    {
+        if (_registry is null)
+        {
+            return TextCommandResult.Error("Manifold is not initialized.");
+        }
+
+        AssetLocation code;
+        try
+        {
+            code = new AssetLocation((args[0] as string) ?? string.Empty);
+        }
+        catch (Exception)
+        {
+            return TextCommandResult.Error($"Invalid dimension code '{args[0]}'.");
+        }
+
+        var dim = _registry.Get(code);
+        if (dim is null)
+        {
+            return TextCommandResult.Error($"No dimension registered with code '{code}'.");
+        }
+
+        // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
+        int evacuated = 0;
+        foreach (var p in api.World.AllOnlinePlayers)
+        {
+            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == dim.InternalId)
+            {
+                RescueToOverworld(sp);
+                evacuated++;
+            }
+        }
+
+        try
+        {
+            _registry.Purge(code);
+        }
+        catch (DimensionBuiltInImmutableException ex)
+        {
+            return TextCommandResult.Error(ex.Message);
+        }
+
+        string suffix = evacuated > 0 ? $", evacuated {evacuated} player(s)" : string.Empty;
+        return TextCommandResult.Success(
+            $"Purged dimension '{code}' (engine id {dim.InternalId} released){suffix}.");
     }
 
     private void OnRegistryCreated(object? sender, DimensionCreatedEventArgs e)

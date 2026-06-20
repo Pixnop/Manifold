@@ -204,6 +204,37 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         _snapshot = _snapshot.Add(entry.Code, dim);
     }
 
+    /// <summary>
+    /// Admin force-release of a dimension regardless of lifetime - the mechanism behind the
+    /// <c>/manifold purge &lt;code&gt;</c> command. Unlike <see cref="TryRemove"/>, this removes
+    /// Persistent and Quarantined dimensions too (the documented recovery path for a dimension whose
+    /// owning mod was uninstalled): the snapshot entry is removed, the engine id is released back to
+    /// the allocator (so it stops leaking), and <see cref="Destroyed"/> fires so listeners and the
+    /// per-dimension cleanup (generator state, saved positions, generated-column markers) run.
+    /// The caller is responsible for evacuating any occupants first; this method does not move players.
+    /// </summary>
+    /// <param name="code">The dimension to purge.</param>
+    /// <returns><c>true</c> if a dimension was purged; <c>false</c> if no dimension with that code exists.</returns>
+    /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
+    internal bool Purge(AssetLocation code)
+    {
+        if (code is null || !_snapshot.TryGetValue(code, out var dim))
+        {
+            return false;
+        }
+
+        if (dim.IsBuiltIn || dim.Lifetime == DimensionLifetime.BuiltIn)
+        {
+            throw new DimensionBuiltInImmutableException(
+                $"Dimension '{code}' is built-in and cannot be purged.");
+        }
+
+        _snapshot = _snapshot.Remove(code);
+        _allocator.Release(dim.InternalId);
+        SafeEvent.Raise(Destroyed, this, new DimensionDestroyedEventArgs(dim), LogSubscriberError);
+        return true;
+    }
+
     /// <summary>Worker-pool safe reverse lookup by engine dimension id.</summary>
     /// <param name="internalId">Engine dimension id.</param>
     /// <returns>The dimension if found; <c>null</c> otherwise.</returns>
