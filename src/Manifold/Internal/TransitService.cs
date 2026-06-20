@@ -23,7 +23,7 @@ internal sealed class TransitService : ITransitionService
     private readonly ITargetPositionResolver _defaultResolver;
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
-    private readonly InventorySwapper _inventory;
+    private readonly IInventorySwapper _inventory;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -41,7 +41,7 @@ internal sealed class TransitService : ITransitionService
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
         PlayerPositionStore positionStore,
-        InventorySwapper inventory)
+        IInventorySwapper inventory)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
@@ -243,24 +243,34 @@ internal sealed class TransitService : ITransitionService
             return;
         }
 
-        foreach (var swap in plan)
+        try
         {
-            // Snapshot the current contents into the source key BEFORE touching any slot.
-            store.SetSnapshot(swap.Category, swap.FromKey, InventorySwapper.Serialize(player, swap.Category));
-
-            if (store.HasSnapshot(swap.Category, swap.ToKey))
+            foreach (var swap in plan)
             {
-                _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
-            }
-            else
-            {
-                InventorySwapper.Clear(player, swap.Category);
-            }
+                // Snapshot the current contents into the source key BEFORE touching any slot.
+                store.SetSnapshot(swap.Category, swap.FromKey, _inventory.Serialize(player, swap.Category));
 
-            store.SetCurrentKey(swap.Category, swap.ToKey);
+                if (store.HasSnapshot(swap.Category, swap.ToKey))
+                {
+                    _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
+                }
+                else
+                {
+                    _inventory.Clear(player, swap.Category);
+                }
+
+                store.SetCurrentKey(swap.Category, swap.ToKey);
+            }
         }
-
-        player.SetModdata(InventoryModdataKey, store.ToBytes());
+        finally
+        {
+            // Persist the store even if a category swap threw partway through the plan. Each swap
+            // captures the player's current (original) contents into the source key BEFORE mutating
+            // any slot, so persisting here keeps those originals recoverable on the next transit. The
+            // engine saves the physical inventory independently of this moddata, so skipping the
+            // persist on a mid-swap failure would silently and permanently lose the player's items.
+            player.SetModdata(InventoryModdataKey, store.ToBytes());
+        }
     }
 
     /// <summary>

@@ -276,6 +276,93 @@ public sealed class TransitServiceTests
         Assert.Throws<ArgumentNullException>(() => svc.TeleportBlock(new BlockPos(1, 1, 1, 0), Code("owner:target"), null!));
     }
 
+    [Fact]
+    public void TeleportPlayer_Should_Continue_When_A_PlayerEntering_Subscriber_Throws()
+    {
+        var (svc, _, player, tele, _, _) = NewService();
+        svc.PlayerEntering += (_, _) => throw new InvalidOperationException("rogue mod");
+        bool entered = false;
+        svc.PlayerEntered += (_, _) => entered = true;
+
+        // A throwing third-party subscriber must not abort the transit pipeline for the initiator.
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        tele.Received(1).Teleport(player, Arg.Any<BlockPos>());
+        Assert.True(entered);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Isolate_A_Throwing_PlayerEntered_Subscriber()
+    {
+        var (svc, _, player, _, _, _) = NewService();
+        bool goodRan = false;
+        svc.PlayerEntered += (_, _) => throw new InvalidOperationException("rogue mod");
+        svc.PlayerEntered += (_, _) => goodRan = true;
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        Assert.True(goodRan);
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Isolate_A_Throwing_EntityChangedDimension_Subscriber()
+    {
+        var (svc, _, _, _, _, _) = NewService();
+        var entity = Substitute.For<Entity>();
+        bool goodRan = false;
+        svc.EntityChangedDimension += (_, _) => throw new InvalidOperationException("rogue mod");
+        svc.EntityChangedDimension += (_, _) => goodRan = true;
+
+        svc.TeleportEntity(entity, Code("owner:target"));
+
+        Assert.True(goodRan);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Persist_Inventory_Store_Even_When_A_Swap_Throws()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:sep"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSeparateInventory(ManifoldInventory.Hotbar)
+            .RegisterStatic();
+
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+        var positionResolver = Substitute.For<ITargetPositionResolver>();
+        positionResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(100, 100, 100, 10));
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+
+        // First visit to a separated dimension clears the destination set; simulate the engine
+        // inventory call blowing up mid-swap (e.g. a malformed snapshot from a removed item).
+        var swapper = Substitute.For<IInventorySwapper>();
+        swapper.Serialize(Arg.Any<IServerPlayer>(), Arg.Any<ManifoldInventory>())
+            .Returns(new byte[] { 1, 2, 3 });
+        swapper.When(s => s.Clear(Arg.Any<IServerPlayer>(), Arg.Any<ManifoldInventory>()))
+            .Do(_ => throw new InvalidOperationException("inventory engine blew up"));
+
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            positionResolver,
+            generator,
+            new PlayerPositionStore(),
+            swapper);
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+        player.GetModdata("manifold:inv").Returns((byte[]?)null); // first visit
+
+        // The swap throws, but the just-captured original snapshot must still be persisted so the
+        // player's items are recoverable on the next transit (no silent permanent item loss).
+        Assert.Throws<InvalidOperationException>(() => svc.TeleportPlayer(player, Code("owner:sep")));
+        player.Received(1).SetModdata("manifold:inv", Arg.Any<byte[]>());
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover)
