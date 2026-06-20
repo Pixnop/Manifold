@@ -85,8 +85,9 @@ public sealed class ManifoldModSystem : ModSystem
         _network.RegisterServer(api);
 
         // The occupancy predicate makes TryRemove refuse to destroy a dimension a connected player is
-        // standing in (ForceRemoveDimension evacuates first to override that).
-        _registry = new DimensionRegistry(allocator, IsDimensionOccupied);
+        // standing in (ForceRemoveDimension evacuates first to override that). The logger lets the
+        // registry report (and swallow) exceptions thrown by third-party event subscribers.
+        _registry = new DimensionRegistry(allocator, IsDimensionOccupied, Mod.Logger);
 
         // Seed manifest BEFORE wiring Created event, so seeded entries don't
         // trigger broadcasts to clients that aren't connected yet anyway. A corrupt/tampered entry
@@ -207,7 +208,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Allocator + registry + transit are still created so that consumers calling GetManifoldServer()
         // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
         var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator);
+        var registry = new DimensionRegistry(allocator, logger: Mod.Logger);
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
         var transit = new TransitService(
             registry,

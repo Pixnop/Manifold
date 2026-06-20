@@ -96,7 +96,7 @@ internal sealed class TransitService : ITransitionService
         var prelim = ResolveTargetPosition(player, target, targetImpl, options);
 
         var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
-        PlayerEntering?.Invoke(this, enteringArgs);
+        SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
         if (enteringArgs.Cancel)
         {
             return;
@@ -115,7 +115,7 @@ internal sealed class TransitService : ITransitionService
 
         // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
         var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
-        PlayerArriving?.Invoke(this, arrivingArgs);
+        SafeEvent.Raise(PlayerArriving, this, arrivingArgs, LogSubscriberError);
         if (arrivingArgs.Cancel)
         {
             return;
@@ -139,8 +139,8 @@ internal sealed class TransitService : ITransitionService
 
         ApplyInventoryPolicy(player, target, targetImpl);
 
-        PlayerLeft?.Invoke(this, new PlayerLeftDimensionEventArgs(player, source, target));
-        PlayerEntered?.Invoke(this, new PlayerEnteredDimensionEventArgs(player, source, target));
+        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target), LogSubscriberError);
     }
 
     /// <inheritdoc/>
@@ -212,11 +212,18 @@ internal sealed class TransitService : ITransitionService
 
         _movers.Entity.Move(entity, finalPos);
 
-        EntityChangedDimension?.Invoke(this, new EntityChangedDimensionEventArgs(entity, source, target, finalPos));
+        SafeEvent.Raise(
+            EntityChangedDimension,
+            this,
+            new EntityChangedDimensionEventArgs(entity, source, target, finalPos),
+            LogSubscriberError);
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
+
+    private void LogSubscriberError(Exception ex) =>
+        _sapi.Logger?.Warning("[Manifold] A transit event subscriber threw and was isolated: {0}", ex);
 
     /// <summary>
     /// Swaps the player's separated inventory categories to the destination dimension's profile.

@@ -23,6 +23,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
 
     private readonly DimensionAllocator _allocator;
     private readonly System.Func<int, bool>? _isOccupied;
+    private readonly ILogger? _logger;
 
     private volatile ImmutableDictionary<AssetLocation, DimensionImpl> _snapshot =
         ImmutableDictionary<AssetLocation, DimensionImpl>.Empty;
@@ -36,10 +37,18 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     /// inside the dimension with the given engine id. When supplied, <see cref="TryRemove"/> refuses
     /// (returns <c>false</c>) to remove an occupied dimension. <c>null</c> disables the check.
     /// </param>
-    public DimensionRegistry(DimensionAllocator allocator, System.Func<int, bool>? isOccupied = null)
+    /// <param name="logger">
+    /// Optional logger used to report (and swallow) exceptions thrown by third-party
+    /// <see cref="Created"/>/<see cref="Destroyed"/> subscribers. <c>null</c> silences the report.
+    /// </param>
+    public DimensionRegistry(
+        DimensionAllocator allocator,
+        System.Func<int, bool>? isOccupied = null,
+        ILogger? logger = null)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
         _isOccupied = isOccupied;
+        _logger = logger;
 
         var overworld = new DimensionImpl(
             Code: OverworldCode,
@@ -114,7 +123,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
 
         _snapshot = _snapshot.Remove(code);
         _allocator.Release(dim.InternalId);
-        Destroyed?.Invoke(this, new DimensionDestroyedEventArgs(dim));
+        SafeEvent.Raise(Destroyed, this, new DimensionDestroyedEventArgs(dim), LogSubscriberError);
         return true;
     }
 
@@ -222,7 +231,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
                 SkyCapY = request.SkyCapY,
             };
             _snapshot = _snapshot.SetItem(request.Code, promoted);
-            Created?.Invoke(this, new DimensionCreatedEventArgs(promoted));
+            SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(promoted), LogSubscriberError);
             return promoted;
         }
 
@@ -246,7 +255,10 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             StreamingBudgetPerTick: request.StreamingBudgetPerTick,
             SkyCapY: request.SkyCapY);
         _snapshot = _snapshot.Add(request.Code, dim);
-        Created?.Invoke(this, new DimensionCreatedEventArgs(dim));
+        SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(dim), LogSubscriberError);
         return dim;
     }
+
+    private void LogSubscriberError(Exception ex) =>
+        _logger?.Warning("[Manifold] A dimension registry event subscriber threw and was isolated: {0}", ex);
 }
