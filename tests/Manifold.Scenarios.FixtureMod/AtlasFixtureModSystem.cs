@@ -179,6 +179,7 @@ public sealed class AtlasFixtureModSystem : ModSystem
         if (dimPath == "overworld")
         {
             var target = new AssetLocation("manifold", "overworld");
+            // AsBlockPos carries the EntityPos dimension through; the vanilla default spawn is dimension 0.
             var options = new TransitionOptions { OverridePosition = _sapi.World.DefaultSpawnPosition.AsBlockPos };
             _manifold.Transitions.TeleportPlayer(player, target, options);
         }

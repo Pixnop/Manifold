@@ -7,8 +7,8 @@ contracts with fakes, these scenarios pin down actual engine behavior.
 
 ## Running locally
 
-Requirements: .NET 10 SDK, a Vintage Story 1.22.x install, and the
-`VINTAGE_STORY` environment variable pointing at the folder containing
+Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.3.0), and
+the `VINTAGE_STORY` environment variable pointing at the folder containing
 `VintagestoryAPI.dll`.
 
     dotnet test tests/Manifold.Scenarios
@@ -25,6 +25,7 @@ companion mod `Manifold.Scenarios.FixtureMod` (modid `atlasfixture`), which
 registers deterministic test dimensions, exposes `/atlasfx` server commands,
 and publishes results through `SaveGame` data read back by the scenarios.
 
-Not covered yet: player transit and per-dimension inventory swap, which
-require a connected player; blocked on simulated player support in Atlas
-(Pixnop/Atlas#4).
+Player-dependent paths (player transit, per-dimension inventory swap) run
+against a headless test player joined through Atlas's `World.JoinPlayer`.
+Known limit: one test player per world, so concurrent multi-player behavior
+is not covered yet (Pixnop/Atlas#26).
