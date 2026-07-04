@@ -73,6 +73,15 @@ When a player transits into a dimension for the first time (or after a server re
 
 This happens **synchronously on the main thread** before the player arrives - so the player never sees an ungenerated void.
 
+> **Generation is transit-driven - registration alone creates no terrain.** `RegisterStatic()` and
+> `Create()` only record the dimension; `WithFixedSpawn` and `WithGenerationRadius` describe what to
+> generate once a transit happens, not when. Until the first `TeleportPlayer`/`TeleportEntity`/
+> `TeleportBlock` targets the dimension (or a `.Streaming(...)` driver picks it up), every position
+> reads as air. If your mod needs content to exist before the first arrival - a spawn platform, a
+> prebuilt hub - trigger the generation yourself right after registration; a no-op `TeleportBlock`
+> from a guaranteed-air source into the dimension is the current supported way (see issue #69 for
+> the planned first-class API).
+
 ## WithGenerationRadius
 
 The radius (in chunks) is configured on the builder:

@@ -139,6 +139,10 @@ dotnet test tests/Manifold.Pure.Tests
 # Run with code coverage
 dotnet test tests/Manifold.Pure.Tests --collect:"XPlat Code Coverage"
 
+# Run the integration scenarios (boots a real headless VS server per test class;
+# see tests/Manifold.Scenarios/README.md)
+dotnet test tests/Manifold.Scenarios
+
 # Build the documentation site (requires docfx installed globally)
 docfx docfx/docfx.json
 ```
