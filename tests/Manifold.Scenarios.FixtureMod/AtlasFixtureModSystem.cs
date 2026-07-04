@@ -1,9 +1,12 @@
 namespace AtlasFixture;
 
+using System.Globalization;
 using Manifold.Api;
 using Manifold.Api.Helpers;
 using Manifold.Api.Server;
+using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
@@ -49,6 +52,8 @@ public sealed class AtlasFixtureModSystem : ModSystem
             .RegisterStatic();
         PublishDimensionId("void", voidDim.InternalId);
         PregenerateSpawn(voidDim);
+
+        RegisterCommands(api);
     }
 
     private void PublishDimensionId(string path, int internalId)
@@ -83,5 +88,37 @@ public sealed class AtlasFixtureModSystem : ModSystem
                 dimension.Code,
                 ex);
         }
+    }
+
+    private void RegisterCommands(ICoreServerAPI api)
+    {
+        var parsers = api.ChatCommands.Parsers;
+
+        api.ChatCommands.Create("atlasfx")
+            .WithDescription("Drives the Manifold API for Atlas integration scenarios.")
+            .RequiresPrivilege("controlserver")
+            .BeginSubCommand("teleport-entity")
+                .WithArgs(parsers.Word("entityid"), parsers.Word("dimpath"))
+                .HandleWith(OnTeleportEntity)
+            .EndSubCommand();
+    }
+
+    private TextCommandResult OnTeleportEntity(TextCommandCallingArgs args)
+    {
+        long entityId = long.Parse((string)args[0], CultureInfo.InvariantCulture);
+        var target = new AssetLocation(Domain, (string)args[1]);
+
+        Entity? entity = _sapi.World.GetEntityById(entityId);
+        if (entity is null)
+        {
+            return TextCommandResult.Error($"No entity with id {entityId}.");
+        }
+
+        // Land inside the pre-generated area around every fixture dimension's fixed spawn,
+        // two blocks below the fixed spawn's Y (matches the granite slab's air pocket).
+        var overridePosition = new BlockPos(FixedSpawn.X, FixedSpawn.Y - 2, FixedSpawn.Z, 0);
+        var options = new TransitionOptions { OverridePosition = overridePosition };
+        _manifold.Transitions.TeleportEntity(entity, target, options);
+        return TextCommandResult.Success("ok");
     }
 }
