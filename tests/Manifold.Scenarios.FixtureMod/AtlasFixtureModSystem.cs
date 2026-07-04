@@ -1,6 +1,7 @@
 namespace AtlasFixture;
 
 using System.Globalization;
+using System.Linq;
 using Manifold.Api;
 using Manifold.Api.Helpers;
 using Manifold.Api.Server;
@@ -52,6 +53,22 @@ public sealed class AtlasFixtureModSystem : ModSystem
             .RegisterStatic();
         PublishDimensionId("void", voidDim.InternalId);
         PregenerateSpawn(voidDim);
+
+        IDimension vault = _manifold.Registry
+            .Define(new AssetLocation(Domain, "vault"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(2)
+            .WithSeparateInventory(ManifoldInventory.All)
+            .RegisterStatic();
+        PublishDimensionId("vault", vault.InternalId);
+        PregenerateSpawn(vault);
+
+        _manifold.Transitions.PlayerEntered += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
+            $"{Domain}:event:player-entered:{e.TargetDimension.Code.Path}", new[] { (byte)1 });
+        _manifold.Transitions.PlayerLeft += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
+            $"{Domain}:event:player-left:{e.SourceDimension.Code.Path}", new[] { (byte)1 });
 
         RegisterCommands(api);
     }
@@ -120,6 +137,10 @@ public sealed class AtlasFixtureModSystem : ModSystem
             .BeginSubCommand("remove")
                 .WithArgs(parsers.Word("dimpath"))
                 .HandleWith(OnRemove)
+            .EndSubCommand()
+            .BeginSubCommand("teleport-player")
+                .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
+                .HandleWith(OnTeleportPlayer)
             .EndSubCommand();
     }
 
@@ -139,6 +160,36 @@ public sealed class AtlasFixtureModSystem : ModSystem
         var overridePosition = new BlockPos(FixedSpawn.X, FixedSpawn.Y - 2, FixedSpawn.Z, 0);
         var options = new TransitionOptions { OverridePosition = overridePosition };
         _manifold.Transitions.TeleportEntity(entity, target, options);
+        return TextCommandResult.Success("ok");
+    }
+
+    private TextCommandResult OnTeleportPlayer(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        var dimPath = (string)args[1];
+
+        IServerPlayer? player = _sapi.World.AllOnlinePlayers
+            .OfType<IServerPlayer>()
+            .FirstOrDefault(p => p.PlayerName == playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        if (dimPath == "overworld")
+        {
+            var target = new AssetLocation("manifold", "overworld");
+            var options = new TransitionOptions { OverridePosition = _sapi.World.DefaultSpawnPosition.AsBlockPos };
+            _manifold.Transitions.TeleportPlayer(player, target, options);
+        }
+        else
+        {
+            var target = new AssetLocation(Domain, dimPath);
+            var overridePosition = new BlockPos(FixedSpawn.X, FixedSpawn.Y - 2, FixedSpawn.Z, 0);
+            var options = new TransitionOptions { OverridePosition = overridePosition };
+            _manifold.Transitions.TeleportPlayer(player, target, options);
+        }
+
         return TextCommandResult.Success("ok");
     }
 
