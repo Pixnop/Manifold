@@ -1,5 +1,6 @@
 namespace Manifold.Scenarios;
 
+using Atlas.Api;
 using Atlas.XUnit;
 using Vintagestory.API.MathTools;
 using Xunit;
@@ -10,7 +11,8 @@ public class EphemeralDimensionScenarios : ManifoldScenarioBase
     [AtlasScenario]
     public async Task EphemeralDimension_Should_GenerateAndDisappear_When_CreatedThenRemoved()
     {
-        World.ExecuteCommand("/atlasfx create-ephemeral temp1");
+        CommandResult createResult = await World.ExecuteCommand("/atlasfx create-ephemeral temp1");
+        Assert.True(createResult.Ok, "create-ephemeral reported failure.");
         int tempId = await DimensionId("temp1");
         Assert.InRange(tempId, 10, 1023);
 
@@ -20,7 +22,8 @@ public class EphemeralDimensionScenarios : ManifoldScenarioBase
             () => World.BlockAt(probe).Code?.ToString() == "game:rock-granite",
             timeoutTicks: 1200);
 
-        World.ExecuteCommand("/atlasfx remove temp1");
-        await World.Until(() => FlagIsSet("atlasfixture:removed:temp1"), timeoutTicks: 200);
+        CommandResult removeResult = await World.ExecuteCommand("/atlasfx remove temp1");
+        Assert.True(removeResult.Ok, "remove reported failure.");
+        Assert.Equal("removed", removeResult.Message);
     }
 }

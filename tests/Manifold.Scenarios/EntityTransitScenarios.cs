@@ -19,7 +19,8 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         chicken.WatchedAttributes.SetString("atlasfixture-marker", "kept-across-transit");
         await World.Ticks(2);
 
-        World.ExecuteCommand($"/atlasfx teleport-entity {chicken.EntityId} flat");
+        CommandResult result = await World.ExecuteCommand($"/atlasfx teleport-entity {chicken.EntityId} flat");
+        Assert.True(result.Ok, "teleport-entity reported failure.");
 
         var arrival = new BlockPos(512, 6, 512, flatId);
         await World.Until(
@@ -41,7 +42,8 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         Entity chicken = World.SpawnEntity("game:chicken-hen", origin);
         await World.Ticks(2);
 
-        World.ExecuteCommand($"/atlasfx teleport-entity {chicken.EntityId} flat");
+        CommandResult result = await World.ExecuteCommand($"/atlasfx teleport-entity {chicken.EntityId} flat");
+        Assert.True(result.Ok, "teleport-entity reported failure.");
 
         var arrival = new BlockPos(512, 6, 512, flatId);
         await World.Until(

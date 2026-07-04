@@ -4,8 +4,10 @@ using Atlas.XUnit;
 
 /// <summary>
 /// Shared helpers for reading the results the atlasfixture mod publishes through
-/// SaveGame data. This is the only channel back from the fixture: ExecuteCommand
-/// returns void and Manifold types cannot cross the assembly identity boundary.
+/// SaveGame data. Command outcomes now come back directly from ExecuteCommand's
+/// CommandResult; this side channel remains for boot-time state (dimension ids)
+/// and events (player-entered/player-left), which are not command results and
+/// cannot cross the assembly identity boundary any other way.
 /// </summary>
 public abstract class ManifoldScenarioBase : AtlasScenarioBase
 {

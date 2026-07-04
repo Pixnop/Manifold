@@ -16,19 +16,19 @@ public class PlayerInventoryScenarios : ManifoldScenarioBase
         await player.GiveItem("game:stick", 5);
         Assert.Equal(5, HotbarCount(player, "game:stick"));
 
-        World.ExecuteCommand("/atlasfx teleport-player atlasvaulter vault");
+        await World.ExecuteCommand("/atlasfx teleport-player atlasvaulter vault");
         await World.Until(() => player.Position.dimension == vaultId, timeoutTicks: 600);
         await World.Until(() => HotbarCount(player, "game:stick") == 0, timeoutTicks: 200);
 
         await player.GiveItem("game:flint", 3);
         Assert.Equal(3, HotbarCount(player, "game:flint"));
 
-        World.ExecuteCommand("/atlasfx teleport-player atlasvaulter overworld");
+        await World.ExecuteCommand("/atlasfx teleport-player atlasvaulter overworld");
         await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
         await World.Until(() => HotbarCount(player, "game:stick") == 5, timeoutTicks: 200);
         Assert.Equal(0, HotbarCount(player, "game:flint"));
 
-        World.ExecuteCommand("/atlasfx teleport-player atlasvaulter vault");
+        await World.ExecuteCommand("/atlasfx teleport-player atlasvaulter vault");
         await World.Until(() => player.Position.dimension == vaultId, timeoutTicks: 600);
         await World.Until(() => HotbarCount(player, "game:flint") == 3, timeoutTicks: 200);
         Assert.Equal(0, HotbarCount(player, "game:stick"));

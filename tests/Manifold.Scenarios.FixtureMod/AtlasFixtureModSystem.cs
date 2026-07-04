@@ -202,9 +202,6 @@ public sealed class AtlasFixtureModSystem : ModSystem
         var targetLocal = new BlockPos((int)args[5], (int)args[6], (int)args[7], 0);
 
         bool moved = _manifold.Transitions.TeleportBlock(source, target, targetLocal);
-        _sapi.WorldManager.SaveGame.StoreData(
-            $"{Domain}:result:teleport-block",
-            new[] { moved ? (byte)1 : (byte)0 });
         return TextCommandResult.Success(moved ? "moved" : "no-op");
     }
 
@@ -231,9 +228,6 @@ public sealed class AtlasFixtureModSystem : ModSystem
     {
         var path = (string)args[0];
         bool removed = _manifold.Registry.TryRemove(new AssetLocation(Domain, path));
-        _sapi.WorldManager.SaveGame.StoreData(
-            $"{Domain}:removed:{path}",
-            new[] { removed ? (byte)1 : (byte)0 });
         return TextCommandResult.Success(removed ? "removed" : "not-removed");
     }
 }

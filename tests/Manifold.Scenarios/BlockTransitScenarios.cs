@@ -25,7 +25,7 @@ public class BlockTransitScenarios : ManifoldScenarioBase
         container.Inventory[0].MarkDirty();
         await World.Ticks(2);
 
-        World.ExecuteCommand(
+        CommandResult result = await World.ExecuteCommand(
             $"/atlasfx teleport-block {source.X} {source.Y} {source.Z} 0 flat 520 6 520");
 
         var target = new BlockPos(520, 6, 520, flatId);
@@ -33,7 +33,8 @@ public class BlockTransitScenarios : ManifoldScenarioBase
             () => World.BlockAt(target).Code?.ToString() == "game:chest-east",
             timeoutTicks: 600);
 
-        Assert.True(FlagIsSet("atlasfixture:result:teleport-block"), "TeleportBlock reported failure.");
+        Assert.True(result.Ok, "TeleportBlock reported failure.");
+        Assert.Equal("moved", result.Message);
         Assert.Equal("game:air", World.BlockAt(source).Code.ToString());
 
         var arrivedContainer = Assert.IsAssignableFrom<IBlockEntityContainer>(
