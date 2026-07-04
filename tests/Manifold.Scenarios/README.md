@@ -7,7 +7,7 @@ contracts with fakes, these scenarios pin down actual engine behavior.
 
 ## Running locally
 
-Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.3.0), and
+Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.4.0), and
 the `VINTAGE_STORY` environment variable pointing at the folder containing
 `VintagestoryAPI.dll`.
 
@@ -22,10 +22,11 @@ Scenario code cannot call the Manifold API directly: the ModLoader loads its
 own copy of Manifold.dll, so its statics and types are not the ones the test
 assembly references. Everything that talks to Manifold lives in the staged
 companion mod `Manifold.Scenarios.FixtureMod` (modid `atlasfixture`), which
-registers deterministic test dimensions, exposes `/atlasfx` server commands,
-and publishes results through `SaveGame` data read back by the scenarios.
+registers deterministic test dimensions and exposes `/atlasfx` server
+commands. Command outcomes are asserted directly on the `CommandResult`
+returned by `ExecuteCommand`; boot-published state (dimension ids) and
+transit event observations still flow through `SaveGame` data.
 
-Player-dependent paths (player transit, per-dimension inventory swap) run
-against a headless test player joined through Atlas's `World.JoinPlayer`.
-Known limit: one test player per world, so concurrent multi-player behavior
-is not covered yet (Pixnop/Atlas#26).
+Player-dependent paths (player transit, per-dimension inventory swap,
+concurrent players across dimensions) run against headless test players
+joined through Atlas's `World.JoinPlayer`.
