@@ -1,6 +1,8 @@
 namespace Manifold.Scenarios;
 
+using Atlas.Api;
 using Atlas.XUnit;
+using Vintagestory.API.Common;
 
 /// <summary>
 /// Shared helpers for reading the results the atlasfixture mod publishes through
@@ -27,5 +29,20 @@ public abstract class ManifoldScenarioBase : AtlasScenarioBase
     {
         byte[]? data = World.Api.WorldManager.SaveGame.GetData(key);
         return data is { Length: > 0 } && data[0] == 1;
+    }
+
+    protected static int HotbarCount(ITestPlayer player, string code)
+    {
+        IInventory hotbar = player.Player.InventoryManager.GetHotbarInventory();
+        int total = 0;
+        foreach (ItemSlot slot in hotbar)
+        {
+            if (slot.Itemstack?.Collectible?.Code?.ToString() == code)
+            {
+                total += slot.Itemstack.StackSize;
+            }
+        }
+
+        return total;
     }
 }

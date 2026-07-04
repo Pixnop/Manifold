@@ -2,7 +2,6 @@ namespace Manifold.Scenarios;
 
 using Atlas.Api;
 using Atlas.XUnit;
-using Vintagestory.API.Common;
 using Xunit;
 
 [Trait("Category", "E2E")]
@@ -32,20 +31,5 @@ public class PlayerInventoryScenarios : ManifoldScenarioBase
         await World.Until(() => player.Position.dimension == vaultId, timeoutTicks: 600);
         await World.Until(() => HotbarCount(player, "game:flint") == 3, timeoutTicks: 200);
         Assert.Equal(0, HotbarCount(player, "game:stick"));
-    }
-
-    private static int HotbarCount(ITestPlayer player, string code)
-    {
-        IInventory hotbar = player.Player.InventoryManager.GetHotbarInventory();
-        int total = 0;
-        foreach (ItemSlot slot in hotbar)
-        {
-            if (slot.Itemstack?.Collectible?.Code?.ToString() == code)
-            {
-                total += slot.Itemstack.StackSize;
-            }
-        }
-
-        return total;
     }
 }
