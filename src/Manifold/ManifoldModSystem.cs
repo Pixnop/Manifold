@@ -85,8 +85,9 @@ public sealed class ManifoldModSystem : ModSystem
         _network.RegisterServer(api);
 
         // The occupancy predicate makes TryRemove refuse to destroy a dimension a connected player is
-        // standing in (ForceRemoveDimension evacuates first to override that).
-        _registry = new DimensionRegistry(allocator, IsDimensionOccupied);
+        // standing in (ForceRemoveDimension evacuates first to override that). The logger lets the
+        // registry report (and swallow) exceptions thrown by third-party event subscribers.
+        _registry = new DimensionRegistry(allocator, IsDimensionOccupied, Mod.Logger);
 
         // Seed manifest BEFORE wiring Created event, so seeded entries don't
         // trigger broadcasts to clients that aren't connected yet anyway. A corrupt/tampered entry
@@ -207,7 +208,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Allocator + registry + transit are still created so that consumers calling GetManifoldServer()
         // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
         var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator);
+        var registry = new DimensionRegistry(allocator, logger: Mod.Logger);
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
         var transit = new TransitService(
             registry,
@@ -263,7 +264,68 @@ public sealed class ManifoldModSystem : ModSystem
                     return TextCommandResult.Success(
                         $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.");
                 })
+            .EndSubCommand()
+            .BeginSubCommand("purge")
+                .WithDescription(
+                    "Force-remove a dimension by code, releasing its engine id. Evacuates any occupants "
+                    + "to the overworld first. Use for a dimension whose owning mod was uninstalled (Quarantined).")
+                .WithArgs(api.ChatCommands.Parsers.Word("code"))
+                .HandleWith(args => PurgeCommand(api, args))
             .EndSubCommand();
+    }
+
+    /// <summary>
+    /// Handles <c>/manifold purge &lt;code&gt;</c>: evacuates any occupants of the named dimension to
+    /// the overworld, then force-removes it (releasing its engine id and firing <c>Destroyed</c>, which
+    /// drives the per-dimension cleanup). The documented recovery path for a Quarantined dimension and
+    /// the admin teardown for a Persistent one - both of which the plain remove path refuses.
+    /// </summary>
+    private TextCommandResult PurgeCommand(ICoreServerAPI api, TextCommandCallingArgs args)
+    {
+        if (_registry is null)
+        {
+            return TextCommandResult.Error("Manifold is not initialized.");
+        }
+
+        AssetLocation code;
+        try
+        {
+            code = new AssetLocation((args[0] as string) ?? string.Empty);
+        }
+        catch (Exception)
+        {
+            return TextCommandResult.Error($"Invalid dimension code '{args[0]}'.");
+        }
+
+        var dim = _registry.Get(code);
+        if (dim is null)
+        {
+            return TextCommandResult.Error($"No dimension registered with code '{code}'.");
+        }
+
+        // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
+        int evacuated = 0;
+        foreach (var p in api.World.AllOnlinePlayers)
+        {
+            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == dim.InternalId)
+            {
+                RescueToOverworld(sp);
+                evacuated++;
+            }
+        }
+
+        try
+        {
+            _registry.Purge(code);
+        }
+        catch (DimensionBuiltInImmutableException ex)
+        {
+            return TextCommandResult.Error(ex.Message);
+        }
+
+        string suffix = evacuated > 0 ? $", evacuated {evacuated} player(s)" : string.Empty;
+        return TextCommandResult.Success(
+            $"Purged dimension '{code}' (engine id {dim.InternalId} released){suffix}.");
     }
 
     private void OnRegistryCreated(object? sender, DimensionCreatedEventArgs e)
@@ -283,11 +345,14 @@ public sealed class ManifoldModSystem : ModSystem
         });
 
         // The engine id is released back to the allocator on removal and may be reused by a later
-        // dimension. Drop the destroyed dim's generator state and saved player positions so a reused
-        // id does not inherit a stale auto-disabled / initialised flag or stale LastVisited coords
-        // (common now that ephemeral dims reap on empty).
+        // dimension. Drop the destroyed dim's generator state, saved player positions, and generated
+        // -column markers so a reused id does not inherit a stale auto-disabled / initialised flag,
+        // stale LastVisited coords, or "already generated" markers that would make the new dimension
+        // load the old one's chunks instead of running its own worldgen (common now that ephemeral
+        // dims reap on empty and ids recycle within a session).
         _generator?.ForgetDimension(e.Dimension.InternalId);
         _positionStore?.RemoveDimension(e.Dimension.InternalId);
+        _generatedColumns?.RemoveDimension(e.Dimension.InternalId);
 
         // No occupant evacuation here: a dimension is never removed while occupied (TryRemove refuses,
         // ForceRemoveDimension evacuates before removing), so by the time Destroyed fires it is empty.

@@ -486,6 +486,98 @@ public sealed class DimensionRegistryTests
         Assert.Equal("owner_a", dim.OwnerModId);
     }
 
+    [Fact]
+    public void Purge_Should_Remove_Persistent_Dimension_And_Release_Id()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.True(registry.Purge(Code("a:b")));
+        Assert.Null(registry.Get(Code("a:b")));
+
+        // Released id must re-enter the allocator pool (the leak the gap was about).
+        var fresh = registry.DefineForOwner(Code("c:d"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        Assert.Equal(dim.InternalId, fresh.InternalId);
+    }
+
+    [Fact]
+    public void Purge_Should_Remove_Quarantined_Dimension()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("ghost:dim"), 42, DimensionLifetime.Persistent, "ghost"),
+            DimensionState.Quarantined);
+
+        Assert.True(registry.Purge(Code("ghost:dim")));
+        Assert.Null(registry.Get(Code("ghost:dim")));
+    }
+
+    [Fact]
+    public void Purge_Should_Fire_Destroyed()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        IDimension? destroyed = null;
+        registry.Destroyed += (_, e) => destroyed = e.Dimension;
+
+        registry.Purge(Code("a:b"));
+
+        Assert.NotNull(destroyed);
+        Assert.Equal(dim.InternalId, destroyed!.InternalId);
+    }
+
+    [Fact]
+    public void Purge_Should_Return_False_When_Code_Unknown()
+    {
+        var registry = NewRegistry();
+        Assert.False(registry.Purge(Code("nope:nope")));
+    }
+
+    [Fact]
+    public void Purge_Should_Throw_For_BuiltIn()
+    {
+        var registry = NewRegistry();
+        Assert.Throws<DimensionBuiltInImmutableException>(() => registry.Purge(Code("manifold:overworld")));
+    }
+
+    [Fact]
+    public void Created_Should_Isolate_A_Throwing_Subscriber()
+    {
+        var registry = NewRegistry();
+        bool goodRan = false;
+        registry.Created += (_, _) => throw new InvalidOperationException("rogue subscriber");
+        registry.Created += (_, _) => goodRan = true;
+
+        // A throwing third-party subscriber must not abort the registering mod's call.
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.NotNull(dim);
+        Assert.Same(dim, registry.Get(Code("a:b")));
+        Assert.True(goodRan);
+    }
+
+    [Fact]
+    public void Destroyed_Should_Isolate_A_Throwing_Subscriber()
+    {
+        var registry = NewRegistry(_ => false);
+        registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+
+        bool goodRan = false;
+        registry.Destroyed += (_, _) => throw new InvalidOperationException("rogue subscriber");
+        registry.Destroyed += (_, _) => goodRan = true;
+
+        Assert.True(registry.TryRemove(Code("a:b")));
+        Assert.Null(registry.Get(Code("a:b")));
+        Assert.True(goodRan);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static DimensionRegistry NewRegistry()

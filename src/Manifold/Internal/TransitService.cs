@@ -23,7 +23,7 @@ internal sealed class TransitService : ITransitionService
     private readonly ITargetPositionResolver _defaultResolver;
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
-    private readonly InventorySwapper _inventory;
+    private readonly IInventorySwapper _inventory;
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -41,7 +41,7 @@ internal sealed class TransitService : ITransitionService
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
         PlayerPositionStore positionStore,
-        InventorySwapper inventory)
+        IInventorySwapper inventory)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
@@ -96,7 +96,7 @@ internal sealed class TransitService : ITransitionService
         var prelim = ResolveTargetPosition(player, target, targetImpl, options);
 
         var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
-        PlayerEntering?.Invoke(this, enteringArgs);
+        SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
         if (enteringArgs.Cancel)
         {
             return;
@@ -115,7 +115,7 @@ internal sealed class TransitService : ITransitionService
 
         // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
         var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
-        PlayerArriving?.Invoke(this, arrivingArgs);
+        SafeEvent.Raise(PlayerArriving, this, arrivingArgs, LogSubscriberError);
         if (arrivingArgs.Cancel)
         {
             return;
@@ -139,8 +139,8 @@ internal sealed class TransitService : ITransitionService
 
         ApplyInventoryPolicy(player, target, targetImpl);
 
-        PlayerLeft?.Invoke(this, new PlayerLeftDimensionEventArgs(player, source, target));
-        PlayerEntered?.Invoke(this, new PlayerEnteredDimensionEventArgs(player, source, target));
+        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target), LogSubscriberError);
     }
 
     /// <inheritdoc/>
@@ -212,11 +212,18 @@ internal sealed class TransitService : ITransitionService
 
         _movers.Entity.Move(entity, finalPos);
 
-        EntityChangedDimension?.Invoke(this, new EntityChangedDimensionEventArgs(entity, source, target, finalPos));
+        SafeEvent.Raise(
+            EntityChangedDimension,
+            this,
+            new EntityChangedDimensionEventArgs(entity, source, target, finalPos),
+            LogSubscriberError);
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
+
+    private void LogSubscriberError(Exception ex) =>
+        _sapi.Logger?.Warning("[Manifold] A transit event subscriber threw and was isolated: {0}", ex);
 
     /// <summary>
     /// Swaps the player's separated inventory categories to the destination dimension's profile.
@@ -236,24 +243,34 @@ internal sealed class TransitService : ITransitionService
             return;
         }
 
-        foreach (var swap in plan)
+        try
         {
-            // Snapshot the current contents into the source key BEFORE touching any slot.
-            store.SetSnapshot(swap.Category, swap.FromKey, InventorySwapper.Serialize(player, swap.Category));
-
-            if (store.HasSnapshot(swap.Category, swap.ToKey))
+            foreach (var swap in plan)
             {
-                _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
-            }
-            else
-            {
-                InventorySwapper.Clear(player, swap.Category);
-            }
+                // Snapshot the current contents into the source key BEFORE touching any slot.
+                store.SetSnapshot(swap.Category, swap.FromKey, _inventory.Serialize(player, swap.Category));
 
-            store.SetCurrentKey(swap.Category, swap.ToKey);
+                if (store.HasSnapshot(swap.Category, swap.ToKey))
+                {
+                    _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
+                }
+                else
+                {
+                    _inventory.Clear(player, swap.Category);
+                }
+
+                store.SetCurrentKey(swap.Category, swap.ToKey);
+            }
         }
-
-        player.SetModdata(InventoryModdataKey, store.ToBytes());
+        finally
+        {
+            // Persist the store even if a category swap threw partway through the plan. Each swap
+            // captures the player's current (original) contents into the source key BEFORE mutating
+            // any slot, so persisting here keeps those originals recoverable on the next transit. The
+            // engine saves the physical inventory independently of this moddata, so skipping the
+            // persist on a mid-swap failure would silently and permanently lose the player's items.
+            player.SetModdata(InventoryModdataKey, store.ToBytes());
+        }
     }
 
     /// <summary>
