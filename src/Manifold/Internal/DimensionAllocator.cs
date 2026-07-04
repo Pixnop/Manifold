@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Internal.Util;
@@ -31,8 +32,8 @@ internal sealed class DimensionAllocator
     /// <exception cref="DimensionCapacityExceededException">All mod-available ids are in use.</exception>
     public int Reserve(AssetLocation code)
     {
-        Guards.NotNullOrWhiteSpace(code?.ToString() ?? string.Empty, nameof(code));
-        if (_byCode.TryGetValue(code!, out var existing))
+        ArgumentNullException.ThrowIfNull(code);
+        if (_byCode.TryGetValue(code, out var existing))
         {
             return existing;
         }
@@ -41,8 +42,8 @@ internal sealed class DimensionAllocator
         {
             if (!_byId.ContainsKey(id))
             {
-                _byCode[code!] = id;
-                _byId[id] = code!;
+                _byCode[code] = id;
+                _byId[id] = code;
                 return id;
             }
         }
@@ -62,7 +63,7 @@ internal sealed class DimensionAllocator
     /// <exception cref="DimensionAlreadyRegisteredException">id is reserved by a different code.</exception>
     public void ReserveSpecific(AssetLocation code, int id)
     {
-        Guards.NotNullOrWhiteSpace(code?.ToString() ?? string.Empty, nameof(code));
+        ArgumentNullException.ThrowIfNull(code);
         Guards.InRange(id, MinModId, MaxModId, nameof(id));
 
         if (_byId.TryGetValue(id, out var existingCode))
@@ -76,8 +77,8 @@ internal sealed class DimensionAllocator
                 $"Dimension id {id} is already reserved by code '{existingCode}'.");
         }
 
-        _byCode[code!] = id;
-        _byId[id] = code!;
+        _byCode[code] = id;
+        _byId[id] = code;
     }
 
     /// <summary>Frees a previously reserved id and its code mapping. No-op if the id is unknown.</summary>

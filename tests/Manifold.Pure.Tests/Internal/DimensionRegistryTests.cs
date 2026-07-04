@@ -221,6 +221,59 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
+    public void WithDarkSky_Should_Set_SkyCapY_And_Bump_RelightHeight()
+    {
+        var registry = NewRegistry();
+        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithDarkSky(ceilingY: 30)
+            .RegisterStatic();
+
+        Assert.Equal(30, dim.SkyCapY);
+
+        // Relight band must cover the cap (capY + 1) or the cap never takes effect.
+        Assert.Equal(31, dim.RelightHeight);
+    }
+
+    [Fact]
+    public void WithDarkSky_Should_Not_Lower_An_Already_Higher_RelightHeight()
+    {
+        var registry = NewRegistry();
+        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithRelightHeight(200)
+            .WithDarkSky(ceilingY: 30)
+            .RegisterStatic();
+
+        Assert.Equal(30, dim.SkyCapY);
+        Assert.Equal(200, dim.RelightHeight);
+    }
+
+    [Fact]
+    public void Dimension_Without_DarkSky_Should_Have_Null_SkyCapY()
+    {
+        var registry = NewRegistry();
+        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Null(dim.SkyCapY);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(1025)]
+    public void WithDarkSky_Should_Reject_Out_Of_Range(int ceilingY)
+    {
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy());
+
+        Assert.ThrowsAny<ArgumentException>(() => builder.WithDarkSky(ceilingY));
+    }
+
+    [Fact]
     public void WithMetadata_Should_Attach_Values_To_Dimension()
     {
         var registry = NewRegistry();
@@ -235,6 +288,20 @@ public sealed class DimensionRegistryTests
         Assert.Equal(5, dim.GetMetadata<int>("level"));
         Assert.True(dim.GetMetadata<bool>("hub_visible"));
         Assert.True(dim.HasMetadata("display_name"));
+    }
+
+    [Fact]
+    public void Metadata_Should_Not_Be_Downcastable_To_A_Mutable_Dictionary()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithMetadata("k", "v")
+            .RegisterStatic();
+
+        // The published read-only map must be immutable so a consumer cannot downcast it back to a
+        // Dictionary and mutate the registry's snapshot value out-of-band.
+        Assert.False(dim.Metadata is System.Collections.Generic.Dictionary<string, object?>);
     }
 
     [Fact]
@@ -355,11 +422,173 @@ public sealed class DimensionRegistryTests
         Assert.ThrowsAny<ArgumentException>(() => builder.WithStreamingBudget(value));
     }
 
+    [Fact]
+    public void TryRemove_Should_Refuse_When_Dimension_Is_Occupied()
+    {
+        // Occupancy predicate reports the (first-allocated, id 10) dimension as occupied.
+        var registry = NewRegistry(internalId => internalId == 10);
+        registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+
+        bool destroyedFired = false;
+        registry.Destroyed += (_, _) => destroyedFired = true;
+
+        Assert.False(registry.TryRemove(Code("a:b")));
+        Assert.NotNull(registry.Get(Code("a:b")));
+        Assert.False(destroyedFired);
+    }
+
+    [Fact]
+    public void TryRemove_Should_Succeed_When_Occupancy_Predicate_Reports_Empty()
+    {
+        var registry = NewRegistry(_ => false);
+        registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+
+        Assert.True(registry.TryRemove(Code("a:b")));
+        Assert.Null(registry.Get(Code("a:b")));
+    }
+
+    [Fact]
+    public void TryRemove_Occupancy_Guard_Does_Not_Run_For_Persistent_Dimensions()
+    {
+        // Persistent removal still throws before any occupancy check (immutability wins).
+        var registry = NewRegistry(_ => false);
+        registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        Assert.Throws<DimensionStateException>(() => registry.TryRemove(Code("a:b")));
+    }
+
+    [Fact]
+    public void DefineForOwner_Should_Reject_Pending_Dimension_Owned_By_Another_Mod()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner_a:dim"), 42, DimensionLifetime.Persistent, "owner_a"),
+            DimensionState.Pending);
+
+        Assert.Throws<DimensionAlreadyRegisteredException>(
+            () => registry.DefineForOwner(Code("owner_a:dim"), "owner_b"));
+    }
+
+    [Fact]
+    public void DefineForOwner_Should_Let_Rightful_Owner_Complete_Pending_Dimension()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner_a:dim"), 42, DimensionLifetime.Persistent, "owner_a"),
+            DimensionState.Pending);
+
+        var dim = registry.DefineForOwner(Code("owner_a:dim"), "owner_a")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Equal(DimensionState.Active, dim.State);
+        Assert.Equal("owner_a", dim.OwnerModId);
+    }
+
+    [Fact]
+    public void Purge_Should_Remove_Persistent_Dimension_And_Release_Id()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.True(registry.Purge(Code("a:b")));
+        Assert.Null(registry.Get(Code("a:b")));
+
+        // Released id must re-enter the allocator pool (the leak the gap was about).
+        var fresh = registry.DefineForOwner(Code("c:d"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+        Assert.Equal(dim.InternalId, fresh.InternalId);
+    }
+
+    [Fact]
+    public void Purge_Should_Remove_Quarantined_Dimension()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("ghost:dim"), 42, DimensionLifetime.Persistent, "ghost"),
+            DimensionState.Quarantined);
+
+        Assert.True(registry.Purge(Code("ghost:dim")));
+        Assert.Null(registry.Get(Code("ghost:dim")));
+    }
+
+    [Fact]
+    public void Purge_Should_Fire_Destroyed()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        IDimension? destroyed = null;
+        registry.Destroyed += (_, e) => destroyed = e.Dimension;
+
+        registry.Purge(Code("a:b"));
+
+        Assert.NotNull(destroyed);
+        Assert.Equal(dim.InternalId, destroyed!.InternalId);
+    }
+
+    [Fact]
+    public void Purge_Should_Return_False_When_Code_Unknown()
+    {
+        var registry = NewRegistry();
+        Assert.False(registry.Purge(Code("nope:nope")));
+    }
+
+    [Fact]
+    public void Purge_Should_Throw_For_BuiltIn()
+    {
+        var registry = NewRegistry();
+        Assert.Throws<DimensionBuiltInImmutableException>(() => registry.Purge(Code("manifold:overworld")));
+    }
+
+    [Fact]
+    public void Created_Should_Isolate_A_Throwing_Subscriber()
+    {
+        var registry = NewRegistry();
+        bool goodRan = false;
+        registry.Created += (_, _) => throw new InvalidOperationException("rogue subscriber");
+        registry.Created += (_, _) => goodRan = true;
+
+        // A throwing third-party subscriber must not abort the registering mod's call.
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.NotNull(dim);
+        Assert.Same(dim, registry.Get(Code("a:b")));
+        Assert.True(goodRan);
+    }
+
+    [Fact]
+    public void Destroyed_Should_Isolate_A_Throwing_Subscriber()
+    {
+        var registry = NewRegistry(_ => false);
+        registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+
+        bool goodRan = false;
+        registry.Destroyed += (_, _) => throw new InvalidOperationException("rogue subscriber");
+        registry.Destroyed += (_, _) => goodRan = true;
+
+        Assert.True(registry.TryRemove(Code("a:b")));
+        Assert.Null(registry.Get(Code("a:b")));
+        Assert.True(goodRan);
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static DimensionRegistry NewRegistry()
     {
         var allocator = new DimensionAllocator();
         return new DimensionRegistry(allocator);
+    }
+
+    private static DimensionRegistry NewRegistry(System.Func<int, bool> isOccupied)
+    {
+        var allocator = new DimensionAllocator();
+        return new DimensionRegistry(allocator, isOccupied);
     }
 }

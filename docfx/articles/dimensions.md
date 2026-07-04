@@ -23,9 +23,11 @@ Dimensions follow a well-defined lifecycle:
 | Lifetime | Chunks persisted | Survives shutdown |
 |----------|-----------------|-------------------|
 | `Persistent` | Yes | Yes |
-| `Ephemeral` | No | No (removed on shutdown) |
+| `Ephemeral` | No | No (reaped on transit-out, and at shutdown) |
 
-Ephemeral dimensions can be removed at runtime via `IDimensionRegistry.TryRemove(code)`. Persistent dimensions cannot be removed through the API (use `/manifold purge <code>` as an admin to release quarantined ones).
+An `Ephemeral` dimension is reaped automatically when its last occupant **transits out** (`Destroyed` fires and its chunks are discarded), and it is removed at shutdown. **Disconnecting does not reap it** - a logged-out player keeps the dimension and reconnects straight back into it while the server is up. For a dimension a player must be able to leave and return to (including across a restart), use `Persistent`.
+
+A dimension is **never destroyed while a player is inside it**. `IDimensionRegistry.TryRemove(code)` returns `false` if anyone is still in the dimension; move occupants out first, or call `IManifoldServer.ForceRemoveDimension(code)` to evacuate them to the overworld and then remove it. Persistent dimensions cannot be removed through the API (use `/manifold purge <code>` as an admin to release quarantined ones).
 
 ## The Registry
 
@@ -61,7 +63,7 @@ manifold.Registry.Created += (_, e) =>
     Mod.Logger.Notification($"Dimension created: {e.Dimension.Code}");
 
 manifold.Registry.Destroyed += (_, e) =>
-    Mod.Logger.Notification($"Dimension removed: {e.DimensionCode}");
+    Mod.Logger.Notification($"Dimension removed: {e.Dimension.Code}");
 ```
 
 ## Dimension Codes (AssetLocation)

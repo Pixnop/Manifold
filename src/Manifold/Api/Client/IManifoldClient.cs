@@ -15,7 +15,12 @@ public interface IManifoldClient
     /// <summary>Raised when the client mirror learns about a removed dimension.</summary>
     event EventHandler<DimensionDestroyedEventArgs> Destroyed;
 
-    /// <summary>Raised on the client when the local player has transited to a new dimension.</summary>
+    /// <summary>
+    /// Reserved for a future release: intended to fire when the local player transits to a new
+    /// dimension. NOT yet raised in this version (the client has no local player handle to populate
+    /// the event args) - do not depend on it. Subscribe to <see cref="Created"/>/<see cref="Destroyed"/>
+    /// for dimension state, or use the engine's own client player events for local-player hooks.
+    /// </summary>
     event EventHandler<PlayerEnteredDimensionEventArgs> LocalPlayerTransited;
 
     /// <summary>All dimensions known to the client mirror.</summary>

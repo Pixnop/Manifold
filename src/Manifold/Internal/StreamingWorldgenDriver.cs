@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Manifold.Internal.Util;
 using Vintagestory.API.Server;
 
 namespace Manifold.Internal;
@@ -64,13 +65,13 @@ internal sealed class StreamingWorldgenDriver
             return;
         }
 
-        var generated = new List<(int Cx, int Cz)>();
+        // Generate (or load) each planned column and force-send it to the players streaming it. No
+        // server-side relight: the client lights received chunk columns natively, as it has in every
+        // released version. See DimensionGenerator.EnsureRegion for why the automatic relight was
+        // removed (it floods skylight and breaks client lighting).
         foreach (var col in planned)
         {
-            if (_generator.EnsureColumn(_sapi, col.DimId, col.Cx, col.Cz))
-            {
-                generated.Add((col.Cx, col.Cz));
-            }
+            _generator.EnsureColumn(_sapi, col.DimId, col.Cx, col.Cz);
 
             foreach (var uid in col.PlayerUids)
             {
@@ -79,15 +80,6 @@ internal sealed class StreamingWorldgenDriver
                     _sapi.WorldManager.ForceSendChunkColumn(player, col.Cx, col.Cz, col.DimId);
                 }
             }
-        }
-
-        if (generated.Count > 0)
-        {
-            // All columns in a tick are from a single streaming dimension in practice; look up the
-            // relight height from the first column's dimension.
-            int relightHeight = _registry.GetByInternalId(planned[0].DimId)?.RelightHeight
-                ?? DimensionBuilderImpl.DefaultRelightHeight;
-            DimensionGenerator.RelightColumns(_sapi, generated, relightHeight);
         }
     }
 
@@ -115,8 +107,8 @@ internal sealed class StreamingWorldgenDriver
             // chunks are ready before they become visible to players.
             int radius = Math.Max(dimRadius, _serverViewRadius);
 
-            int cx = (int)pos.X / 32;
-            int cz = (int)pos.Z / 32;
+            int cx = ChunkMath.ToChunk(pos.X);
+            int cz = ChunkMath.ToChunk(pos.Z);
             result.Add(new StreamingPlayer(sp.PlayerUID, dimId, cx, cz, radius));
             byUid[sp.PlayerUID] = sp;
         }
@@ -126,7 +118,7 @@ internal sealed class StreamingWorldgenDriver
 
     /// <summary>In-memory loaded check. A dimension's columns sit at chunk-Y band dim*1024.</summary>
     private bool IsColumnLoaded(int dimId, int cx, int cz) =>
-        _sapi.WorldManager.GetChunk(cx, dimId * 1024, cz) != null;
+        _sapi.WorldManager.GetChunk(cx, dimId * ChunkMath.DimensionChunkYStride, cz) != null;
 
     /// <summary>
     /// Resolves the per-tick column budget for a dimension: dim-specific setting if configured,

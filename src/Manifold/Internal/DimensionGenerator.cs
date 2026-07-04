@@ -29,6 +29,19 @@ internal sealed class DimensionGenerator
     private readonly ConcurrentDictionary<int, bool> _disabled = new();
 
     /// <summary>
+    /// Candidate opaque block codes for the dark-sky ceiling cap, tried in order. The first that
+    /// resolves and fully blocks light (LightAbsorption &gt; 32) is used. Solid rock is always opaque.
+    /// </summary>
+    private static readonly string[] CapBlockCandidates =
+    {
+        "game:rock-granite", "game:rock-andesite", "game:rock-basalt", "game:rock-sandstone",
+    };
+
+    // Resolved cap block id (LightAbsorption-validated), cached after the first lookup. -1 = not yet
+    // resolved, 0 = no suitable block found (dark-sky becomes a no-op, logged once).
+    private int _capBlockId = -1;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DimensionGenerator"/> class.
     /// </summary>
     /// <param name="registry">Dimension registry used to look up strategies.</param>
@@ -49,6 +62,21 @@ internal sealed class DimensionGenerator
     /// <param name="dimId">Engine dimension id.</param>
     /// <returns><c>true</c> if disabled.</returns>
     public bool IsDisabled(int dimId) => _disabled.TryGetValue(dimId, out var d) && d;
+
+    /// <summary>
+    /// Drops all per-dimension generator state (initialised flag, failure count, auto-disabled flag)
+    /// for <paramref name="dimId"/>. Must be called when a dimension is destroyed: the engine id is
+    /// released back to the allocator and may be reused by a later dimension, which would otherwise
+    /// inherit this one's stale flags (e.g. a reused id born permanently auto-disabled, or skipping
+    /// <c>OnInitialize</c>). With ephemeral reap-on-empty, id reuse within a session is routine.
+    /// </summary>
+    /// <param name="dimId">Engine dimension id being released.</param>
+    public void ForgetDimension(int dimId)
+    {
+        _initialized.TryRemove(dimId, out _);
+        _failureCounts.TryRemove(dimId, out _);
+        _disabled.TryRemove(dimId, out _);
+    }
 
     /// <summary>Returns the consecutive failure count for the given dimension.</summary>
     /// <param name="dimId">Engine dimension id.</param>
@@ -91,25 +119,24 @@ internal sealed class DimensionGenerator
 
         int radius = dim.GenerationRadius;
 
-        // Ensure OnInitialize is called once per dimension.
-        if (_initialized.TryAdd(dimId, true))
+        // Ensure OnInitialize runs SUCCESSFULLY once per dimension. On failure, remove the marker so the
+        // next visit retries init rather than generating uninitialized terrain (block ids unresolved).
+        // The failure still counts toward auto-disable via RecordFailure inside InvokeInitialize.
+        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
         {
-            bool initOk = InvokeInitialize(strategy, sapi, dimId);
-            if (!initOk)
-            {
-                // init failure counts toward auto-disable
-                return;
-            }
+            _initialized.TryRemove(dimId, out _);
+            return;
         }
 
-        bool anyGenerated = FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
+        FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
 
-        // Relight ONCE for the whole freshly-generated region, over a bounded Y band.
-        // (Per-column full-height relight was the ~40s bottleneck.)
-        if (anyGenerated)
-        {
-            RelightChunkBounds(sapi, centerCx - radius, centerCz - radius, centerCx + radius, centerCz + radius, dim.RelightHeight);
-        }
+        // No automatic server-side relight here. The client lights freshly-received chunk columns
+        // natively (sunlight flood on receipt + incremental relight on block edits), exactly as it
+        // did in every released version - where this relight was a dim-0 no-op and custom-dim
+        // lighting was correct. Forcing a server FullRelight on the custom dim (#60) floods skylight
+        // and is force-sent by the streaming driver, overriding the correct client lighting (dims
+        // full-bright, torches/edits not relighting). Modders who need an explicit relight after a
+        // runtime edit use IManifoldServer.RelightRegion / the /manifold relight command.
     }
 
     /// <summary>
@@ -137,6 +164,8 @@ internal sealed class DimensionGenerator
 
         if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
         {
+            // Retry init on the next visit instead of generating uninitialized terrain.
+            _initialized.TryRemove(dimId, out _);
             return false;
         }
 
@@ -144,28 +173,35 @@ internal sealed class DimensionGenerator
     }
 
     /// <summary>
-    /// Relights newly-generated columns (best-effort). Each column is relit over its own 32x32
-    /// footprint rather than the bounding box of the whole batch: profiling showed that relighting
-    /// the spanning rectangle of spread-out columns (common when a fast-moving player generates a
-    /// line of columns) re-lights many already-lit columns in between, and FullRelight cost scales
-    /// with that area. Per-column relight makes the cost proportional to the number of new columns,
-    /// independent of how spread out they are. The relight band is capped at
-    /// <paramref name="maxRelightY"/>, configured per dimension via
-    /// <see cref="Manifold.Api.Server.IDimensionBuilder.WithRelightHeight"/>.
+    /// Dim-aware wrapper over the engine's <c>FullRelight</c>: relights the block bounds in the
+    /// given dimension. The dimension field of both positions is overwritten with
+    /// <paramref name="dimId"/> so callers cannot accidentally relight the overworld (which is
+    /// exactly the bug this guards against - a <c>BlockPos</c> built without a dimension targets
+    /// dim 0). Best-effort: lighting failures never propagate.
     /// </summary>
     /// <param name="sapi">Server API.</param>
-    /// <param name="columns">Newly-generated columns to relight.</param>
-    /// <param name="maxRelightY">Upper Y bound for the relight pass (per-dimension value).</param>
-    public static void RelightColumns(ICoreServerAPI sapi, IReadOnlyList<(int Cx, int Cz)> columns, int maxRelightY)
+    /// <param name="dimId">Engine dimension id to relight in.</param>
+    /// <param name="min">Minimum corner (local coordinates).</param>
+    /// <param name="max">Maximum corner (local coordinates).</param>
+    /// <param name="sendToClients">
+    /// When <c>true</c>, the recomputed light is pushed to clients immediately. Required for
+    /// runtime relights of chunks already loaded on the client (e.g. the relight command, or
+    /// after a runtime block placement) - otherwise the server light is correct but the client
+    /// never re-meshes and the change is invisible. Worldgen passes <c>false</c> because the
+    /// freshly generated column is sent to the client separately (on transit / by the streaming
+    /// driver).
+    /// </param>
+    public static void RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
     {
-        if (sapi is null || columns is null)
+        var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
+        var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
+        try
         {
-            return;
+            sapi.WorldManager.FullRelight(minPos, maxPos, sendToClients);
         }
-
-        foreach (var (cx, cz) in columns)
+        catch
         {
-            RelightChunkBounds(sapi, cx, cz, cx, cz, maxRelightY);
+            // FullRelight is best-effort; never block on a lighting failure.
         }
     }
 
@@ -194,9 +230,9 @@ internal sealed class DimensionGenerator
         }
     }
 
-    /// <summary>Iterates all chunk columns in the radius square, generating or loading each.
-    /// Returns <c>true</c> if at least one column was newly generated.</summary>
-    private bool FillRegionColumns(
+    /// <summary>Iterates all chunk columns in the radius square, generating or loading each and
+    /// force-sending it to the player. No return value: there is no automatic relight to drive.</summary>
+    private void FillRegionColumns(
         ICoreServerAPI sapi,
         int dimId,
         int centerCx,
@@ -205,7 +241,6 @@ internal sealed class DimensionGenerator
         IWorldgenStrategy strategy,
         IServerPlayer? player)
     {
-        bool anyGenerated = false;
         for (int dx = -radius; dx <= radius; dx++)
         {
             for (int dz = -radius; dz <= radius; dz++)
@@ -218,39 +253,13 @@ internal sealed class DimensionGenerator
                     continue;
                 }
 
-                anyGenerated |= GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
+                GenerateOrLoadColumn(sapi, dimId, cx, cz, strategy);
 
                 if (player != null)
                 {
                     sapi.WorldManager.ForceSendChunkColumn(player, cx, cz, dimId);
                 }
             }
-        }
-
-        return anyGenerated;
-    }
-
-    /// <summary>Relights a rectangle of chunk columns over a bounded Y band (best-effort).</summary>
-    /// <param name="sapi">Server API.</param>
-    /// <param name="minCx">Minimum chunk X.</param>
-    /// <param name="minCz">Minimum chunk Z.</param>
-    /// <param name="maxCx">Maximum chunk X.</param>
-    /// <param name="maxCz">Maximum chunk Z.</param>
-    /// <param name="maxRelightY">Upper Y bound for the relight pass (per-dimension).</param>
-    private static void RelightChunkBounds(ICoreServerAPI sapi, int minCx, int minCz, int maxCx, int maxCz, int maxRelightY)
-    {
-        int minX = minCx * 32;
-        int minZ = minCz * 32;
-        int maxX = (maxCx * 32) + 31;
-        int maxZ = (maxCz * 32) + 31;
-        int maxY = Math.Min(maxRelightY, sapi.WorldManager.MapSizeY - 1);
-        try
-        {
-            sapi.WorldManager.FullRelight(new BlockPos(minX, 0, minZ), new BlockPos(maxX, maxY, maxZ), false);
-        }
-        catch
-        {
-            // FullRelight is best-effort; never block on a lighting failure.
         }
     }
 
@@ -297,9 +306,75 @@ internal sealed class DimensionGenerator
         var ctx = new WorldgenChunkContext(dimId, cx, cz, accessor, rng);
 
         InvokeStrategyColumn(strategy, ctx, dimId);
+        PlaceSkyCapIfConfigured(sapi, dimId, cx, cz, accessor);
         accessor.Commit();
         _generatedColumns.MarkGenerated(dimId, cx, cz);
         return true;
+    }
+
+    /// <summary>
+    /// For dark-sky dimensions (<c>WithDarkSky</c>), seals this freshly-generated column with an
+    /// opaque ceiling layer at the configured Y across the full 32x32 footprint, on the same bulk
+    /// accessor (committed by the caller). The cap stops the engine's top-down skylight flood so the
+    /// dimension stays dark below it, and makes the chunk non-empty so the client does not bleed
+    /// full-bright skylight from neighbouring empty chunks. No-op when the dimension has no cap.
+    /// </summary>
+    private void PlaceSkyCapIfConfigured(ICoreServerAPI sapi, int dimId, int cx, int cz, IBulkBlockAccessor accessor)
+    {
+        var dim = _registry.GetByInternalId(dimId);
+        if (dim?.SkyCapY is not { } capY)
+        {
+            return;
+        }
+
+        int capBlockId = ResolveCapBlock(sapi);
+        if (capBlockId <= 0)
+        {
+            return;
+        }
+
+        int baseX = cx * 32;
+        int baseZ = cz * 32;
+        var pos = new BlockPos(baseX, capY, baseZ, dimId);
+        for (int lx = 0; lx < 32; lx++)
+        {
+            for (int lz = 0; lz < 32; lz++)
+            {
+                pos.Set(baseX + lx, capY, baseZ + lz);
+                pos.dimension = dimId;
+                accessor.SetBlock(capBlockId, pos);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resolves (and caches) an opaque block for the dark-sky cap. Picks the first candidate that
+    /// resolves and fully blocks light (<c>LightAbsorption &gt; 32</c>). Returns 0 and logs once if
+    /// none is suitable, in which case dark-sky silently does nothing rather than capping with a
+    /// translucent block.
+    /// </summary>
+    private int ResolveCapBlock(ICoreServerAPI sapi)
+    {
+        if (_capBlockId >= 0)
+        {
+            return _capBlockId;
+        }
+
+        foreach (var code in CapBlockCandidates)
+        {
+            var block = sapi.World.GetBlock(new AssetLocation(code));
+            if (block is not null && block.Id != 0 && block.LightAbsorption > 32)
+            {
+                _capBlockId = block.Id;
+                return _capBlockId;
+            }
+        }
+
+        _capBlockId = 0;
+        sapi.Logger.Warning(
+            "[Manifold] WithDarkSky: no fully-opaque cap block resolved (tried {0}); dark-sky has no effect.",
+            string.Join(", ", CapBlockCandidates));
+        return 0;
     }
 
     private void RecordFailure(IWorldgenStrategy strategy, int dimId, Exception ex)

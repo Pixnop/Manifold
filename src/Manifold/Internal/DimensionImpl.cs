@@ -27,6 +27,7 @@ namespace Manifold.Internal;
 /// <param name="SeparateInventory">Inventory categories kept separate per dimension (None = shared).</param>
 /// <param name="Metadata">Read-only registration-time metadata (empty by default).</param>
 /// <param name="StreamingBudgetPerTick">Per-dimension column budget for the streaming driver, or null to use the default.</param>
+/// <param name="SkyCapY">If set, worldgen seals each generated column with an opaque ceiling at this Y so the dimension stays dark; null = no cap.</param>
 internal sealed record DimensionImpl(
     AssetLocation Code,
     int InternalId,
@@ -43,7 +44,8 @@ internal sealed record DimensionImpl(
     int RelightHeight,
     ManifoldInventory SeparateInventory,
     IReadOnlyDictionary<string, object?> Metadata,
-    int? StreamingBudgetPerTick) : IDimension
+    int? StreamingBudgetPerTick,
+    int? SkyCapY) : IDimension
 {
     /// <summary>Return a copy with the supplied <see cref="State"/>.</summary>
     /// <param name="newState">The new state.</param>

@@ -33,6 +33,13 @@ internal sealed class BlockMover : IBlockMover
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(target);
 
+        // Moving a block onto its own position is a no-op: writing then clearing the same slot would
+        // delete the block. Guard before any SetBlock so we never destroy what we were asked to move.
+        if (source.dimension == target.dimension && source.X == target.X && source.Y == target.Y && source.Z == target.Z)
+        {
+            return true;
+        }
+
         var world = _sapi.World;
         var accessor = world.BlockAccessor;
 

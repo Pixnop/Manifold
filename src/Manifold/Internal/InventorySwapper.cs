@@ -12,7 +12,7 @@ namespace Manifold.Internal;
 /// touches Vintage Story inventory APIs; the swap policy lives in <see cref="InventoryProfileResolver"/>.
 /// </summary>
 /// <remarks>Server-side, main thread.</remarks>
-internal sealed class InventorySwapper
+internal sealed class InventorySwapper : IInventorySwapper
 {
     private readonly ICoreServerAPI _sapi;
 
@@ -21,11 +21,8 @@ internal sealed class InventorySwapper
     public InventorySwapper(ICoreServerAPI sapi) =>
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
 
-    /// <summary>Serialises a category's current contents to bytes (empty array if the inventory is missing).</summary>
-    /// <param name="player">The player.</param>
-    /// <param name="category">The inventory category.</param>
-    /// <returns>Serialised inventory bytes.</returns>
-    public static byte[] Serialize(IServerPlayer player, ManifoldInventory category)
+    /// <inheritdoc/>
+    public byte[] Serialize(IServerPlayer player, ManifoldInventory category)
     {
         var inv = GetInventory(player, category);
         if (inv is null)
@@ -38,10 +35,7 @@ internal sealed class InventorySwapper
         return tree.ToBytes();
     }
 
-    /// <summary>Restores a category's contents from bytes produced by <see cref="Serialize"/>.</summary>
-    /// <param name="player">The player.</param>
-    /// <param name="category">The inventory category.</param>
-    /// <param name="bytes">Bytes from a previous <see cref="Serialize"/>.</param>
+    /// <inheritdoc/>
     public void Restore(IServerPlayer player, ManifoldInventory category, byte[] bytes)
     {
         var inv = GetInventory(player, category);
@@ -57,10 +51,8 @@ internal sealed class InventorySwapper
         player.BroadcastPlayerData(true);
     }
 
-    /// <summary>Empties a category's inventory.</summary>
-    /// <param name="player">The player.</param>
-    /// <param name="category">The inventory category.</param>
-    public static void Clear(IServerPlayer player, ManifoldInventory category)
+    /// <inheritdoc/>
+    public void Clear(IServerPlayer player, ManifoldInventory category)
     {
         var inv = GetInventory(player, category);
         if (inv is null)

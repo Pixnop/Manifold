@@ -40,5 +40,6 @@ internal static class DimensionDescriptorMapper
         RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
         SeparateInventory: Manifold.Api.ManifoldInventory.None,
         Metadata: DimensionBuilderImpl.EmptyMetadata,
-        StreamingBudgetPerTick: null);
+        StreamingBudgetPerTick: null,
+        SkyCapY: null);
 }

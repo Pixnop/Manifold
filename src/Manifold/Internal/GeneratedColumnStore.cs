@@ -85,6 +85,23 @@ internal sealed class GeneratedColumnStore
     /// <summary>Clears the dirty flag after a successful save.</summary>
     public void ClearDirty() => IsDirty = false;
 
+    /// <summary>
+    /// Drops every column marker belonging to a dimension. Call when a dimension is destroyed: its
+    /// engine id is released back to the allocator and may be reused, and a reused id must not inherit
+    /// the prior occupant's "already generated" markers (which would make the new dimension load stale
+    /// chunks instead of running its own worldgen). Sets <see cref="IsDirty"/> if any marker was dropped.
+    /// </summary>
+    /// <param name="dim">Engine dimension id whose markers to drop.</param>
+    public void RemoveDimension(int dim)
+    {
+        long dimField = (long)(dim & 0x3FF) << (CoordBits * 2);
+        long dimMask = 0x3FFL << (CoordBits * 2);
+        if (_keys.RemoveWhere(k => (k & dimMask) == dimField) > 0)
+        {
+            IsDirty = true;
+        }
+    }
+
     private static long Pack(int dim, int cx, int cz) =>
         ((long)(dim & 0x3FF) << (CoordBits * 2))
         | ((cx & CoordMask) << CoordBits)
