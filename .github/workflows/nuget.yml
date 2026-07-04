@@ -2,11 +2,24 @@ name: nuget
 
 # Publishes the Manifold API as a NuGet package on a version tag (or manual run).
 # The package is a compile-time reference (Manifold.dll); the mod itself ships on the Mod DB.
+# Authentication uses NuGet Trusted Publishing (GitHub OIDC): the NuGet/login step exchanges
+# this run's OIDC token for a short-lived API key, validated on nuget.org against the policy
+# (package owner Pixnop, repository Pixnop/Manifold, workflow nuget.yml). No stored secret,
+# nothing to rotate or expire.
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish (e.g. 0.4.2). Empty publishes a dev version."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -35,6 +48,8 @@ jobs:
           set -e
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
           else
             VERSION="0.0.0-dev.$GITHUB_RUN_NUMBER"
           fi
@@ -42,9 +57,15 @@ jobs:
           dotnet pack src/Manifold/Manifold.csproj -c Release -p:PackageVersion="$VERSION" -o nupkgs
           ls -la nupkgs
 
+      - name: NuGet login (Trusted Publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: Pixnop
+
       - name: Push to NuGet
         run: |
           dotnet nuget push "nupkgs/*.nupkg" \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
