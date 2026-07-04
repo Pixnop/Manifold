@@ -8,6 +8,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Manifold.Pure.Tests/Manifold.Pure.Tests.csproj" />
     <Project Path="tests/Manifold.Scenarios/Manifold.Scenarios.csproj" />
+    <Project Path="tests/Manifold.Scenarios.FixtureMod/Manifold.Scenarios.FixtureMod.csproj" />
     <Project Path="tests/Manifold.Tests/Manifold.Tests.csproj" />
   </Folder>
 </Solution>

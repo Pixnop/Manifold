@@ -1,0 +1,13 @@
+{
+  "type": "code",
+  "modid": "atlasfixture",
+  "name": "Manifold Atlas Fixture",
+  "version": "0.1.0",
+  "description": "Test fixture driving the Manifold public API for Atlas integration scenarios.",
+  "authors": ["Pixnop"],
+  "side": "Server",
+  "dependencies": {
+    "game": "",
+    "manifold": ""
+  }
+}

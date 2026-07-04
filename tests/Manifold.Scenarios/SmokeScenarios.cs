@@ -20,10 +20,15 @@ public class SmokeScenarios : AtlasScenarioBase
             World.Api.ModLoader.IsModEnabled("manifold"),
             "The manifold mod is not enabled in the embedded server.");
 
+        Assert.True(
+            World.Api.ModLoader.IsModEnabled("atlasfixture"),
+            "The atlasfixture test mod is not enabled in the embedded server.");
+
         // The ModSystem must have been discovered inside the staged assembly.
         // Looked up by name: scenario code must not reference Manifold types
         // (the ModLoader loads its own copy of Manifold.dll).
         Assert.NotNull(World.Api.ModLoader.GetModSystem("Manifold.ManifoldModSystem"));
+        Assert.NotNull(World.Api.ModLoader.GetModSystem("AtlasFixture.AtlasFixtureModSystem"));
 
         await World.Ticks(1);
     }
