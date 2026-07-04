@@ -18,8 +18,8 @@ public class BlockTransitScenarios : ManifoldScenarioBase
         World.SetBlock("game:chest-east", source);
         await World.Ticks(2);
 
-        var container = Assert.IsAssignableFrom<IBlockEntityContainer>(
-            World.Api.World.BlockAccessor.GetBlockEntity(source));
+        var container = Assert.IsType<IBlockEntityContainer>(
+            World.Api.World.BlockAccessor.GetBlockEntity(source), exactMatch: false);
         var sticks = new ItemStack(World.Api.World.GetItem(new AssetLocation("game", "stick")), 5);
         container.Inventory[0].Itemstack = sticks;
         container.Inventory[0].MarkDirty();
@@ -37,8 +37,8 @@ public class BlockTransitScenarios : ManifoldScenarioBase
         Assert.Equal("moved", result.Message);
         Assert.Equal("game:air", World.BlockAt(source).Code.ToString());
 
-        var arrivedContainer = Assert.IsAssignableFrom<IBlockEntityContainer>(
-            World.Api.World.BlockAccessor.GetBlockEntity(target));
+        var arrivedContainer = Assert.IsType<IBlockEntityContainer>(
+            World.Api.World.BlockAccessor.GetBlockEntity(target), exactMatch: false);
         ItemStack? arrivedStack = arrivedContainer.Inventory[0].Itemstack;
         Assert.NotNull(arrivedStack);
         Assert.Equal(5, arrivedStack!.StackSize);
