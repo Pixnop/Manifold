@@ -100,6 +100,18 @@ public sealed class AtlasFixtureModSystem : ModSystem
             .BeginSubCommand("teleport-entity")
                 .WithArgs(parsers.Word("entityid"), parsers.Word("dimpath"))
                 .HandleWith(OnTeleportEntity)
+            .EndSubCommand()
+            .BeginSubCommand("teleport-block")
+                .WithArgs(
+                    parsers.Int("x"),
+                    parsers.Int("y"),
+                    parsers.Int("z"),
+                    parsers.Int("srcdim"),
+                    parsers.Word("dimpath"),
+                    parsers.Int("tx"),
+                    parsers.Int("ty"),
+                    parsers.Int("tz"))
+                .HandleWith(OnTeleportBlock)
             .EndSubCommand();
     }
 
@@ -120,5 +132,18 @@ public sealed class AtlasFixtureModSystem : ModSystem
         var options = new TransitionOptions { OverridePosition = overridePosition };
         _manifold.Transitions.TeleportEntity(entity, target, options);
         return TextCommandResult.Success("ok");
+    }
+
+    private TextCommandResult OnTeleportBlock(TextCommandCallingArgs args)
+    {
+        var source = new BlockPos((int)args[0], (int)args[1], (int)args[2], (int)args[3]);
+        var target = new AssetLocation(Domain, (string)args[4]);
+        var targetLocal = new BlockPos((int)args[5], (int)args[6], (int)args[7], 0);
+
+        bool moved = _manifold.Transitions.TeleportBlock(source, target, targetLocal);
+        _sapi.WorldManager.SaveGame.StoreData(
+            $"{Domain}:result:teleport-block",
+            new[] { moved ? (byte)1 : (byte)0 });
+        return TextCommandResult.Success(moved ? "moved" : "no-op");
     }
 }
