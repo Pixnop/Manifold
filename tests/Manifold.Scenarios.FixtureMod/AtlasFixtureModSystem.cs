@@ -112,6 +112,14 @@ public sealed class AtlasFixtureModSystem : ModSystem
                     parsers.Int("ty"),
                     parsers.Int("tz"))
                 .HandleWith(OnTeleportBlock)
+            .EndSubCommand()
+            .BeginSubCommand("create-ephemeral")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnCreateEphemeral)
+            .EndSubCommand()
+            .BeginSubCommand("remove")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnRemove)
             .EndSubCommand();
     }
 
@@ -145,5 +153,34 @@ public sealed class AtlasFixtureModSystem : ModSystem
             $"{Domain}:result:teleport-block",
             new[] { moved ? (byte)1 : (byte)0 });
         return TextCommandResult.Success(moved ? "moved" : "no-op");
+    }
+
+    private TextCommandResult OnCreateEphemeral(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        IDimension dimension = _manifold.Registry
+            .Define(new AssetLocation(Domain, path))
+            .Ephemeral()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(1)
+            .Create();
+        PublishDimensionId(path, dimension.InternalId);
+
+        // Same pregeneration problem as boot-time dimensions: Create() only registers the
+        // dimension, it does not generate terrain. Force it here too, or the scenario's
+        // granite probe will time out.
+        PregenerateSpawn(dimension);
+        return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    private TextCommandResult OnRemove(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        bool removed = _manifold.Registry.TryRemove(new AssetLocation(Domain, path));
+        _sapi.WorldManager.SaveGame.StoreData(
+            $"{Domain}:removed:{path}",
+            new[] { removed ? (byte)1 : (byte)0 });
+        return TextCommandResult.Success(removed ? "removed" : "not-removed");
     }
 }
