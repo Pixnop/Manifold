@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-04
+
 ### Changed
 - **Removed the automatic post-generation relight.** Earlier dev work made the worldgen relight dimension-aware (toward #59), but in-game testing showed that a dimension-aware `FullRelight` floods custom dimensions with full skylight - the engine seeds maximum skylight from the top of a dimension's column with no per-dimension day/night gate (an engine limitation, see #62) - and that the synchronous pass stalled the first visit to a bounded dimension. Manifold no longer relights on generation: custom dimensions use the engine's native client-side lighting, exactly as in every released version, and first-visit loads are fast again. Lighting is the engine's / consumer's concern. The opt-in manual relight tools below remain for mods that edit blocks after generation; `WithDarkSky` remains the supported way to get a reliably dark dimension.
 
