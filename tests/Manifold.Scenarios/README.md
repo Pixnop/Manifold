@@ -7,7 +7,7 @@ contracts with fakes, these scenarios pin down actual engine behavior.
 
 ## Running locally
 
-Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.4.0), and
+Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.5.0), and
 the `VINTAGE_STORY` environment variable pointing at the folder containing
 `VintagestoryAPI.dll`.
 
