@@ -7,7 +7,7 @@ contracts with fakes, these scenarios pin down actual engine behavior.
 
 ## Running locally
 
-Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.5.0), and
+Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.6.0), and
 the `VINTAGE_STORY` environment variable pointing at the folder containing
 `VintagestoryAPI.dll`.
 
@@ -15,6 +15,19 @@ the `VINTAGE_STORY` environment variable pointing at the folder containing
 
 Each scenario class boots its own embedded server (about 7 s). Scenario
 classes never run in parallel (one live server per process).
+
+## Isolation modes
+
+Most scenarios share their class host's world and isolate through disjoint
+coordinates, unique entity ids, and unique dimension paths. Scenarios that
+mutate dimension 0 and involve no players use `RollbackWorld = true` (Atlas
+0.6.0): the host's world is restored from a snapshot instead of paying a full
+recycle. Stage 1 rollback covers dimension 0 only, so the fixture never
+generates mini-dimension terrain at boot; scenarios that probe a dimension's
+terrain request it with `/atlasfx pregen <dimpath>`. Classes that cannot roll
+back carry a `rollback-stage2-candidate` (joined players) or
+`rollback-stage3-candidate` (mini-dimension world state) comment stating what
+a future rollback stage would need.
 
 ## Architecture
 

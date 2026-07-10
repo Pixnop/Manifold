@@ -7,6 +7,10 @@ using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Xunit;
 
+// rollback-stage2-candidate: joined test players hard-refuse stage 1 rollback. A future
+// player-aware rollback must handle SEVERAL players, including their per-dimension separated
+// inventories (Manifold stores them in player moddata, which the rollback would have to restore
+// together with the live inventory slots to stay consistent).
 [Trait("Category", "E2E")]
 public class MultiPlayerScenarios : ManifoldScenarioBase
 {
