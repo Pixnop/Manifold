@@ -33,7 +33,7 @@ public class SmokeScenarios : AtlasScenarioBase
         await World.Ticks(1);
     }
 
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true)]
     public async Task World_Should_AcceptBlockWrites_When_ManifoldIsLoaded()
     {
         BlockPos pos = World.Spawn.Offset(1, 1, 0);
