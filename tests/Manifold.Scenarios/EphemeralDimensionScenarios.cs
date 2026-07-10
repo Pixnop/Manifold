@@ -5,6 +5,11 @@ using Atlas.XUnit;
 using Vintagestory.API.MathTools;
 using Xunit;
 
+// rollback-stage3-candidate: create-ephemeral generates the new dimension's spawn region, so
+// mini-dimension chunks are loaded mid-scenario and stage 1 rollback would degrade to a full
+// recycle. On top of chunk columns, a rollback that covered this class would also need to restore
+// Manifold's in-memory registry (ModSystem state), which even a stage 3 world snapshot will not
+// do; SaveGame data alone rolling back would desynchronize the registry from its manifest.
 [Trait("Category", "E2E")]
 public class EphemeralDimensionScenarios : ManifoldScenarioBase
 {
