@@ -4,6 +4,11 @@ using Atlas.Api;
 using Atlas.XUnit;
 using Xunit;
 
+// rollback-stage2-candidate: joined test players hard-refuse stage 1 rollback with an
+// AtlasSetupException (player entity state is not captured). A stage 2 rollback would also give
+// the event-flag assertions real isolation: the atlasfixture:event:* SaveGame flags accumulate
+// across scenarios on a shared host, so today only the first scenario asserting a given flag is
+// meaningful. Needs: player position/inventory/stats capture plus the existing SaveGame restore.
 [Trait("Category", "E2E")]
 public class PlayerTransitScenarios : ManifoldScenarioBase
 {

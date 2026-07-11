@@ -33,7 +33,13 @@ public class SmokeScenarios : AtlasScenarioBase
         await World.Ticks(1);
     }
 
-    [AtlasScenario]
+    // Rollback-eligible: dimension-0 block writes only, no joined players, and no scenario in
+    // this class loads a mini-dimension chunk, so the snapshot capture succeeds. The chest write
+    // below no longer leaks into whatever scenario runs after it on this host. StrictIsolation
+    // (Atlas 0.7.0): nothing in this class can legitimately degrade the rollback, so a degrade
+    // means the fixture regressed (e.g. mini-dimension chunks loading at boot again) and must
+    // fail loudly instead of silently slowing the suite down.
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task World_Should_AcceptBlockWrites_When_ManifoldIsLoaded()
     {
         BlockPos pos = World.Spawn.Offset(1, 1, 0);
