@@ -86,13 +86,66 @@ public sealed class AtlasFixtureModSystem : ModSystem
             $"{Domain}:event:player-left:{e.SourceDimension.Code.Path}", new[] { (byte)1 });
 
         RegisterCommands(api);
+        SeedPersistenceFixtures();
     }
 
     private void PublishDimensionId(string path, int internalId)
     {
+        // Keep the previous boot's published id (if any) under a separate key first: restart
+        // scenarios compare it against the fresh id to assert identity stability across a real
+        // save/load round trip, which a single overwritten key could not show.
+        byte[]? previous = _sapi.WorldManager.SaveGame.GetData($"{Domain}:dimid:{path}");
+        if (previous is not null)
+        {
+            _sapi.WorldManager.SaveGame.StoreData($"{Domain}:prevdimid:{path}", previous);
+        }
+
         _sapi.WorldManager.SaveGame.StoreData(
             $"{Domain}:dimid:{path}",
             BitConverter.GetBytes(internalId));
+    }
+
+    /// <summary>
+    /// Boot-time seeding for DimensionPersistenceScenarios, requested through the ModConfig
+    /// file that scenario class stages with [AtlasDataFiles]. Seeding at BOOT rather than in a
+    /// seed scenario keeps the persistence scenarios order-independent: Atlas does not
+    /// guarantee scenario order within a class, but every RestartWorld scenario finds this
+    /// state in the manifest no matter which runs first. Gated on the registry, not a flag: on
+    /// the first boot 'keeper' is unknown and gets created; on a restarted boot it is already
+    /// back from the manifest as Pending, and re-creating it here would promote it to Active
+    /// and destroy exactly the state the scenarios assert on. Registration loads no chunks, so
+    /// this seeding cannot degrade any rollback; classes without the config file skip it.
+    /// </summary>
+    private void SeedPersistenceFixtures()
+    {
+        AtlasFixtureConfig? config = _sapi.LoadModConfig<AtlasFixtureConfig>("atlasfixture.json");
+        if (config is not { SeedPersistenceFixtures: true }
+            || _manifold.Registry.Get(new AssetLocation(Domain, "keeper")) is not null)
+        {
+            return;
+        }
+
+        // Runtime PERSISTENT dimension: must ride the manifest through a restart (as Pending).
+        IDimension keeper = _manifold.Registry
+            .Define(new AssetLocation(Domain, "keeper"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(1)
+            .WithMetadata("fixture-label", "runtime-persistent")
+            .Create();
+        PublishDimensionId("keeper", keeper.InternalId);
+
+        // Runtime EPHEMERAL dimension: must NOT survive a restart. No spawn pregeneration here
+        // (unlike /atlasfx create-ephemeral): creation must load no chunks at boot.
+        IDimension ghost = _manifold.Registry
+            .Define(new AssetLocation(Domain, "ghost"))
+            .Ephemeral()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(1)
+            .Create();
+        PublishDimensionId("ghost", ghost.InternalId);
     }
 
     /// <summary>
@@ -149,6 +202,14 @@ public sealed class AtlasFixtureModSystem : ModSystem
             .BeginSubCommand("create-ephemeral")
                 .WithArgs(parsers.Word("dimpath"))
                 .HandleWith(OnCreateEphemeral)
+            .EndSubCommand()
+            .BeginSubCommand("create-persistent")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnCreatePersistent)
+            .EndSubCommand()
+            .BeginSubCommand("state")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnState)
             .EndSubCommand()
             .BeginSubCommand("remove")
                 .WithArgs(parsers.Word("dimpath"))
@@ -277,6 +338,55 @@ public sealed class AtlasFixtureModSystem : ModSystem
         // granite probe will time out.
         PregenerateSpawn(dimension);
         return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    /// <summary>
+    /// Creates a RUNTIME persistent dimension, or re-claims it after a server restart. On a
+    /// first boot the code is unknown and Create() allocates a fresh id; after a restart the
+    /// manifest has seeded the same code as Pending, and the same Define(...).Create() call
+    /// promotes it back to Active while keeping its manifest id (the owner-reclaim path).
+    /// Driven by DimensionPersistenceScenarios.
+    /// </summary>
+    private TextCommandResult OnCreatePersistent(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        try
+        {
+            IDimension dimension = _manifold.Registry
+                .Define(new AssetLocation(Domain, path))
+                .Persistent()
+                .WithWorldgen(new GraniteSlabWorldgen())
+                .WithFixedSpawn(FixedSpawn)
+                .WithGenerationRadius(1)
+                .WithMetadata("fixture-label", "runtime-persistent")
+                .Create();
+            PublishDimensionId(path, dimension.InternalId);
+            return TextCommandResult.Success($"created {dimension.InternalId}");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Reports a dimension's registry state and internal id as "State:id" (e.g. "Active:11",
+    /// "Pending:12"), or the error "unregistered" when the code is not in the registry at all.
+    /// The persistence scenarios use this to tell apart the three post-restart fates: re-claimed
+    /// static dimensions (Active), manifest-seeded runtime ones (Pending), and ephemeral ones
+    /// (unregistered).
+    /// </summary>
+    private TextCommandResult OnState(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        IDimension? dimension = _manifold.Registry.Get(new AssetLocation(Domain, path));
+        if (dimension is null)
+        {
+            return TextCommandResult.Error("unregistered");
+        }
+
+        return TextCommandResult.Success(
+            string.Create(CultureInfo.InvariantCulture, $"{dimension.State}:{dimension.InternalId}"));
     }
 
     private TextCommandResult OnRemove(TextCommandCallingArgs args)

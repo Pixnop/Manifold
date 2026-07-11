@@ -8,8 +8,8 @@ using Xunit;
 /// Registration-time metadata read back through IDimension.Metadata after a real boot. Read-only
 /// against registry state, so the class shares its world: neither rollback nor recycle is needed.
 /// Metadata persistence semantics across a server restart (static dimensions re-declare, runtime
-/// ones lose theirs) are deliberately NOT covered: they would need Atlas to reboot the SAME world
-/// (savegame kept, host recycled), which no isolation mode offers today.
+/// ones lose theirs) live in DimensionPersistenceScenarios, covered since Atlas 0.7.0 shipped
+/// RestartWorld (the reboot-the-same-world mode this class historically noted as missing).
 /// </summary>
 [Trait("Category", "E2E")]
 public class DimensionMetadataScenarios : ManifoldScenarioBase
