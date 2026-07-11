@@ -15,6 +15,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Per-class data files staged into the embedded server's data path via [AtlasDataFiles]
+         (DimensionPersistenceScenarios stages fixtures/persistence as ModConfig). -->
+    <None Include="fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Private=true (default): the runner JITs scenario bodies that use game types
          (BlockPos) before Atlas installs its AssemblyResolve hook, so the dll must
          sit next to the test assembly. -->

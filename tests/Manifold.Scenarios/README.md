@@ -33,6 +33,16 @@ scenarios that probe a dimension's terrain request it with
 (mini-dimension world state) comment stating what a future rollback stage
 would need.
 
+Persistence scenarios use `RestartWorld = true` (Atlas 0.7.0): the class host
+is shut down gracefully and a replacement boots against the persisted save,
+so DimensionPersistenceScenarios asserts on what actually survives a real
+save/load round trip (the dimension manifest: static dimensions re-claimed
+under the same internal id, runtime persistent ones back as Pending, ephemeral
+ones dropped). The pre-restart state is seeded by the fixture at first boot,
+requested through an `[AtlasDataFiles]`-staged ModConfig, because Atlas does
+not guarantee scenario order within a class; each restart scenario is
+self-sufficient in any order.
+
 ## Architecture
 
 Scenario code cannot call the Manifold API directly: the ModLoader loads its
