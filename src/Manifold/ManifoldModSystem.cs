@@ -12,6 +12,7 @@ using Manifold.Internal.Networking;
 using Manifold.Internal.Util;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
@@ -28,6 +29,14 @@ public sealed class ManifoldModSystem : ModSystem
 
     /// <summary>Savegame key for per-player per-dimension last positions.</summary>
     private const string PlayerPositionsKey = "manifold:lastpos";
+
+    /// <summary>
+    /// Event bus name Atlas pushes synchronously on the game thread after a world-snapshot
+    /// restore, after the SaveGame (moddata included) is restored and before any chunk column
+    /// reloads. Test-time only: nothing pushes it in production, so carrying the subscription
+    /// costs one string comparison per unrelated bus event.
+    /// </summary>
+    private const string AtlasRollbackRestoredEvent = "atlas:rollback:restored";
 
     private HarmonyPatcher? _harmony;
     private DimensionPersistence? _persistence;
@@ -89,33 +98,20 @@ public sealed class ManifoldModSystem : ModSystem
         // registry report (and swallow) exceptions thrown by third-party event subscribers.
         _registry = new DimensionRegistry(allocator, IsDimensionOccupied, Mod.Logger);
 
-        // Seed manifest BEFORE wiring Created event, so seeded entries don't
-        // trigger broadcasts to clients that aren't connected yet anyway. A corrupt/tampered entry
-        // (out-of-range id, bad code) must not abort the whole seed loop and break Manifold's boot -
-        // log and skip it, matching LoadOrEmpty's drop-silently policy for unreadable data.
-        foreach (var entry in _persistence.LoadOrEmpty())
-        {
-            try
-            {
-                var state = _persistence.Classify(entry);
-                _registry.SeedFromManifest(entry, state);
-            }
-            catch (Exception ex)
-            {
-                Mod.Logger.Warning("[Manifold] Skipped a corrupt manifest entry '{0}': {1}", entry.Code, ex.Message);
-            }
-        }
+        _generatedColumns = new GeneratedColumnStore();
+        _positionStore = new PlayerPositionStore();
+
+        // The boot hydrate: seed the registry from the persisted manifest and restore the
+        // generated-columns / player-position stores. Refactored into a re-runnable method so the
+        // Atlas rollback hook can run the exact same hydrate again against a restored SaveGame
+        // (see OnAtlasRollbackRestored). At boot the registry holds only the overworld, so the
+        // method's drop pass is a no-op and this reduces to the original seed loop plus the store
+        // loads. Runs BEFORE wiring Created/Destroyed below: seeding raises no events anyway, so
+        // the ordering only documents that boot-seeded entries broadcast nothing.
+        ResyncFromSaveGame();
 
         _registry.Created += OnRegistryCreated;
         _registry.Destroyed += OnRegistryDestroyed;
-
-        // Restore the persisted set of generated columns so revisits LOAD (preserving player
-        // modifications) instead of regenerating over them.
-        _generatedColumns = new GeneratedColumnStore();
-        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
-
-        _positionStore = new PlayerPositionStore();
-        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey));
 
         _generator = new DimensionGenerator(_registry, _generatedColumns);
         _generator.StrategyThrew += (dim, _, ex) =>
@@ -150,6 +146,15 @@ public sealed class ManifoldModSystem : ModSystem
         api.Event.PlayerDisconnect += OnPlayerDisconnect;
         api.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
         api.Event.SaveGameLoaded += OnSaveGameLoaded;
+
+        // Atlas rollback cooperation: a test-harness world-snapshot restore rewrites the SaveGame
+        // (manifest, genchunks, lastpos) under a registry that still holds pre-rollback state.
+        // Re-running the boot hydrate here closes that desync. Subscribed above the 0.5 default so
+        // Manifold's state is coherent before consumer mods' own restored-handlers run, mirroring
+        // ExecuteOrder at boot. The subscription is deliberately unconditional: the event never
+        // fires outside Atlas test runs, so in production it costs a string comparison per
+        // unrelated bus event and nothing else.
+        api.Event.RegisterEventBusListener(OnAtlasRollbackRestored, 0.6, AtlasRollbackRestoredEvent);
 
         Mod.Logger.Notification("[Manifold] Initialized (healthy).");
     }
@@ -479,6 +484,144 @@ public sealed class ManifoldModSystem : ModSystem
             _registry.All.Count,
             active,
             quarantined);
+    }
+
+    /// <summary>
+    /// Handles the Atlas <c>atlas:rollback:restored</c> cooperation event: the world database and
+    /// the live SaveGame (manifest included) have just been restored to the captured state, no
+    /// chunk column is loaded yet, and this runs synchronously on the game thread. Re-running the
+    /// boot hydrate resynchronizes the in-memory registry, allocator, and persisted-store mirrors
+    /// with the restored SaveGame. Exceptions deliberately propagate: Atlas classifies a throwing
+    /// handler as ModHookFailed and degrades the rollback fail-closed to a full recycle.
+    /// </summary>
+    private void OnAtlasRollbackRestored(string eventName, ref EnumHandling handling, IAttribute data)
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        (int dropped, int reseeded) = ResyncFromSaveGame();
+
+        // Connected clients mirror the registry; after a resync their mirror may describe dropped
+        // or missing dimensions. Send the same full snapshot a joining player gets. The drop pass
+        // already broadcast per-dimension removals via Destroyed; the snapshot makes the mirror
+        // authoritative in one message regardless.
+        BroadcastManifestSnapshot();
+
+        var payload = data as ITreeAttribute;
+        Mod.Logger.Notification(
+            "[Manifold] Rollback resync (generation {0}, restore #{1}): dropped {2}, reseeded {3} dimension(s); stores reloaded.",
+            payload?.GetInt("generation") ?? -1,
+            payload?.GetInt("restoreCount") ?? -1,
+            dropped,
+            reseeded);
+    }
+
+    /// <summary>
+    /// The re-runnable hydrate: reconciles all in-memory state that mirrors SaveGame data with
+    /// whatever the SaveGame currently holds. Called at boot (where the drop pass is a no-op) and
+    /// from <see cref="OnAtlasRollbackRestored"/> after a test-harness rollback rewrote the
+    /// SaveGame. Three passes:
+    /// (1) drop every non-built-in registration the manifest does not describe with the same
+    /// (code, id, lifetime, owner), via the purge path so ids are released, Destroyed fires, and
+    /// the per-dimension cleanup runs - this forgets ephemeral/persistent dimensions created after
+    /// the capture, including id reservations and generator state;
+    /// (2) re-seed manifest entries memory lacks (a removal undone by the rollback), Pending or
+    /// Quarantined exactly as at boot;
+    /// (3) reload the generated-columns and player-position stores from the SaveGame blobs.
+    /// Registrations matching the manifest keep their in-memory record untouched: it carries
+    /// worldgen configuration the manifest does not persist, and an owner-promoted Active state
+    /// remains coherent with the restored world.
+    /// </summary>
+    /// <returns>Counts of dropped and re-seeded registrations, for the caller's log line.</returns>
+    private (int Dropped, int Reseeded) ResyncFromSaveGame()
+    {
+        if (_registry is null || _persistence is null || _manifestStore is null
+            || _generatedColumns is null || _positionStore is null)
+        {
+            return (0, 0);
+        }
+
+        var manifest = new Dictionary<AssetLocation, ManifestEntry>();
+        foreach (var entry in _persistence.LoadOrEmpty())
+        {
+            manifest[entry.Code] = entry;
+        }
+
+        int dropped = 0;
+        foreach (var dim in _registry.All)
+        {
+            if (dim.IsBuiltIn || dim.Lifetime == DimensionLifetime.BuiltIn)
+            {
+                continue;
+            }
+
+            if (manifest.TryGetValue(dim.Code, out var entry)
+                && entry.InternalId == dim.InternalId
+                && entry.Lifetime == dim.Lifetime
+                && string.Equals(entry.OwnerModId, dim.OwnerModId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (_registry.Purge(dim.Code))
+            {
+                dropped++;
+            }
+        }
+
+        // A corrupt/tampered entry (out-of-range id, bad code) must not abort the whole seed loop
+        // and break the hydrate - log and skip it, matching LoadOrEmpty's drop-silently policy.
+        int reseeded = 0;
+        foreach (var entry in manifest.Values)
+        {
+            if (_registry.Get(entry.Code) is not null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var state = _persistence.Classify(entry);
+                _registry.SeedFromManifest(entry, state);
+                reseeded++;
+            }
+            catch (Exception ex)
+            {
+                Mod.Logger.Warning("[Manifold] Skipped a corrupt manifest entry '{0}': {1}", entry.Code, ex.Message);
+            }
+        }
+
+        // Restore the persisted set of generated columns so revisits LOAD (preserving player
+        // modifications) instead of regenerating over them, and the per-player last positions.
+        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
+        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey));
+
+        return (dropped, reseeded);
+    }
+
+    /// <summary>Sends the full manifest snapshot (the join-time packet) to every online player.</summary>
+    private void BroadcastManifestSnapshot()
+    {
+        if (_network is null || _registry is null || _sapi is null)
+        {
+            return;
+        }
+
+        var snapshot = new ManifestSnapshotPacket();
+        foreach (var dim in _registry.All)
+        {
+            snapshot.Dimensions.Add(DimensionDescriptorMapper.ToDescriptor(dim));
+        }
+
+        foreach (var p in _sapi.World.AllOnlinePlayers)
+        {
+            if (p is IServerPlayer sp)
+            {
+                _network.SendManifestSnapshot(sp, snapshot);
+            }
+        }
     }
 
     private void OnPlayerDisconnect(IServerPlayer player)
