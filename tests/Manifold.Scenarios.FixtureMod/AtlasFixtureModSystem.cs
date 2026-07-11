@@ -34,12 +34,12 @@ public sealed class AtlasFixtureModSystem : ModSystem
         _sapi = api;
         _manifold = api.GetManifoldServer(this);
 
-        // No PregenerateSpawn at boot: generating a region loads mini-dimension chunk
-        // columns, and any loaded mini-dimension chunk makes Atlas's stage 1 world
-        // rollback fall back to a full host recycle (dimension 0 only). Registration
-        // alone loads nothing, so scenario classes that stay in dimension 0 can use
-        // RollbackWorld. Scenarios that probe a dimension's terrain request generation
-        // explicitly via /atlasfx pregen <dimpath>.
+        // No PregenerateSpawn at boot. Since Atlas 0.8.0 (rollback stage 3) loaded
+        // mini-dimension columns are simply part of the world snapshot, so boot-time
+        // pregeneration would no longer disqualify rollback; skipping it is now a
+        // snapshot-size optimization, not a requirement. Registration alone loads
+        // nothing; scenarios that need a dimension's terrain request generation on
+        // demand via /atlasfx pregen <dimpath> or trigger it through a transit.
         IDimension flat = _manifold.Registry
             .Define(new AssetLocation(Domain, "flat"))
             .Persistent()
@@ -156,8 +156,9 @@ public sealed class AtlasFixtureModSystem : ModSystem
     /// DimensionGenerator.EnsureRegion, not for the move itself. The source position must be air
     /// so the move is a guaranteed no-op; a near-ceiling position at the world origin is reliably
     /// air, unlike y=1 near bedrock, and using a non-air source would actually move a real
-    /// overworld block. Invoked on demand through /atlasfx pregen (never at boot: the loaded
-    /// mini-dimension chunks would disqualify every scenario class from Atlas world rollback).
+    /// overworld block. Invoked on demand through /atlasfx pregen, not at boot: since Atlas
+    /// 0.8.0 boot-time pregeneration would no longer disqualify rollback, it would just grow
+    /// every scenario class's snapshot (see the StartServerSide note).
     /// </summary>
     private void PregenerateSpawn(IDimension dimension)
     {

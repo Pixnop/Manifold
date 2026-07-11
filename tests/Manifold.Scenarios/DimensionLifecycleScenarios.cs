@@ -13,7 +13,7 @@ using Xunit;
 [Trait("Category", "E2E")]
 public class DimensionLifecycleScenarios : ManifoldScenarioBase
 {
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task PersistentDimension_Should_RefuseRemoval_When_TryRemoveIsUsed()
     {
         await DimensionId("flat");
@@ -24,13 +24,11 @@ public class DimensionLifecycleScenarios : ManifoldScenarioBase
         Assert.Contains("DimensionStateException", result.Message);
     }
 
-    // rollback-stage3-candidate: create-ephemeral pregenerates the new dimension's spawn region,
-    // so mini-dimension chunks are loaded mid-scenario and stage 1 rollback would degrade to a
-    // full recycle; FreshWorld gives the registry mutations a clean host instead. Needs:
-    // mini-dimension chunk snapshot/restore AND a rollback story for Manifold's in-memory
-    // registry, which is ModSystem state that no world snapshot restores (rolling back SaveGame
-    // data alone would desynchronize the registry from its persisted manifest).
-    [AtlasScenario(FreshWorld = true)]
+    // RollbackWorld (Atlas 0.8.0): the mini-dimension chunks this scenario loads are part of the
+    // snapshot since rollback stage 3, and the registry mutations (create, remove, re-create)
+    // are resynced from the restored SaveGame by Manifold's atlas:rollback:restored handler
+    // (ManifoldModSystem.OnAtlasRollbackRestored), so the class host no longer needs FreshWorld.
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task EphemeralDimension_Should_RefuseTransitThenAllowRecreate_When_Removed()
     {
         CommandResult created = await World.ExecuteCommand("/atlasfx create-ephemeral cycle");

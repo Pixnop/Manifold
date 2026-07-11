@@ -7,8 +7,9 @@ contracts with fakes, these scenarios pin down actual engine behavior.
 
 ## Running locally
 
-Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.7.0), and
-the `VINTAGE_STORY` environment variable pointing at the folder containing
+Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.8.0-rc.1,
+temporarily resolved from a repo-local feed; see `nuget.config`), and the
+`VINTAGE_STORY` environment variable pointing at the folder containing
 `VintagestoryAPI.dll`.
 
     dotnet test tests/Manifold.Scenarios
@@ -19,18 +20,25 @@ classes never run in parallel (one live server per process).
 ## Isolation modes
 
 Most scenarios share their class host's world and isolate through disjoint
-coordinates, unique entity ids, and unique dimension paths. Scenarios that
-mutate dimension 0 and involve no players use `RollbackWorld = true`: the
-host's world is restored from a snapshot instead of paying a full recycle.
-Classes that treat that rollback as a contract rather than an optimization
-(SmokeScenarios, OverworldTransitScenarios) add `StrictIsolation = true`
-(Atlas 0.7.0), so a silent degrade to a full recycle fails the scenario
-instead of just slowing the suite down. Stage 1 rollback covers dimension 0
-only, so the fixture never generates mini-dimension terrain at boot;
-scenarios that probe a dimension's terrain request it with
-`/atlasfx pregen <dimpath>`. Classes that cannot roll back carry a
-`rollback-stage2-candidate` (joined players) or `rollback-stage3-candidate`
-(mini-dimension world state) comment stating what a future rollback stage
+coordinates, unique entity ids, and unique dimension paths. Scenarios with
+no joined players use `RollbackWorld = true`: the host's world is restored
+from a snapshot instead of paying a full recycle. Since Atlas 0.8.0 the
+snapshot covers mini-dimension chunk columns too, and Manifold cooperates
+through the `atlas:rollback:restored` event bus hook: after every restore,
+`ManifoldModSystem.OnAtlasRollbackRestored` re-runs the boot hydrate,
+rebuilding the registry, the id allocator, and the persisted-store mirrors
+from the restored SaveGame (the manifest, `manifold:genchunks`,
+`manifold:lastpos`). Classes that treat the rollback as a contract rather
+than an optimization add `StrictIsolation = true`, so a silent degrade to a
+full recycle fails the scenario instead of just slowing the suite down; the
+former stage 3 candidates (EntityTransit, BlockTransit, Ephemeral,
+Lifecycle) are all strict now, and EphemeralDimensionScenarios carries the
+desync-gone proof: re-creating a dimension whose first incarnation only a
+rollback removed. Boot-time mini-dimension terrain no longer disqualifies
+rollback; the fixture still generates terrain on demand only
+(`/atlasfx pregen <dimpath>` or a transit) purely to keep snapshots small.
+Classes with joined players cannot roll back yet and carry a
+`rollback-stage2-candidate` comment stating what a future rollback stage
 would need.
 
 Persistence scenarios use `RestartWorld = true` (Atlas 0.7.0): the class host
