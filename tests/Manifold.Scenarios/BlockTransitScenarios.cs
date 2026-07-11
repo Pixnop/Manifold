@@ -6,14 +6,15 @@ using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Xunit;
 
-// rollback-stage3-candidate: the moved chests land in the flat mini-dimension, whose loaded
-// chunks make stage 1 rollback degrade to a full recycle. Isolation is done with disjoint target
-// coordinates per scenario instead. Needs: snapshot/restore of mini-dimension chunk columns
-// including block entities.
+// RollbackWorld (Atlas 0.8.0): mini-dimension chunk columns, block entities included, are part
+// of the snapshot since rollback stage 3, and Manifold resyncs its in-memory registry and stores
+// from the restored SaveGame through the atlas:rollback:restored hook
+// (ManifoldModSystem.OnAtlasRollbackRestored). Strict: nothing in this class joins players or
+// otherwise legitimately degrades the rollback, so a degrade is a regression and must fail.
 [Trait("Category", "E2E")]
 public class BlockTransitScenarios : ManifoldScenarioBase
 {
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task Chest_Should_KeepContents_When_TeleportedAcrossDimensions()
     {
         int flatId = await DimensionId("flat");
@@ -49,7 +50,7 @@ public class BlockTransitScenarios : ManifoldScenarioBase
         Assert.Equal("game:stick", arrivedStack.Collectible.Code.ToString());
     }
 
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task Chest_Should_KeepContents_When_TeleportedBackToOverworld()
     {
         int flatId = await DimensionId("flat");

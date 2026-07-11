@@ -6,14 +6,15 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Xunit;
 
-// rollback-stage3-candidate: every scenario parks its chicken in the flat mini-dimension, so a
-// loaded mini-dimension chunk exists from the first transit on and stage 1 rollback would degrade
-// to a full recycle. Isolation is done with disjoint spawn offsets and unique entity ids instead.
-// Needs: snapshot/restore of mini-dimension chunk columns and their chunk-stored entities.
+// RollbackWorld (Atlas 0.8.0): mini-dimension chunk columns and their chunk-stored entities are
+// part of the snapshot since rollback stage 3, and Manifold resyncs its in-memory registry and
+// stores from the restored SaveGame through the atlas:rollback:restored hook
+// (ManifoldModSystem.OnAtlasRollbackRestored). Strict: nothing in this class joins players or
+// otherwise legitimately degrades the rollback, so a degrade is a regression and must fail.
 [Trait("Category", "E2E")]
 public class EntityTransitScenarios : ManifoldScenarioBase
 {
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task Entity_Should_ArriveInTargetDimension_When_Teleported()
     {
         int flatId = await DimensionId("flat");
@@ -37,7 +38,7 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         Assert.Equal("kept-across-transit", arrived.WatchedAttributes.GetString("atlasfixture-marker"));
     }
 
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task Entity_Should_LeaveSourceDimension_When_Teleported()
     {
         int flatId = await DimensionId("flat");
@@ -60,7 +61,7 @@ public class EntityTransitScenarios : ManifoldScenarioBase
             e => e.EntityId == chicken.EntityId);
     }
 
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task Entity_Should_ReturnToOverworld_When_TeleportedBack()
     {
         int flatId = await DimensionId("flat");
