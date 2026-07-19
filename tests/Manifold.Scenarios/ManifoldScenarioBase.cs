@@ -31,6 +31,12 @@ public abstract class ManifoldScenarioBase : AtlasScenarioBase
         return data is { Length: > 0 } && data[0] == 1;
     }
 
+    protected int? ReadInt(string key)
+    {
+        byte[]? data = World.Api.WorldManager.SaveGame.GetData(key);
+        return data is null ? null : BitConverter.ToInt32(data, 0);
+    }
+
     protected static int HotbarCount(ITestPlayer player, string code)
     {
         IInventory hotbar = player.Player.InventoryManager.GetHotbarInventory();

@@ -30,3 +30,11 @@ transit event observations still flow through `SaveGame` data.
 Player-dependent paths (player transit, per-dimension inventory swap,
 concurrent players across dimensions) run against headless test players
 joined through Atlas's `World.JoinPlayer`.
+
+The admin and lifecycle surface is covered end to end: `/manifold purge`
+(refusals, evacuation, id release), `ForceRemoveDimension`, the ephemeral
+auto-reap, `WithDarkSky` column capping, typed `WithMetadata` round trips,
+and the void rescue after a kicked player's dimension disappears
+(`ITestPlayer.IsConnected`). `PersistenceScenarios` uses Atlas's
+`RestartWorld` isolation to assert dimension ids and generated terrain
+survive a real server shutdown/boot round trip.

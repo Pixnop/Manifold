@@ -34,6 +34,13 @@ public sealed class AtlasFixtureModSystem : ModSystem
         _sapi = api;
         _manifold = api.GetManifoldServer(this);
 
+        // Boot counter + first-boot dimension ids: the persistence scenarios compare state
+        // across a real server restart (Atlas RestartWorld), so the first boot's values must
+        // be readable after the second boot.
+        byte[]? bootData = api.WorldManager.SaveGame.GetData($"{Domain}:bootcount");
+        int bootCount = (bootData is null ? 0 : BitConverter.ToInt32(bootData, 0)) + 1;
+        api.WorldManager.SaveGame.StoreData($"{Domain}:bootcount", BitConverter.GetBytes(bootCount));
+
         IDimension flat = _manifold.Registry
             .Define(new AssetLocation(Domain, "flat"))
             .Persistent()
@@ -65,10 +72,33 @@ public sealed class AtlasFixtureModSystem : ModSystem
         PublishDimensionId("vault", vault.InternalId);
         PregenerateSpawn(vault);
 
+        // Metadata-only dimension: no terrain probes, so no pregeneration needed.
+        IDimension meta = _manifold.Registry
+            .Define(new AssetLocation(Domain, "meta"))
+            .Persistent()
+            .WithWorldgen(new BasicVoidWorldgenStrategy())
+            .WithMetadata("level", 7)
+            .WithMetadata("name", "Atlas Meta")
+            .WithMetadata("mode", EnumGameMode.Creative)
+            .WithMetadata("blob", new byte[] { 1, 2, 3 })
+            .WithMetadata("empty", null)
+            .RegisterStatic();
+        PublishDimensionId("meta", meta.InternalId);
+
         _manifold.Transitions.PlayerEntered += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
             $"{Domain}:event:player-entered:{e.TargetDimension.Code.Path}", new[] { (byte)1 });
         _manifold.Transitions.PlayerLeft += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
             $"{Domain}:event:player-left:{e.SourceDimension.Code.Path}", new[] { (byte)1 });
+        _manifold.Transitions.PlayerArriving += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
+            $"{Domain}:event:player-arriving:{e.TargetDimension.Code.Path}", new[] { (byte)1 });
+        _manifold.Registry.Destroyed += (_, e) =>
+        {
+            if (e.Dimension.Code.Domain == Domain)
+            {
+                _sapi.WorldManager.SaveGame.StoreData(
+                    $"{Domain}:event:destroyed:{e.Dimension.Code.Path}", new[] { (byte)1 });
+            }
+        };
 
         RegisterCommands(api);
     }
@@ -78,6 +108,13 @@ public sealed class AtlasFixtureModSystem : ModSystem
         _sapi.WorldManager.SaveGame.StoreData(
             $"{Domain}:dimid:{path}",
             BitConverter.GetBytes(internalId));
+
+        // First-boot id, written once: lets a post-restart scenario verify id stability.
+        string firstBootKey = $"{Domain}:dimid-firstboot:{path}";
+        if (_sapi.WorldManager.SaveGame.GetData(firstBootKey) is null)
+        {
+            _sapi.WorldManager.SaveGame.StoreData(firstBootKey, BitConverter.GetBytes(internalId));
+        }
     }
 
     /// <summary>
@@ -141,7 +178,114 @@ public sealed class AtlasFixtureModSystem : ModSystem
             .BeginSubCommand("teleport-player")
                 .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
                 .HandleWith(OnTeleportPlayer)
+            .EndSubCommand()
+            .BeginSubCommand("create-persistent")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnCreatePersistent)
+            .EndSubCommand()
+            .BeginSubCommand("create-darksky")
+                .WithArgs(parsers.Word("dimpath"), parsers.Int("ceiling"))
+                .HandleWith(OnCreateDarkSky)
+            .EndSubCommand()
+            .BeginSubCommand("force-remove")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnForceRemove)
+            .EndSubCommand()
+            .BeginSubCommand("kick")
+                .WithArgs(parsers.Word("playername"))
+                .HandleWith(OnKick)
+            .EndSubCommand()
+            .BeginSubCommand("metadata")
+                .WithArgs(parsers.Word("dimpath"), parsers.Word("key"))
+                .HandleWith(OnMetadata)
             .EndSubCommand();
+    }
+
+    private TextCommandResult OnCreatePersistent(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        IDimension dimension = _manifold.Registry
+            .Define(new AssetLocation(Domain, path))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(1)
+            .Create();
+        PublishDimensionId(path, dimension.InternalId);
+        PregenerateSpawn(dimension);
+        return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    private TextCommandResult OnCreateDarkSky(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        int ceiling = (int)args[1];
+        IDimension dimension = _manifold.Registry
+            .Define(new AssetLocation(Domain, path))
+            .Ephemeral()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(1)
+            .WithDarkSky(ceiling)
+            .Create();
+        PublishDimensionId(path, dimension.InternalId);
+        PregenerateSpawn(dimension);
+        return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    private TextCommandResult OnForceRemove(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        try
+        {
+            bool removed = _manifold.ForceRemoveDimension(new AssetLocation(Domain, path));
+            return TextCommandResult.Success(removed ? "removed" : "not-removed");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error(ex.Message);
+        }
+    }
+
+    private TextCommandResult OnKick(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        IServerPlayer? player = _sapi.World.AllOnlinePlayers
+            .OfType<IServerPlayer>()
+            .FirstOrDefault(p => p.PlayerName == playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        player.Disconnect("Kicked by the Atlas fixture.");
+        return TextCommandResult.Success("kicked");
+    }
+
+    private TextCommandResult OnMetadata(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        var key = (string)args[1];
+
+        IDimension? dimension = _manifold.Registry.Get(new AssetLocation(Domain, path));
+        if (dimension is null)
+        {
+            return TextCommandResult.Error($"No dimension {path}.");
+        }
+
+        if (!dimension.HasMetadata(key))
+        {
+            return TextCommandResult.Success("absent");
+        }
+
+        object? value = dimension.Metadata[key];
+        string rendered = value switch
+        {
+            null => "null",
+            byte[] bytes => "bytes:" + string.Join('-', bytes),
+            _ => value.GetType().Name + ":" + Convert.ToString(value, CultureInfo.InvariantCulture),
+        };
+        return TextCommandResult.Success(rendered);
     }
 
     private TextCommandResult OnTeleportEntity(TextCommandCallingArgs args)
@@ -227,7 +371,16 @@ public sealed class AtlasFixtureModSystem : ModSystem
     private TextCommandResult OnRemove(TextCommandCallingArgs args)
     {
         var path = (string)args[0];
-        bool removed = _manifold.Registry.TryRemove(new AssetLocation(Domain, path));
-        return TextCommandResult.Success(removed ? "removed" : "not-removed");
+        try
+        {
+            bool removed = _manifold.Registry.TryRemove(new AssetLocation(Domain, path));
+            return TextCommandResult.Success(removed ? "removed" : "not-removed");
+        }
+        catch (ManifoldException ex)
+        {
+            // Persistent/BuiltIn removal throws; surface the message so scenarios can
+            // assert on the refusal instead of crashing the command pipeline.
+            return TextCommandResult.Error(ex.Message);
+        }
     }
 }
