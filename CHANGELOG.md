@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Integration coverage for the admin and persistence surface** (`tests/Manifold.Scenarios`, now on [Atlas](https://github.com/Pixnop/Atlas) 0.11.0) - 15 new scenarios: `/manifold purge` (built-in refusal, persistent teardown with engine-id release, occupant evacuation), `ForceRemoveDimension` (ephemeral evacuation, persistent refusal), the ephemeral auto-reap on transit-out, `WithDarkSky` column capping, typed `WithMetadata` round trips, the void rescue of a player whose saved dimension disappeared while offline, and - via Atlas's restart-same-world isolation - dimension id and terrain persistence across a real server shutdown/boot round trip.
+
 ## [0.4.2] - 2026-07-04
 
 ### Changed
