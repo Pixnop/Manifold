@@ -24,10 +24,10 @@ internal static class OverworldRescue
     /// <returns><c>true</c> if the player actually left their dimension.</returns>
     public static bool TryEvacuate(ITransitionService transit, IServerPlayer player, ILogger? logger)
     {
-        int before = EntityPosAccess.PosOrNull(player.Entity)?.Dimension ?? -1;
+        bool moved;
         try
         {
-            transit.TeleportPlayer(
+            moved = transit.TryTeleportPlayer(
                 player,
                 DimensionRegistry.OverworldCode,
                 new TransitionOptions { SpawnBehavior = SpawnBehavior.LastVisited });
@@ -38,7 +38,6 @@ internal static class OverworldRescue
             return false;
         }
 
-        bool moved = EntityPosAccess.PosOrNull(player.Entity)?.Dimension != before;
         if (!moved)
         {
             logger?.Warning(

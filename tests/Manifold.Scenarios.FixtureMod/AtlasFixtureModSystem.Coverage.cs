@@ -154,7 +154,35 @@ public sealed partial class AtlasFixtureModSystem
             .BeginSubCommand("kick")
                 .WithArgs(parsers.Word("playername"))
                 .HandleWith(OnKick)
+            .EndSubCommand()
+            .BeginSubCommand("try-teleport-player")
+                .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
+                .HandleWith(OnTryTeleportPlayer)
             .EndSubCommand();
+    }
+
+    /// <summary>Drives the public ITransitionService.TryTeleportPlayer and reports its bool result directly.</summary>
+    private TextCommandResult OnTryTeleportPlayer(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        var dimPath = (string)args[1];
+
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        var options = new TransitionOptions { OverridePosition = DefaultLanding(dimPath) };
+        try
+        {
+            bool moved = _manifold.Transitions.TryTeleportPlayer(player, ResolveTargetCode(dimPath), options);
+            return TextCommandResult.Success(moved ? "moved" : "cancelled");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private IServerPlayer? FindPlayer(string name) =>

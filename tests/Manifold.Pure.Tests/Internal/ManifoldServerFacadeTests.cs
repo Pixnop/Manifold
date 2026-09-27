@@ -117,13 +117,15 @@ public sealed class ManifoldServerFacadeTests
         sapi.World.AllOnlinePlayers.Returns(new IPlayer[] { occupant });
 
         var order = new List<string>();
-        transitions.When(t => t.TeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
+        transitions.TryTeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>())
+            .Returns(true);
+        transitions.When(t => t.TryTeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
             .Do(_ => order.Add("teleport"));
         facade.Registry.Destroyed += (_, _) => order.Add("destroyed");
 
         Assert.True(facade.ForceRemoveDimension(new AssetLocation("owner:ephemeral")));
 
-        transitions.Received(1).TeleportPlayer(
+        transitions.Received(1).TryTeleportPlayer(
             occupant,
             Arg.Is<AssetLocation>(c => c.Equals(new AssetLocation("manifold:overworld"))),
             Arg.Is<TransitionOptions>(o => o.SpawnBehavior == SpawnBehavior.LastVisited));

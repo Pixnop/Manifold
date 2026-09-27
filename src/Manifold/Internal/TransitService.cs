@@ -127,19 +127,8 @@ internal sealed class TransitService : ITransitionService
             LogSubscriberError);
     }
 
-    /// <summary>
-    /// Core of <see cref="TeleportPlayer"/>: identical behavior, but reports whether the player
-    /// actually moved (as opposed to a subscriber cancelling the transit). <see cref="TeleportPlayer"/>
-    /// is <c>void</c> per <see cref="ITransitionService"/> and cannot report this without a breaking
-    /// API change; <see cref="Api.Helpers.DimensionCommandBuilder"/> and <see cref="Api.Helpers.PortalBlockBase"/>
-    /// call this directly (when <c>Transitions</c> is this concrete type) so they can reply with an
-    /// error instead of reporting success on a cancelled transit.
-    /// </summary>
-    /// <param name="player">Server player to teleport.</param>
-    /// <param name="targetDim">Target dimension code.</param>
-    /// <param name="options">Optional transit settings.</param>
-    /// <returns><c>true</c> if the player was moved; <c>false</c> if a subscriber cancelled the transit.</returns>
-    internal bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
+    /// <inheritdoc/>
+    public bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(targetDim);
