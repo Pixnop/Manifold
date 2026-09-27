@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
+using NSubstitute;
 using Vintagestory.API.Common;
 using Xunit;
 
@@ -88,6 +89,23 @@ public sealed class DimensionPersistenceTests
         store.Write(DimensionPersistence.ManifestKey, new byte[] { 0x00, 0xFF, 0xAB });
         var persistence = new DimensionPersistence(store, new FakeModLoaderQuery());
         Assert.Empty(persistence.LoadOrEmpty());
+    }
+
+    [Fact]
+    public void LoadOrEmpty_Should_Log_Error_When_Store_Has_Corrupted_Data()
+    {
+        var store = new InMemoryManifestStore();
+
+        // Unlike { 0x00, 0xFF, 0xAB } above (parses to an empty tree with no throw), this byte
+        // sequence makes TreeAttribute.FromBytes throw, exercising the actual catch block.
+        store.Write(DimensionPersistence.ManifestKey, new byte[] { 0xFF, 0x01, 0x02 });
+        var logger = Substitute.For<ILogger>();
+        var persistence = new DimensionPersistence(store, new FakeModLoaderQuery(), logger);
+
+        // The corrupt manifest recovery (re-registration at boot) is otherwise silent; it must log.
+        _ = new List<ManifestEntry>(persistence.LoadOrEmpty());
+
+        logger.Received(1).Error(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
     [Fact]

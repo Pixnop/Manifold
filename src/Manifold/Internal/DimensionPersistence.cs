@@ -18,14 +18,17 @@ internal sealed class DimensionPersistence
 
     private readonly IManifestStore _store;
     private readonly IModLoaderQuery _modLoaderQuery;
+    private readonly ILogger? _logger;
 
     /// <summary>Initializes a new instance of the <see cref="DimensionPersistence"/> class.</summary>
     /// <param name="store">Manifest byte store.</param>
     /// <param name="modLoaderQuery">Mod loader probe for orphan detection.</param>
-    public DimensionPersistence(IManifestStore store, IModLoaderQuery modLoaderQuery)
+    /// <param name="logger">Optional logger used to report a corrupt manifest. <c>null</c> silences the report.</param>
+    public DimensionPersistence(IManifestStore store, IModLoaderQuery modLoaderQuery, ILogger? logger = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _modLoaderQuery = modLoaderQuery ?? throw new ArgumentNullException(nameof(modLoaderQuery));
+        _logger = logger;
     }
 
     /// <summary>Persist the supplied manifest entries (skipping Ephemeral and BuiltIn).</summary>
@@ -74,9 +77,15 @@ internal sealed class DimensionPersistence
             tree = new TreeAttribute();
             tree.FromBytes(raw);
         }
-        catch
+        catch (Exception ex)
         {
-            // Corrupted manifest - drop silently; consumers will re-register at boot.
+            // Corrupted manifest - consumers re-register at boot (Persistent dimension ids are
+            // re-allocated), but that recovery is otherwise silent, so log it.
+            _logger?.Error(
+                "[Manifold] Dimension manifest '{0}' is corrupt ({1} bytes): {2}. Persistent dimension ids will be re-allocated.",
+                ManifestKey,
+                raw.Length,
+                ex.Message);
             yield break;
         }
 

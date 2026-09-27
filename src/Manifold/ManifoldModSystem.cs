@@ -90,7 +90,8 @@ public sealed class ManifoldModSystem : ModSystem
         _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(
             _manifestStore,
-            new ModLoaderQuery(api.ModLoader));
+            new ModLoaderQuery(api.ModLoader),
+            Mod.Logger);
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(api);
 
@@ -589,7 +590,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Restore the persisted set of generated columns so revisits LOAD (preserving player
         // modifications) instead of regenerating over them, and the per-player last positions.
         _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
-        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey));
+        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey), Mod.Logger);
 
         return (dropped, reseeded);
     }
