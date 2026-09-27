@@ -317,9 +317,14 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .RequiresPrivilege("controlserver")
             .HandleWith(cmdArgs =>
             {
-                if (!manifold.ForceRemoveDimension(miningCode))
+                if (manifold.Registry.Get(miningCode) is null)
                 {
                     return TextCommandResult.Success("Nothing to reset - manifoldsample:mining is not currently registered.");
+                }
+
+                if (!manifold.ForceRemoveDimension(miningCode))
+                {
+                    return TextCommandResult.Error("Could not evacuate everyone from manifoldsample:mining; it is still in use.");
                 }
 
                 _miningDimSalt++;
