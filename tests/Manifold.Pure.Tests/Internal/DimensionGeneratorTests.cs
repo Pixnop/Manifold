@@ -22,7 +22,7 @@ public sealed class DimensionGeneratorTests
     [Fact]
     public void InvokeStrategyColumn_Should_Increment_Failure_Count_On_Throw()
     {
-        var (generator, _) = NewGenerator();
+        var generator = NewGenerator();
         var throwing = new ThrowingStrategy();
         var ctx = FakeCtx(42);
 
@@ -37,7 +37,7 @@ public sealed class DimensionGeneratorTests
     [Fact]
     public void InvokeStrategyColumn_Should_Fire_StrategyThrew_On_Exception()
     {
-        var (generator, _) = NewGenerator();
+        var generator = NewGenerator();
         var throwing = new ThrowingStrategy();
         var ctx = FakeCtx(42);
 
@@ -55,7 +55,7 @@ public sealed class DimensionGeneratorTests
     [Fact]
     public void InvokeStrategyColumn_Should_AutoDisable_After_Four_Consecutive_Throws()
     {
-        var (generator, _) = NewGenerator();
+        var generator = NewGenerator();
         var throwing = new ThrowingStrategy();
         var ctx = FakeCtx(42);
 
@@ -73,7 +73,7 @@ public sealed class DimensionGeneratorTests
     [Fact]
     public void StrategyAutoDisabled_Should_Fire_Once_When_Disabled()
     {
-        var (generator, _) = NewGenerator();
+        var generator = NewGenerator();
         var throwing = new ThrowingStrategy();
         var ctx = FakeCtx(42);
 
@@ -94,7 +94,7 @@ public sealed class DimensionGeneratorTests
     [Fact]
     public void InvokeStrategyColumn_Should_Reset_Failure_Count_On_Success()
     {
-        var (generator, _) = NewGenerator();
+        var generator = NewGenerator();
         var throwing = new ThrowingStrategy();
         var ctx = FakeCtx(42);
 
@@ -114,7 +114,7 @@ public sealed class DimensionGeneratorTests
     [Fact]
     public void InvokeStrategyColumn_Should_Skip_When_Disabled()
     {
-        var (generator, _) = NewGenerator();
+        var generator = NewGenerator();
         var throwing = new ThrowingStrategy();
         var ctx = FakeCtx(42);
 
@@ -130,6 +130,73 @@ public sealed class DimensionGeneratorTests
         generator.InvokeStrategyColumn(throwing, ctx, 42);
 
         Assert.Equal(callsBefore, throwing.CallCount);
+    }
+
+    /// <summary>
+    /// <see cref="DimensionGenerator.ForgetDimension"/> drops the disabled/failure state, so a
+    /// recycled engine id does not inherit a previous dimension's auto-disabled strategy.
+    /// </summary>
+    [Fact]
+    public void ForgetDimension_Should_Reset_Disabled_And_Failure_State()
+    {
+        var generator = NewGenerator();
+        var throwing = new ThrowingStrategy();
+        var ctx = FakeCtx(42);
+        for (int i = 0; i < 4; i++)
+        {
+            generator.InvokeStrategyColumn(throwing, ctx, 42);
+        }
+
+        Assert.True(generator.IsDisabled(42));
+
+        generator.ForgetDimension(42);
+
+        Assert.False(generator.IsDisabled(42));
+        Assert.Equal(0, generator.GetConsecutiveFailureCount(42));
+    }
+
+    /// <summary>
+    /// Three consecutive throws stay under <c>MaxConsecutiveFailures</c> (4) and must not disable.
+    /// </summary>
+    [Fact]
+    public void InvokeStrategyColumn_Should_Not_AutoDisable_After_Three_Consecutive_Throws()
+    {
+        var generator = NewGenerator();
+        var throwing = new ThrowingStrategy();
+        var ctx = FakeCtx(42);
+
+        for (int i = 0; i < 3; i++)
+        {
+            generator.InvokeStrategyColumn(throwing, ctx, 42);
+        }
+
+        Assert.False(generator.IsDisabled(42));
+    }
+
+    /// <summary>
+    /// A failed <see cref="IWorldgenStrategy.OnInitialize"/> must not generate uninitialized terrain:
+    /// the init marker is removed so the next visit retries instead of skipping straight to
+    /// <see cref="DimensionGenerator.GetConsecutiveFailureCount"/>'s target of failing forever.
+    /// </summary>
+    [Fact]
+    public void EnsureColumn_Should_Retry_OnInitialize_After_A_Failure()
+    {
+        var registry = new DimensionRegistry(new DimensionAllocator());
+        var strategy = new RecordingWorldgenStrategy { ThrowOnNextInitialize = true };
+        var dim = registry.DefineForOwner(Code("owner:retry"), "owner")
+            .WithWorldgen(strategy)
+            .RegisterStatic();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var sapi = Substitute.For<ICoreServerAPI>();
+
+        bool first = generator.EnsureColumn(sapi, dim.InternalId, 0, 0);
+        Assert.False(first);
+        Assert.Equal(1, strategy.InitCallCount);
+
+        bool second = generator.EnsureColumn(sapi, dim.InternalId, 0, 0);
+        Assert.True(second);
+        Assert.Equal(2, strategy.InitCallCount);
+        sapi.WorldManager.Received(1).CreateChunkColumnForDimension(0, 0, dim.InternalId);
     }
 
     [Fact]
@@ -158,12 +225,10 @@ public sealed class DimensionGeneratorTests
         sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
-    private static (DimensionGenerator Generator, DimensionRegistry Registry) NewGenerator()
-    {
-        var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator);
-        return (new DimensionGenerator(registry, new GeneratedColumnStore()), registry);
-    }
+    private static DimensionGenerator NewGenerator() =>
+        new(new DimensionRegistry(new DimensionAllocator()), new GeneratedColumnStore());
+
+    private static Vintagestory.API.Common.AssetLocation Code(string s) => new(s);
 
     private static IWorldgenChunkContext FakeCtx(int dim)
     {
