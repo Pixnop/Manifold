@@ -68,7 +68,7 @@ When a player transits into a dimension for the first time (or after a server re
 
 1. Computes the target chunk column from the transit destination position.
 2. Iterates all columns within `generationRadius` chunks in X and Z.
-3. For each column: calls `CreateChunkColumnForDimension`, then `strategy.GenerateColumn`, then relights the column and sends it to the client.
+3. For each column: calls `CreateChunkColumnForDimension`, then `strategy.GenerateColumn`, then sends the column to the client. There is no relight pass (see [Lighting](#lighting-in-custom-dimensions)).
 4. Completes the player teleport once generation finishes.
 
 This happens **synchronously on the main thread** before the player arrives - so the player never sees an ungenerated void.
@@ -152,29 +152,33 @@ When a player enters a streaming dimension:
 
 The two modes coexist. A dimension can use only bounded generation, only streaming, or both (bounded for the initial landing pad, streaming for ongoing movement).
 
-### Relight height
+## Lighting in custom dimensions
 
-The relight pass covers Y0 up to the dimension's relight height (default 20), set with
-`WithRelightHeight(maxY)`. Content built above that height is under-lit until the engine performs
-its own relight pass naturally, so set a taller band for dimensions with tall terrain or structures.
-A tighter band is cheaper to relight, which matters most for streaming (relit per tick).
+Manifold does not relight a column after generating it. The automatic relight pass was removed in
+0.4.2: a dimension-aware full relight floods a custom dimension with maximum skylight (the engine
+seeds skylight from the top of each column with no per-dimension day/night gate, see
+[issue #62](https://github.com/Pixnop/Manifold/issues/62)), and the synchronous pass stalled the
+first visit to a bounded dimension. Custom dimensions therefore use the engine's native client-side
+lighting, as they did in every release before the relight experiment.
 
-**Symptom checklist:** if light inside your dimension looks wrong (stale block light, dark
-structures, light only fixing itself when you break and re-place a light source), the first thing
-to check is whether your content sits above the relight band. A hut at Y 65 with the default band
-of 20 is entirely outside the relit volume.
+What that means in practice:
 
-**Day/night inside custom dimensions:** once a dimension is correctly relit, sky-exposed blocks
-carry full sunlight values, and the engine currently renders them at full brightness regardless
-of the time of day - custom dimensions do not follow the overworld's day/night cycle visually.
-There is no public hook to attenuate this per dimension today. If your dimension previously
-looked dark and you were compensating for it, expect it to be properly lit from Manifold 0.4.2.
-Per-dimension time of day (which would give real nights) is tracked in
-[issue #55](https://github.com/Pixnop/Manifold/issues/55).
+- **Open or mostly-air dimensions render fully lit**, whatever the time of day. Use
+  `WithDarkSky(ceilingY)` when you want a dark dimension: it seals every generated column with an
+  opaque ceiling so the area below is lit only by block light (torches, lamps, lava).
+- **Solid-filled dimensions** (terrain carved into rooms) are dark without any option.
+- **Blocks placed after generation** are not relit by the engine in a custom dimension; use
+  `RelightRegion` or `/manifold relight`, described below.
+- **Per-dimension day/night** does not exist: the engine keeps a single global calendar and sky
+  light uniform. Per-dimension time of day is tracked in
+  [issue #55](https://github.com/Pixnop/Manifold/issues/55).
+
+`WithRelightHeight(maxY)` has had no effect since 0.4.2 and is marked `[Obsolete]`; it still
+validates its argument so existing callers keep working.
 
 ### Relighting at runtime (`RelightRegion`)
 
-Worldgen relight only covers what the strategy generated. If your mod places blocks **after**
+If your mod places blocks **after**
 generation - a schematic paste, a structure stamp, a room builder - the engine does not
 recalculate light for them in a custom dimension, and the vanilla `/debug chunk relight` command
 is dimension-blind. Request a dim-aware relight explicitly:

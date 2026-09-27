@@ -20,9 +20,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     /// <summary>Default generation radius in chunks (produces a 5x5 column region).</summary>
     internal const int DefaultGenerationRadius = 2;
 
-    /// <summary>Default upper Y bound for the post-generation relight pass.</summary>
-    internal const int DefaultRelightHeight = 20;
-
     /// <summary>Default per-dimension streaming column budget per tick.</summary>
     internal const int DefaultStreamingBudgetPerTick = 4;
 
@@ -42,7 +39,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private EnumGameMode? _forcedGameMode;
     private int? _streamingLoadRadius;
     private ManifoldInventory _separateInventory = ManifoldInventory.None;
-    private int _relightHeight = DefaultRelightHeight;
     private int? _streamingBudgetPerTick;
     private int? _skyCapY;
     private Dictionary<string, object?>? _metadata;
@@ -111,7 +107,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder WithRelightHeight(int maxY)
     {
         ThrowIfUsed();
-        _relightHeight = Guards.InRange(maxY, 1, 1024, nameof(maxY));
+        Guards.InRange(maxY, 1, 1024, nameof(maxY));
         return this;
     }
 
@@ -162,11 +158,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     {
         ThrowIfUsed();
         _skyCapY = Guards.InRange(ceilingY, 1, 1024, nameof(ceilingY));
-
-        // The cap only takes effect if it sits inside the relit band: Manifold's bounded relight
-        // clears + recomputes light only up to RelightHeight, so a cap above that height is never
-        // recomputed and the dimension stays bright. Auto-raise the band to cover the cap layer.
-        _relightHeight = System.Math.Max(_relightHeight, _skyCapY.Value + 1);
         return this;
     }
 
@@ -231,7 +222,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _spawnPoint,
             _forcedGameMode,
             _streamingLoadRadius,
-            _relightHeight,
             _separateInventory,
             BuildMetadata(),
             _streamingBudgetPerTick,
@@ -266,7 +256,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
             _spawnPoint,
             _forcedGameMode,
             _streamingLoadRadius,
-            _relightHeight,
             _separateInventory,
             BuildMetadata(),
             _streamingBudgetPerTick,

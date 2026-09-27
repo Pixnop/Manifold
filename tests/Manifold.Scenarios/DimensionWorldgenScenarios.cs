@@ -1,9 +1,14 @@
 namespace Manifold.Scenarios;
 
+using Atlas.Api;
 using Atlas.XUnit;
 using Vintagestory.API.MathTools;
 using Xunit;
 
+/// <summary>
+/// Terrain probes pregenerate their dimension explicitly (/atlasfx pregen) because the
+/// fixture no longer generates any mini-dimension region at boot; see the fixture mod.
+/// </summary>
 [Trait("Category", "E2E")]
 public class DimensionWorldgenScenarios : ManifoldScenarioBase
 {
@@ -19,15 +24,15 @@ public class DimensionWorldgenScenarios : ManifoldScenarioBase
     }
 
     [AtlasScenario]
-    public async Task FlatDimension_Should_GenerateGraniteSlab_When_Registered()
+    public async Task FlatDimension_Should_GenerateGraniteSlab_When_Pregenerated()
     {
         int flatId = await DimensionId("flat");
         var inSlab = new BlockPos(512, 3, 512, flatId);
         var aboveSlab = new BlockPos(512, 10, 512, flatId);
 
-        await World.Until(
-            () => World.BlockAt(inSlab).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 1200);
+        await Ok("/atlasfx pregen flat");
+
+        await BlockBecomes(inSlab, "game:rock-granite", timeoutTicks: 1200);
 
         Assert.Equal("game:air", World.BlockAt(aboveSlab).Code.ToString());
     }
@@ -40,9 +45,10 @@ public class DimensionWorldgenScenarios : ManifoldScenarioBase
         var probeFlat = new BlockPos(512, 3, 512, flatId);
         var probeVoid = new BlockPos(512, 3, 512, voidId);
 
-        await World.Until(
-            () => World.BlockAt(probeFlat).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 1200);
+        await Ok("/atlasfx pregen flat");
+        await Ok("/atlasfx pregen void");
+
+        await BlockBecomes(probeFlat, "game:rock-granite", timeoutTicks: 1200);
 
         // Same local coordinates, different dimension, different worldgen output.
         Assert.Equal("game:air", World.BlockAt(probeVoid).Code.ToString());

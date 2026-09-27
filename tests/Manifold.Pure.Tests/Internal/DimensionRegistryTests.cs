@@ -221,7 +221,7 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
-    public void WithDarkSky_Should_Set_SkyCapY_And_Bump_RelightHeight()
+    public void WithDarkSky_Should_Set_SkyCapY()
     {
         var registry = NewRegistry();
         var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
@@ -230,23 +230,6 @@ public sealed class DimensionRegistryTests
             .RegisterStatic();
 
         Assert.Equal(30, dim.SkyCapY);
-
-        // Relight band must cover the cap (capY + 1) or the cap never takes effect.
-        Assert.Equal(31, dim.RelightHeight);
-    }
-
-    [Fact]
-    public void WithDarkSky_Should_Not_Lower_An_Already_Higher_RelightHeight()
-    {
-        var registry = NewRegistry();
-        var dim = (Manifold.Internal.DimensionImpl)registry.DefineForOwner(Code("a:b"), "testmod")
-            .WithWorldgen(new FakeWorldgenStrategy())
-            .WithRelightHeight(200)
-            .WithDarkSky(ceilingY: 30)
-            .RegisterStatic();
-
-        Assert.Equal(30, dim.SkyCapY);
-        Assert.Equal(200, dim.RelightHeight);
     }
 
     [Fact]

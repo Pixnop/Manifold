@@ -4,6 +4,10 @@ using Atlas.Api;
 using Atlas.XUnit;
 using Xunit;
 
+// rollback-stage2-candidate: joined test players hard-refuse stage 1 rollback. The interesting
+// rollback surface here is player moddata: Manifold persists the swapped-out inventory sets in
+// moddata, so a rollback that restored world state but not moddata would resurrect items in two
+// places. Needs: per-player moddata capture in the same snapshot as SaveGame data.
 [Trait("Category", "E2E")]
 public class PlayerInventoryScenarios : ManifoldScenarioBase
 {

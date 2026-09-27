@@ -77,7 +77,7 @@ jobs:
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
   e2e:
-    name: E2E scenarios (VS 1.22.2)
+    name: E2E scenarios (VS 1.22.7)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: analyze
@@ -95,13 +95,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/vs
-          key: vs-server-linux-x64-1.22.2
+          key: vs-server-linux-x64-1.22.7
 
       - name: Download Vintage Story server
         if: steps.cache-vs.outputs.cache-hit != 'true'
         run: |
           set -e
-          curl -sSL --proto '=https' --proto-redir '=https' -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
+          curl -sSL --proto '=https' --proto-redir '=https' -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.7.tar.gz"
           mkdir -p "$HOME/vs"
           tar -xzf vs_server.tar.gz -C "$HOME/vs"
 
