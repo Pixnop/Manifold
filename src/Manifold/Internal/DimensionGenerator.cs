@@ -9,14 +9,15 @@ using Vintagestory.API.Server;
 namespace Manifold.Internal;
 
 /// <summary>
-/// Active worldgen driver. Replaces the old <c>ChunkColumnGeneration</c>-hook approach.
-/// Generates or loads chunk columns on demand by directly calling the engine's
-/// <c>CreateChunkColumnForDimension</c> / <c>LoadChunkColumnForDimension</c> APIs.
+/// Active worldgen driver. Generates or loads chunk columns on demand by directly calling the
+/// engine's <c>CreateChunkColumnForDimension</c> / <c>LoadChunkColumnForDimension</c> APIs; no
+/// Harmony patches or event hooks are involved.
 /// </summary>
 /// <remarks>
 /// Server-side, main thread. Call <see cref="EnsureRegion"/> whenever a player enters a custom
 /// dimension; the generator creates missing columns, fills them via the registered
-/// <see cref="IWorldgenStrategy"/>, relights them, and pushes them to the player.
+/// <see cref="IWorldgenStrategy"/>, and pushes them to the player (no server relight; see
+/// <see cref="EnsureRegion"/>).
 /// </remarks>
 internal sealed class DimensionGenerator
 {
@@ -102,13 +103,9 @@ internal sealed class DimensionGenerator
 
         FillRegionColumns(sapi, dimId, centerCx, centerCz, dim.GenerationRadius, strategy, player);
 
-        // No automatic server-side relight here. The client lights freshly-received chunk columns
-        // natively (sunlight flood on receipt + incremental relight on block edits), exactly as it
-        // did in every released version - where this relight was a dim-0 no-op and custom-dim
-        // lighting was correct. Forcing a server FullRelight on the custom dim (#60) floods skylight
-        // and is force-sent by the streaming driver, overriding the correct client lighting (dims
-        // full-bright, torches/edits not relighting). Modders who need an explicit relight after a
-        // runtime edit use IManifoldServer.RelightRegion / the /manifold relight command.
+        // No server relight: a server FullRelight floods skylight into custom dims and overrides
+        // the client's own lighting (which floods sunlight and relights edits on receipt natively).
+        // Consumers relight explicitly via IManifoldServer.RelightRegion / the /manifold relight command.
     }
 
     /// <summary>
@@ -120,7 +117,7 @@ internal sealed class DimensionGenerator
     /// <param name="dimId">Engine dimension id.</param>
     /// <param name="cx">Chunk X.</param>
     /// <param name="cz">Chunk Z.</param>
-    /// <returns><c>true</c> if newly generated (caller should relight).</returns>
+    /// <returns><c>true</c> if the column was newly generated; <c>false</c> if loaded or skipped.</returns>
     public bool EnsureColumn(ICoreServerAPI sapi, int dimId, int cx, int cz)
     {
         if (cx < 0 || cz < 0 || !TryPrepare(sapi, dimId, out _, out var strategy))
@@ -296,8 +293,8 @@ internal sealed class DimensionGenerator
             return false;
         }
 
-        // First-ever visit: allocate empty chunk slots, populate via strategy. Relight is done ONCE
-        // for the whole region by the caller (per-column relight was the ~40s bottleneck).
+        // First-ever visit: allocate empty chunk slots, populate via strategy. No server relight:
+        // the client lights freshly-received columns itself; see EnsureRegion.
         sapi.WorldManager.CreateChunkColumnForDimension(cx, cz, dimId);
 
         // Bulk accessor batches all SetBlock writes into a single Commit.
