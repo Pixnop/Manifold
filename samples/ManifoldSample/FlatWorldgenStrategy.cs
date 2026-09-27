@@ -1,7 +1,5 @@
 using Manifold.Api.Worldgen;
-using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
-using Vintagestory.API.Server;
 
 namespace ManifoldSample;
 
@@ -19,8 +17,8 @@ public sealed class FlatWorldgenStrategy : IWorldgenStrategy
     /// <inheritdoc/>
     public void OnInitialize(IWorldgenInitContext ctx)
     {
-        _floorBlockId = ResolveFirst(ctx.Api, "game:rock-granite", "game:rock-andesite", "game:rock-basalt");
-        _topBlockId = ResolveFirst(ctx.Api, "game:soil-medium-normal", "game:soil-low-normal", "game:rock-granite");
+        _floorBlockId = WorldgenHelpers.ResolveFirst(ctx.Api, "game:rock-granite", "game:rock-andesite", "game:rock-basalt");
+        _topBlockId = WorldgenHelpers.ResolveFirst(ctx.Api, "game:soil-medium-normal", "game:soil-low-normal", "game:rock-granite");
 
         if (_floorBlockId == 0)
         {
@@ -45,14 +43,12 @@ public sealed class FlatWorldgenStrategy : IWorldgenStrategy
             return;
         }
 
-        const int chunkSize = 32;
+        int baseX = ctx.ChunkX * WorldgenHelpers.ChunkSize;
+        int baseZ = ctx.ChunkZ * WorldgenHelpers.ChunkSize;
 
-        int baseX = ctx.ChunkX * chunkSize;
-        int baseZ = ctx.ChunkZ * chunkSize;
-
-        for (int lx = 0; lx < chunkSize; lx++)
+        for (int lx = 0; lx < WorldgenHelpers.ChunkSize; lx++)
         {
-            for (int lz = 0; lz < chunkSize; lz++)
+            for (int lz = 0; lz < WorldgenHelpers.ChunkSize; lz++)
             {
                 int wx = baseX + lx;
                 int wz = baseZ + lz;
@@ -64,19 +60,5 @@ public sealed class FlatWorldgenStrategy : IWorldgenStrategy
                 }
             }
         }
-    }
-
-    private static int ResolveFirst(ICoreServerAPI api, params string[] codes)
-    {
-        foreach (var code in codes)
-        {
-            var block = api.World.GetBlock(new AssetLocation(code));
-            if (block is not null && block.Id != 0)
-            {
-                return block.Id;
-            }
-        }
-
-        return 0;
     }
 }

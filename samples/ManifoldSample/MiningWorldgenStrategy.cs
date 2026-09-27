@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Manifold.Api.Worldgen;
-using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
-using Vintagestory.API.Server;
 
 namespace ManifoldSample;
 
@@ -31,7 +29,6 @@ public sealed class MiningWorldgenStrategy : IWorldgenStrategy
     private const int RoomFloorY = 22;
     private const int RoomCeilingY = 26;
     private const int OreChanceDenominator = 40;
-    private const int ChunkSize = 32;
 
     private static readonly string[] OreCodes =
     {
@@ -58,13 +55,13 @@ public sealed class MiningWorldgenStrategy : IWorldgenStrategy
     /// <inheritdoc/>
     public void OnInitialize(IWorldgenInitContext ctx)
     {
-        _rockBlockId = ResolveFirst(ctx.Api, "game:rock-granite", "game:rock-andesite", "game:rock-basalt");
-        _lightBlockId = ResolveFirst(ctx.Api, "game:torch-basic-lit-up");
+        _rockBlockId = WorldgenHelpers.ResolveFirst(ctx.Api, "game:rock-granite", "game:rock-andesite", "game:rock-basalt");
+        _lightBlockId = WorldgenHelpers.ResolveFirst(ctx.Api, "game:torch-basic-lit-up");
 
         _oreBlockIds.Clear();
         foreach (var code in OreCodes)
         {
-            int id = ResolveFirst(ctx.Api, code);
+            int id = WorldgenHelpers.ResolveFirst(ctx.Api, code);
             if (id != 0)
             {
                 _oreBlockIds.Add(id);
@@ -98,16 +95,16 @@ public sealed class MiningWorldgenStrategy : IWorldgenStrategy
             return;
         }
 
-        int baseX = ctx.ChunkX * ChunkSize;
-        int baseZ = ctx.ChunkZ * ChunkSize;
+        int baseX = ctx.ChunkX * WorldgenHelpers.ChunkSize;
+        int baseZ = ctx.ChunkZ * WorldgenHelpers.ChunkSize;
 
         // Salted so a freshly-registered instance (after /miningreset) draws a different ore
         // sequence for the same chunk, while the rock shell and spawn room stay deterministic.
         ctx.Rng.InitPositionSeed(baseX + (_salt * 104729), baseZ);
 
-        for (int lx = 0; lx < ChunkSize; lx++)
+        for (int lx = 0; lx < WorldgenHelpers.ChunkSize; lx++)
         {
-            for (int lz = 0; lz < ChunkSize; lz++)
+            for (int lz = 0; lz < WorldgenHelpers.ChunkSize; lz++)
             {
                 int wx = baseX + lx;
                 int wz = baseZ + lz;
@@ -136,19 +133,5 @@ public sealed class MiningWorldgenStrategy : IWorldgenStrategy
                 }
             }
         }
-    }
-
-    private static int ResolveFirst(ICoreServerAPI api, params string[] codes)
-    {
-        foreach (var code in codes)
-        {
-            var block = api.World.GetBlock(new AssetLocation(code));
-            if (block is not null && block.Id != 0)
-            {
-                return block.Id;
-            }
-        }
-
-        return 0;
     }
 }
