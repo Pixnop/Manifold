@@ -11,37 +11,22 @@ namespace Manifold.Pure.Tests.Internal;
 public sealed class DimensionPersistenceTests
 {
     [Fact]
-    public void Save_Should_Write_Manifest_Entry()
-    {
-        var store = new InMemoryManifestStore();
-        var query = new FakeModLoaderQuery();
-        var persistence = new DimensionPersistence(store, query);
-
-        persistence.Save(new[]
-        {
-            new ManifestEntry(Code("mod:persistent"), 10, DimensionLifetime.Persistent, "mod"),
-        });
-
-        Assert.NotNull(store.Read(DimensionPersistence.ManifestKey));
-    }
-
-    [Fact]
     public void Save_Roundtrip_Should_Restore_Entries()
     {
         var store = new InMemoryManifestStore();
         var query = new FakeModLoaderQuery { LoadedMods = { "mod" } };
         var persistence = new DimensionPersistence(store, query);
 
-        persistence.Save(new[]
+        var entries = new[]
         {
             new ManifestEntry(Code("mod:a"), 10, DimensionLifetime.Persistent, "mod"),
             new ManifestEntry(Code("mod:b"), 11, DimensionLifetime.Persistent, "mod"),
-        });
+        };
+        persistence.Save(entries);
 
-        var restored = new List<ManifestEntry>(persistence.LoadOrEmpty());
-        Assert.Equal(2, restored.Count);
-        Assert.Contains(restored, e => e.Code.Equals(Code("mod:a")) && e.InternalId == 10);
-        Assert.Contains(restored, e => e.Code.Equals(Code("mod:b")) && e.InternalId == 11);
+        // ManifestEntry is a record: this compares Code, InternalId, Lifetime and OwnerModId, so
+        // dropping any one of them in Save would fail here (unlike a Code/InternalId-only check).
+        Assert.Equal(entries, new List<ManifestEntry>(persistence.LoadOrEmpty()));
     }
 
     [Fact]

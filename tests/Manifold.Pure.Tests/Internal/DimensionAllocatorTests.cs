@@ -107,8 +107,10 @@ public sealed class DimensionAllocatorTests
         var allocator = new DimensionAllocator();
         int id = allocator.Reserve(Code("mod:a"));
         allocator.Release(id);
-        int fresh = allocator.Reserve(Code("mod:a"));
-        Assert.Equal(id, fresh);
+
+        int reused = allocator.Reserve(Code("mod:b"));
+        Assert.Equal(id, reused);
+        Assert.NotEqual(reused, allocator.Reserve(Code("mod:a")));
     }
 
     [Fact]

@@ -12,8 +12,19 @@ internal sealed class RecordingWorldgenStrategy : IWorldgenStrategy
     /// <summary>Dimension ids passed to <see cref="GenerateColumn"/>, in order.</summary>
     public List<int> GenerateColumnCalls { get; } = new();
 
+    /// <summary>When set, the next <see cref="OnInitialize"/> call throws instead of succeeding, then clears itself.</summary>
+    public bool ThrowOnNextInitialize { get; set; }
+
     /// <inheritdoc/>
-    public void OnInitialize(IWorldgenInitContext ctx) => InitCallCount++;
+    public void OnInitialize(IWorldgenInitContext ctx)
+    {
+        InitCallCount++;
+        if (ThrowOnNextInitialize)
+        {
+            ThrowOnNextInitialize = false;
+            throw new System.InvalidOperationException("boom");
+        }
+    }
 
     /// <inheritdoc/>
     public void GenerateColumn(IWorldgenChunkContext ctx) =>

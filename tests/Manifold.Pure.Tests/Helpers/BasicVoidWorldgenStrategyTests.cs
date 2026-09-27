@@ -11,7 +11,7 @@ namespace Manifold.Pure.Tests.Helpers;
 public sealed class BasicVoidWorldgenStrategyTests
 {
     /// <summary>
-    /// Verifies that OnInitialize does not throw and makes no block mutations.
+    /// Verifies that OnInitialize (a no-op for the void strategy) does not throw.
     /// </summary>
     [Fact]
     public void OnInitialize_Should_Not_Throw()
