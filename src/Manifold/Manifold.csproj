@@ -50,10 +50,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="modinfo.json">
+    <!-- Pack="false": these are the MOD's files (copied to the build output for the mod
+         zip), not part of the compile-time API package - a consumer must not get Manifold's
+         own modinfo.json injected as Content next to its own. -->
+    <Content Include="modinfo.json" Pack="false">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="modicon.png">
+    <Content Include="modicon.png" Pack="false">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
