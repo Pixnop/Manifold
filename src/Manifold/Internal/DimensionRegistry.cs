@@ -215,49 +215,24 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     internal DimensionImpl? GetByInternalId(int internalId) =>
         _snapshot.Values.FirstOrDefault(d => d.InternalId == internalId);
 
-    private DimensionImpl Complete(DimensionBuildRequest request)
+    /// <summary>
+    /// Completes a builder's template: promotes a matching Pending entry in place (keeping its
+    /// existing <see cref="DimensionImpl.InternalId"/> and <see cref="DimensionImpl.Lifetime"/>,
+    /// exactly as before), or reserves a fresh engine id for a brand-new dimension.
+    /// </summary>
+    private DimensionImpl Complete(DimensionImpl template)
     {
-        if (_snapshot.TryGetValue(request.Code, out var existing) &&
+        if (_snapshot.TryGetValue(template.Code, out var existing) &&
             existing.State == DimensionState.Pending)
         {
-            var promoted = existing with
-            {
-                State = DimensionState.Active,
-                Worldgen = request.Worldgen,
-                GenerationRadius = request.GenerationRadius,
-                SpawnBehavior = request.SpawnBehavior,
-                SpawnPoint = request.SpawnPoint,
-                ForcedGameMode = request.ForcedGameMode,
-                StreamingLoadRadius = request.StreamingLoadRadius,
-                SeparateInventory = request.SeparateInventory,
-                Metadata = request.Metadata,
-                StreamingBudgetPerTick = request.StreamingBudgetPerTick,
-                SkyCapY = request.SkyCapY,
-            };
-            _snapshot = _snapshot.SetItem(request.Code, promoted);
+            var promoted = template with { InternalId = existing.InternalId, Lifetime = existing.Lifetime };
+            _snapshot = _snapshot.SetItem(template.Code, promoted);
             SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(promoted), LogSubscriberError);
             return promoted;
         }
 
-        int id = _allocator.Reserve(request.Code);
-        var dim = new DimensionImpl(
-            Code: request.Code,
-            InternalId: id,
-            IsBuiltIn: false,
-            Lifetime: request.Lifetime,
-            OwnerModId: request.OwnerModId,
-            State: DimensionState.Active,
-            Worldgen: request.Worldgen,
-            GenerationRadius: request.GenerationRadius,
-            SpawnBehavior: request.SpawnBehavior,
-            SpawnPoint: request.SpawnPoint,
-            ForcedGameMode: request.ForcedGameMode,
-            StreamingLoadRadius: request.StreamingLoadRadius,
-            SeparateInventory: request.SeparateInventory,
-            Metadata: request.Metadata,
-            StreamingBudgetPerTick: request.StreamingBudgetPerTick,
-            SkyCapY: request.SkyCapY);
-        _snapshot = _snapshot.Add(request.Code, dim);
+        var dim = template with { InternalId = _allocator.Reserve(template.Code) };
+        _snapshot = _snapshot.Add(template.Code, dim);
         SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(dim), LogSubscriberError);
         return dim;
     }

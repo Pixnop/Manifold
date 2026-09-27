@@ -30,7 +30,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
 
     private readonly AssetLocation _code;
     private readonly string _ownerModId;
-    private readonly System.Func<DimensionBuildRequest, IDimension> _completion;
+    private readonly System.Func<DimensionImpl, IDimension> _completion;
     private IWorldgenStrategy? _worldgen;
     private DimensionLifetime? _lifetime;
     private int _generationRadius = DefaultGenerationRadius;
@@ -53,7 +53,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     internal DimensionBuilderImpl(
         AssetLocation code,
         string ownerModId,
-        System.Func<DimensionBuildRequest, IDimension> completion)
+        System.Func<DimensionImpl, IDimension> completion)
     {
         _code = code ?? throw new ArgumentNullException(nameof(code));
         _ownerModId = Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
@@ -211,20 +211,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(
-            _code,
-            _worldgen,
-            lifetime,
-            _ownerModId,
-            _generationRadius,
-            _spawnBehavior,
-            _spawnPoint,
-            _forcedGameMode,
-            _streamingLoadRadius,
-            _separateInventory,
-            BuildMetadata(),
-            _streamingBudgetPerTick,
-            _skyCapY));
+        return _completion(BuildTemplate(lifetime));
     }
 
     /// <inheritdoc/>
@@ -244,21 +231,31 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(
-            _code,
-            _worldgen,
-            _lifetime.Value,
-            _ownerModId,
-            _generationRadius,
-            _spawnBehavior,
-            _spawnPoint,
-            _forcedGameMode,
-            _streamingLoadRadius,
-            _separateInventory,
-            BuildMetadata(),
-            _streamingBudgetPerTick,
-            _skyCapY));
+        return _completion(BuildTemplate(_lifetime.Value));
     }
+
+    /// <summary>
+    /// Builds the dimension record for the registry to complete: <see cref="DimensionImpl.InternalId"/>
+    /// is a placeholder the registry overwrites (a fresh id, or the existing id when promoting a
+    /// Pending entry).
+    /// </summary>
+    private DimensionImpl BuildTemplate(DimensionLifetime lifetime) => new(
+        Code: _code,
+        InternalId: 0,
+        IsBuiltIn: false,
+        Lifetime: lifetime,
+        OwnerModId: _ownerModId,
+        State: DimensionState.Active,
+        Worldgen: _worldgen,
+        GenerationRadius: _generationRadius,
+        SpawnBehavior: _spawnBehavior,
+        SpawnPoint: _spawnPoint,
+        ForcedGameMode: _forcedGameMode,
+        StreamingLoadRadius: _streamingLoadRadius,
+        SeparateInventory: _separateInventory,
+        Metadata: BuildMetadata(),
+        StreamingBudgetPerTick: _streamingBudgetPerTick,
+        SkyCapY: _skyCapY);
 
     private static bool IsSupportedMetadataType(Type t) =>
         t.IsPrimitive || t == typeof(string) || t.IsEnum || t == typeof(byte[]);
