@@ -44,4 +44,8 @@ internal sealed class OwnerScopedManifoldServer : IManifoldServer
     /// <inheritdoc/>
     public bool ForceRemoveDimension(AssetLocation dimension) =>
         _shared.ForceRemoveDimension(dimension);
+
+    /// <inheritdoc/>
+    public void GenerateRegion(AssetLocation dimension, BlockPos center) =>
+        _shared.GenerateRegion(dimension, center);
 }

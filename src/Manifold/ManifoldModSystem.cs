@@ -131,7 +131,7 @@ public sealed class ManifoldModSystem : ModSystem
         transit.PlayerEntered += OnTransitPlayerEntered;
         transit.PlayerLeft += OnTransitPlayerLeft;
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, api, isHealthy: true);
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
 
         RegisterManifoldCommand(api);
@@ -253,7 +253,7 @@ public sealed class ManifoldModSystem : ModSystem
             new PlayerPositionStore(),
             new InventorySwapper(sapi));
         transit.MarkUnhealthy();
-        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, isHealthy: false);
+        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, generator, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
     }
 

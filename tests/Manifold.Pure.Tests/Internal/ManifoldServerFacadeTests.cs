@@ -146,6 +146,62 @@ public sealed class ManifoldServerFacadeTests
         Assert.Empty(transitions.ReceivedCalls());
     }
 
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Dimension_Is_Null()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        Assert.Throws<ArgumentNullException>(() => facade.GenerateRegion(null!, new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Center_Is_Null()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        Assert.Throws<ArgumentNullException>(
+            () => facade.GenerateRegion(new AssetLocation("owner:target"), null!));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Unhealthy()
+    {
+        var (facade, _) = NewFacade(healthy: false);
+        Assert.Throws<ManifoldUnhealthyException>(
+            () => facade.GenerateRegion(new AssetLocation("owner:target"), new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Dimension_Not_Found()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        Assert.Throws<DimensionNotFoundException>(
+            () => facade.GenerateRegion(new AssetLocation("nope:nope"), new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Dimension_Not_Active()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        var qCode = new AssetLocation("ghost:pending");
+        ((DimensionRegistry)facade.Registry).SeedFromManifest(
+            new ManifestEntry(qCode, 501, DimensionLifetime.Persistent, "ghost"),
+            DimensionState.Quarantined);
+
+        Assert.Throws<DimensionStateException>(
+            () => facade.GenerateRegion(qCode, new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Generate_The_Column_Around_Center_With_No_Player()
+    {
+        var (facade, sapi) = NewFacade(healthy: true);
+        var target = facade.Registry.Get(new AssetLocation("owner:target"))!;
+
+        facade.GenerateRegion(new AssetLocation("owner:target"), new BlockPos(0, 8, 0, 0));
+
+        sapi.WorldManager.Received(1).CreateChunkColumnForDimension(0, 0, target.InternalId);
+        sapi.WorldManager.DidNotReceiveWithAnyArgs().ForceSendChunkColumn(default!, default, default, default);
+    }
+
     private static (ManifoldServerFacade Facade, ICoreServerAPI Sapi) NewFacade(bool healthy)
     {
         var registry = new DimensionRegistry(new DimensionAllocator());
@@ -160,7 +216,8 @@ public sealed class ManifoldServerFacadeTests
         var sapi = Substitute.For<ICoreServerAPI>();
         sapi.World.AllOnlinePlayers.Returns(System.Array.Empty<IPlayer>());
         var transitions = Substitute.For<Manifold.Api.Server.ITransitionService>();
-        var facade = new ManifoldServerFacade(registry, transitions, sapi, healthy);
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var facade = new ManifoldServerFacade(registry, transitions, sapi, generator, healthy);
         return (facade, sapi);
     }
 
@@ -177,7 +234,8 @@ public sealed class ManifoldServerFacadeTests
 
         sapi = Substitute.For<ICoreServerAPI>();
         var transitions = Substitute.For<Manifold.Api.Server.ITransitionService>();
-        var facade = new ManifoldServerFacade(registry, transitions, sapi, isHealthy: true);
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var facade = new ManifoldServerFacade(registry, transitions, sapi, generator, isHealthy: true);
         return (facade, transitions, ephemeral.InternalId);
     }
 

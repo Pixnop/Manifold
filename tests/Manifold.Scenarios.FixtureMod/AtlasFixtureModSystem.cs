@@ -74,6 +74,21 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .RegisterStatic();
         PublishDimensionId("stream", stream.InternalId);
 
+        IDimension pregenerated = _manifold.Registry
+            .Define(new AssetLocation(Domain, "pregenerated"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(0)
+            .RegisterStatic();
+        PublishDimensionId("pregenerated", pregenerated.InternalId);
+
+        // Exercises IManifoldServer.GenerateRegion called synchronously right here, right after
+        // RegisterStatic, with no player and no transit (issue #69: a statically registered
+        // dimension otherwise has no terrain until something visits it). Radius 0 keeps this to a
+        // single chunk column so it does not meaningfully grow this class's snapshot.
+        _manifold.GenerateRegion(pregenerated.Code, FixedSpawn);
+
         _manifold.Transitions.PlayerEntered += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
             $"{Domain}:event:player-entered:{e.TargetDimension.Code.Path}", new[] { (byte)1 });
         _manifold.Transitions.PlayerLeft += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
@@ -153,22 +168,17 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
     }
 
     /// <summary>
-    /// RegisterStatic only records the dimension; it does not generate any terrain. Manifold's
-    /// active worldgen driver only runs through Transitions (player transit / join), so nothing
-    /// generates a boot-registered dimension's spawn region on its own. Force it here via a no-op
-    /// TeleportBlock: this call exists purely for its generate-destination-region side effect via
-    /// DimensionGenerator.EnsureRegion, not for the move itself. The source position must be air
-    /// so the move is a guaranteed no-op; a near-ceiling position at the world origin is reliably
-    /// air, unlike y=1 near bedrock, and using a non-air source would actually move a real
-    /// overworld block. Invoked on demand through /atlasfx pregen, not at boot.
+    /// RegisterStatic/Create only records the dimension; it does not generate any terrain. Manifold's
+    /// active worldgen driver otherwise only runs through a player transit or join, so nothing
+    /// generates a boot-registered dimension's spawn region on its own. IManifoldServer.GenerateRegion
+    /// covers exactly this (issue #69). Invoked on demand through /atlasfx pregen, not at boot -
+    /// except for the "pregenerated" dimension, which calls it directly from StartServerSide.
     /// </summary>
     private void PregenerateSpawn(IDimension dimension)
     {
-        var overworldAir = new BlockPos(0, _sapi.WorldManager.MapSizeY - 2, 0, 0);
-        var target = new BlockPos(FixedSpawn.X, FixedSpawn.Y, FixedSpawn.Z, dimension.InternalId);
         try
         {
-            _manifold.Transitions.TeleportBlock(overworldAir, dimension.Code, target);
+            _manifold.GenerateRegion(dimension.Code, FixedSpawn);
         }
         catch (Exception ex)
         {

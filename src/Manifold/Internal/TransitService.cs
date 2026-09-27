@@ -194,7 +194,7 @@ internal sealed class TransitService : ITransitionService
     /// <summary>
     /// Common transit gate shared by all three Teleport* methods: refuses when Manifold is
     /// unhealthy, and resolves <paramref name="targetDim"/> to a registered, <see cref="DimensionState.Active"/>
-    /// dimension.
+    /// dimension (<see cref="DimensionGate.RequireActive"/>).
     /// </summary>
     /// <param name="targetDim">Target dimension code.</param>
     /// <returns>The resolved target dimension.</returns>
@@ -206,15 +206,7 @@ internal sealed class TransitService : ITransitionService
                 "Manifold patches failed at boot; transit is disabled.");
         }
 
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
-
-        return target;
+        return DimensionGate.RequireActive(_registry, targetDim);
     }
 
     /// <summary>

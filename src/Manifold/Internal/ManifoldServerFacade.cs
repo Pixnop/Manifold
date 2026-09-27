@@ -1,6 +1,7 @@
 using System;
 using Manifold.Api;
 using Manifold.Api.Server;
+using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -11,21 +12,25 @@ namespace Manifold.Internal;
 internal sealed class ManifoldServerFacade : IManifoldServer
 {
     private readonly ICoreServerAPI _sapi;
+    private readonly DimensionGenerator _generator;
 
     /// <summary>Initializes a new instance of the <see cref="ManifoldServerFacade"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
     /// <param name="transitions">Transit service.</param>
     /// <param name="sapi">Server API (used by <see cref="RelightRegion"/>).</param>
+    /// <param name="generator">Dimension generator (used by <see cref="GenerateRegion"/>).</param>
     /// <param name="isHealthy">Whether Harmony patches applied successfully.</param>
     public ManifoldServerFacade(
         IDimensionRegistry registry,
         ITransitionService transitions,
         ICoreServerAPI sapi,
+        DimensionGenerator generator,
         bool isHealthy)
     {
         Registry = registry ?? throw new ArgumentNullException(nameof(registry));
         Transitions = transitions ?? throw new ArgumentNullException(nameof(transitions));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
+        _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         IsHealthy = isHealthy;
     }
 
@@ -87,6 +92,22 @@ internal sealed class ManifoldServerFacade : IManifoldServer
         // removed the now-empty dimension. If so, that is the success we wanted - report it as such
         // rather than letting a second TryRemove return false for a code that is already gone.
         return Registry.Get(dimension) is null || Registry.TryRemove(dimension);
+    }
+
+    /// <inheritdoc/>
+    public void GenerateRegion(AssetLocation dimension, BlockPos center)
+    {
+        ArgumentNullException.ThrowIfNull(dimension);
+        ArgumentNullException.ThrowIfNull(center);
+        if (!IsHealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; pregeneration is disabled.");
+        }
+
+        var dim = DimensionGate.RequireActive(Registry, dimension);
+        _generator.EnsureRegion(
+            _sapi, dim.InternalId, ChunkMath.ToChunk(center.X), ChunkMath.ToChunk(center.Z), player: null);
     }
 
     /// <summary>

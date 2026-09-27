@@ -56,4 +56,24 @@ public interface IManifoldServer
     /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
     /// <exception cref="DimensionStateException">The dimension is Persistent (use the admin purge).</exception>
     bool ForceRemoveDimension(AssetLocation dimension);
+
+    /// <summary>
+    /// Generates or loads the region around <paramref name="center"/>'s chunk column in
+    /// <paramref name="dimension"/> - <c>GenerationRadius</c> chunks in each direction, exactly as a
+    /// player transit does - without moving anyone. Use this to pregenerate a dimension's terrain
+    /// before its first transit: registering a dimension (<c>RegisterStatic</c>/<c>Create</c>)
+    /// reserves an engine id but touches no chunk, so a statically registered dimension has no
+    /// terrain until something visits it.
+    /// Synchronous; cost scales with <c>GenerationRadius</c>. Server main thread only.
+    /// </summary>
+    /// <param name="dimension">Dimension code to generate.</param>
+    /// <param name="center">
+    /// World position whose X/Z locate the chunk column to center generation on; its Y and
+    /// <see cref="Vintagestory.API.MathTools.BlockPos.dimension"/> fields are ignored.
+    /// </param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="dimension"/> or <paramref name="center"/> is null.</exception>
+    /// <exception cref="ManifoldUnhealthyException">Manifold failed to initialize at boot.</exception>
+    /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
+    /// <exception cref="DimensionStateException">The dimension is not <see cref="DimensionState.Active"/>.</exception>
+    void GenerateRegion(AssetLocation dimension, BlockPos center);
 }
