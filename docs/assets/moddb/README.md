@@ -11,14 +11,16 @@ palette comes from `docfx/images/logo.svg`. Nothing here was downloaded.
 
 | File | Size | Use |
 | --- | --- | --- |
-| `banner-manifold.webp` | 1200x360, 36 frames | Header, animated: the vortex turns, sparks leave the gate, travellers ride the transit arcs, the islands drift. Seamless 2.5 s loop. |
-| `banner-manifold.png` | 1200x360 | Still frame of the header, layered under the WebP as a fallback. |
+| `banner-manifold.webp` | 1200x360, 36 frames | Header, animated: the vortex turns, sparks leave the gate, travellers ride the transit arcs, the islands drift. Seamless 2.5 s loop. The title and the logo are part of the image. |
+| `banner-manifold.png` | 1200x360 | Still frame of the header. |
 | `feature-worldgen.webp` / `.png` | 220x160 | A chunk building itself column by column; the PNG is the finished chunk. |
 | `feature-transit.webp` / `.png` | 220x160 | A chest sliding into a portal gate; the PNG is a mid-way frame. |
 | `feature-dimensions.png` | 220x160 | Three floating islands linked by transit arcs. |
 | `feature-safety.png` | 220x160 | An island inside a protective ring. |
 | `divider.png` | 800x28 | Section divider, transparent. |
-| `void-tile.png` | 512x512 | Page background, seamless on both axes. |
 
-The page puts the header on a CSS background (`cover`, framed on the gate) with the title
-anchored at the bottom, so on a phone the gate sits above the text rather than behind it.
+The Mod DB sanitizer rewrites every CSS `url()` to `denied:`, whatever the host (its own CDN
+included), while `<img>` tags and pure CSS gradients pass. So every image here is used through an
+`<img>` tag, the page ground is made of gradients, and the title is baked into the banner: as an
+`<img>`, the banner scales with the page, and a baked title stays legible at every width where an
+HTML title laid over it would not.

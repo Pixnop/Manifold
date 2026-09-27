@@ -334,17 +334,80 @@ def arcs_layer(width, height, arcs, t=0.0, travellers=0):
     return layer
 
 
+# ---------------------------------------------------------------- title
+
+# 5 x 7 block letters, drawn as extruded voxels so the title belongs to the same world as the art.
+GLYPHS = {
+    "M": ["X...X", "XX.XX", "X.X.X", "X.X.X", "X...X", "X...X", "X...X"],
+    "A": [".XXX.", "X...X", "X...X", "XXXXX", "X...X", "X...X", "X...X"],
+    "N": ["X...X", "XX..X", "X.X.X", "X..XX", "X...X", "X...X", "X...X"],
+    "I": ["XXX", ".X.", ".X.", ".X.", ".X.", ".X.", "XXX"],
+    "F": ["XXXXX", "X....", "X....", "XXXX.", "X....", "X....", "X...."],
+    "O": [".XXX.", "X...X", "X...X", "X...X", "X...X", "X...X", ".XXX."],
+    "L": ["X....", "X....", "X....", "X....", "X....", "X....", "XXXXX"],
+    "D": ["XXXX.", "X...X", "X...X", "X...X", "X...X", "X...X", "XXXX."],
+}
+
+
+def title_layer(width, height, text, x0, y0, cell):
+    """The title in extruded block letters (front face ice to salmon, slate sides), with a glow."""
+    s = cell * SS
+    depth = max(2, int(s * 0.38))
+    layer = Image.new("RGBA", (width * SS, height * SS))
+    d = ImageDraw.Draw(layer)
+    pixels = []
+    x = x0 * SS
+    for ch in text:
+        rows = GLYPHS[ch]
+        for r, row in enumerate(rows):
+            for c, on in enumerate(row):
+                if on == "X":
+                    pixels.append((x + c * s, y0 * SS + r * s, r))
+        x += (len(rows[0]) + 1) * s
+    for px, py, _ in pixels:  # extrusion first, down and to the right
+        d.polygon([(px + s, py), (px + s + depth, py + depth), (px + s + depth, py + s + depth), (px + s, py + s)],
+                  fill=SLATE_MID + (255,))
+        d.polygon([(px, py + s), (px + s, py + s), (px + s + depth, py + s + depth), (px + depth, py + s + depth)],
+                  fill=SLATE + (255,))
+    # front faces: one smooth vertical gradient across the whole text, applied through a mask
+    mask = Image.new("L", layer.size)
+    md = ImageDraw.Draw(mask)
+    for px, py, _ in pixels:
+        md.rectangle([px, py, px + s - 1, py + s - 1], fill=255)
+    top, bottom = y0 * SS, y0 * SS + 7 * s
+    ramp = np.clip((np.arange(layer.size[1]) - top) / max(1, bottom - top), 0, 1)
+    grad = np.zeros((layer.size[1], layer.size[0], 3))
+    for c in range(3):
+        upper = WHITE[c] + (ICE[c] - WHITE[c]) * np.clip(ramp * 2, 0, 1)
+        lower = ICE[c] + (SALMON_LIGHT[c] - ICE[c]) * np.clip(ramp * 2 - 1, 0, 1)
+        grad[..., c] = np.where(ramp < 0.5, upper, lower)[:, None]
+    face = Image.fromarray(grad.astype(np.uint8), "RGB").convert("RGBA")
+    layer.paste(face, (0, 0), mask)
+    title = layer.resize((width, height), Image.LANCZOS)
+    glow_src = np.asarray(title, dtype=float)
+    glow = Image.fromarray(np.dstack([np.full(glow_src.shape[:2] + (3,), SALMON, dtype=float),
+                                      glow_src[..., 3] * 0.55]).astype(np.uint8), "RGBA").filter(ImageFilter.GaussianBlur(12))
+    shadow = Image.fromarray(np.dstack([np.zeros(glow_src.shape[:2] + (3,)), glow_src[..., 3] * 0.8]).astype(np.uint8),
+                             "RGBA").filter(ImageFilter.GaussianBlur(6))
+    out = Image.new("RGBA", (width, height))
+    out.alpha_composite(shadow, (4, 6))
+    out.alpha_composite(glow)
+    out.alpha_composite(title)
+    return out
+
+
+def logo_mark(size):
+    """The mod icon without its dark backing square (keyed out on the icon's own ground colour)."""
+    icon = np.asarray(Image.open(OUT.parent.parent.parent / "src" / "Manifold" / "modicon.png").convert("RGBA"), dtype=float)
+    distance = np.abs(icon[..., :3] - np.array(VOID)).sum(axis=2)
+    icon[..., 3] = np.minimum(icon[..., 3], np.clip((distance - 12) * 12, 0, 255))
+    return Image.fromarray(icon.astype(np.uint8), "RGBA").resize((size, size), Image.LANCZOS)
+
+
 # ---------------------------------------------------------------- assets
 
 FRAMES = 36          # frames per animated loop
 FRAME_MS = 70        # 36 x 70 ms: a 2.5 s loop
-
-
-def void_tile():
-    rng = np.random.default_rng(7)
-    img = nebula(rng, 512, 512, tile=True)
-    sprinkle_stars(rng, img, 180, wrap=True)
-    to_image(img).save(OUT / "void-tile.png", optimize=True)
 
 
 def banner_background():
@@ -369,20 +432,21 @@ def banner(t, background):
                   tree_cells=[(-3, -4), (3, -4)])
     scene.add(hero + gate_vox, 900, 196 + bob(t, 0.0, 1.2), 13)
     # the other dimensions: smaller islands at different depths, each drifting on its own beat
-    scene.add(island(np.random.default_rng(5), 2, 2, trees=1), 612, 96 + bob(t, 0.25, 2.5), 8)
+    scene.add(island(np.random.default_rng(5), 2, 2, trees=1), 700, 78 + bob(t, 0.25, 2.5), 8)
     scene.add(island(np.random.default_rng(9), 2, 2), 1120, 70 + bob(t, 0.6, 2.0), 6)
-    scene.add(island(np.random.default_rng(13), 3, 2, trees=1), 640, 258 + bob(t, 0.45, 2.2), 7)
+    scene.add(island(np.random.default_rng(13), 3, 2, trees=1), 712, 272 + bob(t, 0.45, 2.2), 7)
     scene.add(island(np.random.default_rng(17), 1, 1), 150, 300 + bob(t, 0.8, 1.5), 5)
-    scene.add(island(np.random.default_rng(19), 1, 1), 440, 40 + bob(t, 0.1, 1.2), 4)
+    scene.add(island(np.random.default_rng(19), 1, 1), 560, 40 + bob(t, 0.1, 1.2), 4)
     art = scene.render(bloom=14, strength=0.6)
 
     frame = background.copy()
     frame.alpha_composite(arcs_layer(w, h, [
-        ((612, 78), (846, 128), 58, SALMON_LIGHT + (150,)),
+        ((700, 60), (846, 128), 40, SALMON_LIGHT + (150,)),
         ((1112, 60), (930, 118), 44, ICE + (140,)),
-        ((648, 236), (842, 196), 30, ICE + (130,)),
+        ((720, 250), (842, 196), 24, ICE + (130,)),
     ], t=t, travellers=2))
     frame.alpha_composite(art)
+    frame.alpha_composite(TITLE)
     return frame.convert("RGB")
 
 
@@ -527,11 +591,14 @@ def union_box(frames):
 
 
 if __name__ == "__main__":
-    void_tile()
     divider()
     feature_dimensions()
     feature_safety()
     background = banner_background()
+    global TITLE
+    TITLE = Image.new("RGBA", background.size)
+    TITLE.alpha_composite(logo_mark(92), (52, 132))
+    TITLE.alpha_composite(title_layer(*background.size, "MANIFOLD", 160, 143, 10))
     animated("banner-manifold", lambda t: banner(t, background), 0.0)
     animated("feature-worldgen", worldgen_scene, 0.8, box_from=union_box, frames=54)
     animated("feature-transit", transit_scene, 0.3, box_from=union_box, frames=48)
