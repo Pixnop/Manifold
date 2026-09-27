@@ -608,11 +608,9 @@ public sealed class ManifoldModSystem : ModSystem
             return;
         }
 
-        var entries = new List<ManifestEntry>();
-        foreach (var dim in _registry.All)
-        {
-            entries.Add(new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId));
-        }
+        var entries = _registry.All
+            .Select(dim => new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId))
+            .ToList();
 
         _persistence.Save(entries);
 
@@ -709,22 +707,6 @@ public sealed class ManifoldModSystem : ModSystem
         Dispose();
     }
 
-    private int CountByState(DimensionState state)
-    {
-        if (_registry is null)
-        {
-            return 0;
-        }
-
-        int n = 0;
-        foreach (var dim in _registry.All)
-        {
-            if (dim.State == state)
-            {
-                n++;
-            }
-        }
-
-        return n;
-    }
+    private int CountByState(DimensionState state) =>
+        _registry?.All.Count(dim => dim.State == state) ?? 0;
 }
