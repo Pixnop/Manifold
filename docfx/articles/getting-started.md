@@ -24,7 +24,9 @@ In your mod's `modinfo.json`, add Manifold to the `dependencies` object. The emp
 }
 ```
 
-This ensures Vintage Story loads Manifold before your mod, and Manifold's `StartServerSide` has already run when yours executes.
+This makes the game load Manifold and fail with a clear error if it is missing. It does not by itself
+decide start order: the engine sorts `ModSystem`s by `ExecuteOrder()` (next step), so Manifold's
+`StartServerSide` runs first because of that, not the dependency declaration.
 
 To build against Manifold's API, add the [`Pixnop.Manifold`](https://www.nuget.org/packages/Pixnop.Manifold) NuGet package:
 
@@ -65,7 +67,10 @@ public override void StartServerSide(ICoreServerAPI sapi)
 
 ## 4. Register a Dimension
 
-Use the fluent `Registry.Define(...)` builder to declare your dimension. You must supply a worldgen strategy and mark the lifetime (`Persistent` or `Ephemeral`) before calling `RegisterStatic()`.
+Use the fluent `Registry.Define(...)` builder to declare your dimension. You must supply a worldgen
+strategy. `RegisterStatic()` registers a `Persistent` dimension (the default if you do not call
+`Persistent()`; calling `Ephemeral()` first makes it throw - use `Create()` for an ephemeral instance
+instead). `Create()` requires an explicit `Persistent()` or `Ephemeral()` call.
 
 ```csharp
 manifold.Registry
