@@ -7,6 +7,9 @@ Everything is procedural and seeded, so a rerun reproduces the same files:
 Needs Pillow and NumPy. The palette is taken from docfx/images/logo.svg. Voxel scenes are
 drawn at three times their final size and downsampled, which is what keeps cube edges clean
 (Pillow draws polygons without anti-aliasing).
+
+Layout is written in page pixels (the size the page displays an image at); files are written at
+R times that size so they stay sharp on high-density screens.
 """
 
 from pathlib import Path
@@ -15,7 +18,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 OUT = Path(__file__).resolve().parent
-SS = 3  # supersampling factor for voxel scenes
+R = 2    # output pixels per page pixel
+SS = 3   # supersampling factor for voxel scenes, on top of R
+K = SS * R  # drawing pixels per page pixel
 
 VOID = (21, 22, 24)
 DEEP = (14, 17, 22)
@@ -75,14 +80,16 @@ def nebula(rng, width, height, tile):
 
 
 def sprinkle_stars(rng, img, count, wrap):
-    height, width, _ = img.shape
+    """Stars on a page-pixel grid; each page pixel covers R x R pixels of img."""
+    height, width = img.shape[0] // R, img.shape[1] // R
 
     def put(px, py, color, a):
         if wrap:
             px, py = px % width, py % height
         elif not (0 <= px < width and 0 <= py < height):
             return
-        img[py, px] = img[py, px] * (1 - a) + color * a
+        cell = img[py * R:(py + 1) * R, px * R:(px + 1) * R]
+        cell[:] = cell * (1 - a) + color * a
 
     for _ in range(count):
         x, y = int(rng.integers(0, width)), int(rng.integers(0, height))
@@ -120,12 +127,15 @@ def cube(draw, x, y, s, color, alpha, emissive):
     draw.polygon(left, fill=shade(color, lf) + (alpha,))
     draw.polygon(right, fill=shade(color, rf) + (alpha,))
     draw.polygon(top, fill=shade(color, tf) + (alpha,))
-    if not emissive and s >= 6:
-        draw.line([top[3], top[0], top[1]], fill=shade(color, 1.18) + (min(alpha, 140),), width=max(1, SS // 2))
+    if not emissive and s >= 2 * K:
+        draw.line([top[3], top[0], top[1]], fill=shade(color, 1.18) + (min(alpha, 140),), width=max(1, SS // 2) * R)
 
 
 class Scene:
-    """Collects voxels and renders them supersampled, with a bloom pass for emissive ones."""
+    """Collects voxels and renders them supersampled, with a bloom pass for emissive ones.
+
+    width and height are in page pixels; render() returns an image R times that size.
+    """
 
     def __init__(self, width, height):
         self.width, self.height = width, height
@@ -135,15 +145,15 @@ class Scene:
         self.items += [(v, ox, oy, s) for v in voxels]
 
     def _paint(self, only_emissive):
-        layer = Image.new("RGBA", (self.width * SS, self.height * SS))
+        layer = Image.new("RGBA", (self.width * K, self.height * K))
         draw = ImageDraw.Draw(layer)
         order = sorted(self.items, key=lambda it: (it[0][0] + it[0][1], it[0][2], it[0][5]))
         for (i, j, k, color, alpha, size, emissive), ox, oy, s in order:
             if (only_emissive and not emissive) or alpha < 6:
                 continue
-            x = (ox + (i - j) * s) * SS
-            y = (oy + (i + j) * s / 2 - k * s) * SS
-            half = s * size * SS
+            x = (ox + (i - j) * s) * K
+            y = (oy + (i + j) * s / 2 - k * s) * K
+            half = s * size * K
             if alpha >= 255:
                 cube(draw, x, y, half, color, alpha, emissive)
                 continue
@@ -161,14 +171,15 @@ class Scene:
 
     def render(self, bloom=14, strength=1.0):
         """Returns the scene with its emissive voxels' light added on top (additive bloom)."""
-        scene = self._paint(False).resize((self.width, self.height), Image.LANCZOS)
+        size = (self.width * R, self.height * R)
+        scene = self._paint(False).resize(size, Image.LANCZOS)
         if not bloom:
             return scene
-        glow_src = np.asarray(self._paint(True).resize((self.width, self.height), Image.LANCZOS), dtype=float)
-        light = np.zeros((self.height, self.width, 3))
+        glow_src = np.asarray(self._paint(True).resize(size, Image.LANCZOS), dtype=float)
+        light = np.zeros((size[1], size[0], 3))
         for radius, weight in ((bloom, 1.0), (bloom / 3, 0.7), (bloom * 2.2, 0.45)):
             blurred = np.asarray(Image.fromarray(glow_src.astype(np.uint8), "RGBA").filter(
-                ImageFilter.GaussianBlur(radius)), dtype=float)
+                ImageFilter.GaussianBlur(radius * R)), dtype=float)
             light += blurred[..., :3] * (blurred[..., 3:] / 255.0) * weight
         light *= strength
         base = np.asarray(scene, dtype=float)
@@ -309,25 +320,25 @@ def dotted_arc(draw, p0, p1, bend, color, dash, gap, width, offset=0.0):
 
 def arcs_layer(width, height, arcs, t=0.0, travellers=0):
     """Transit arcs. Dashes advance two full periods per loop; travellers ride each arc to its end."""
-    layer = Image.new("RGBA", (width * SS, height * SS))
+    layer = Image.new("RGBA", (width * K, height * K))
     d = ImageDraw.Draw(layer)
-    dash, gap = 6 * SS, 7 * SS
+    dash, gap = 6 * K, 7 * K
     for p0, p1, bend, color in arcs:
-        a, b = (p0[0] * SS, p0[1] * SS), (p1[0] * SS, p1[1] * SS)
-        dotted_arc(d, a, b, bend * SS, color, dash, gap, 2 * SS, offset=2 * (dash + gap) * t)
-    layer = layer.resize((width, height), Image.LANCZOS)
+        a, b = (p0[0] * K, p0[1] * K), (p1[0] * K, p1[1] * K)
+        dotted_arc(d, a, b, bend * K, color, dash, gap, 2 * K, offset=2 * (dash + gap) * t)
+    layer = layer.resize((width * R, height * R), Image.LANCZOS)
     if travellers:
-        dots = Image.new("RGBA", (width * SS, height * SS))
+        dots = Image.new("RGBA", (width * K, height * K))
         dd = ImageDraw.Draw(dots)
         for n, (p0, p1, bend, color) in enumerate(arcs):
             for m in range(travellers):
                 u = (t + m / travellers + n * 0.37) % 1.0
                 x, y = bezier(p0, p1, bend, u)
                 alpha = int(235 * np.sin(np.pi * u))
-                r = 2.2 * SS
-                dd.rectangle([x * SS - r, y * SS - r, x * SS + r, y * SS + r], fill=color[:3] + (alpha,))
-        dots = dots.resize((width, height), Image.LANCZOS)
-        halo = dots.filter(ImageFilter.GaussianBlur(4))
+                r = 2.2 * K
+                dd.rectangle([x * K - r, y * K - r, x * K + r, y * K + r], fill=color[:3] + (alpha,))
+        dots = dots.resize((width * R, height * R), Image.LANCZOS)
+        halo = dots.filter(ImageFilter.GaussianBlur(4 * R))
         layer.alpha_composite(halo)
         layer.alpha_composite(halo)
         layer.alpha_composite(dots)
@@ -351,18 +362,18 @@ GLYPHS = {
 
 def title_layer(width, height, text, x0, y0, cell):
     """The title in extruded block letters (front face ice to salmon, slate sides), with a glow."""
-    s = cell * SS
+    s = cell * K
     depth = max(2, int(s * 0.38))
-    layer = Image.new("RGBA", (width * SS, height * SS))
+    layer = Image.new("RGBA", (width * K, height * K))
     d = ImageDraw.Draw(layer)
     pixels = []
-    x = x0 * SS
+    x = x0 * K
     for ch in text:
         rows = GLYPHS[ch]
         for r, row in enumerate(rows):
             for c, on in enumerate(row):
                 if on == "X":
-                    pixels.append((x + c * s, y0 * SS + r * s, r))
+                    pixels.append((x + c * s, y0 * K + r * s, r))
         x += (len(rows[0]) + 1) * s
     for px, py, _ in pixels:  # extrusion first, down and to the right
         d.polygon([(px + s, py), (px + s + depth, py + depth), (px + s + depth, py + s + depth), (px + s, py + s)],
@@ -374,7 +385,7 @@ def title_layer(width, height, text, x0, y0, cell):
     md = ImageDraw.Draw(mask)
     for px, py, _ in pixels:
         md.rectangle([px, py, px + s - 1, py + s - 1], fill=255)
-    top, bottom = y0 * SS, y0 * SS + 7 * s
+    top, bottom = y0 * K, y0 * K + 7 * s
     ramp = np.clip((np.arange(layer.size[1]) - top) / max(1, bottom - top), 0, 1)
     grad = np.zeros((layer.size[1], layer.size[0], 3))
     for c in range(3):
@@ -383,14 +394,14 @@ def title_layer(width, height, text, x0, y0, cell):
         grad[..., c] = np.where(ramp < 0.5, upper, lower)[:, None]
     face = Image.fromarray(grad.astype(np.uint8), "RGB").convert("RGBA")
     layer.paste(face, (0, 0), mask)
-    title = layer.resize((width, height), Image.LANCZOS)
+    title = layer.resize((width * R, height * R), Image.LANCZOS)
     glow_src = np.asarray(title, dtype=float)
     glow = Image.fromarray(np.dstack([np.full(glow_src.shape[:2] + (3,), SALMON, dtype=float),
-                                      glow_src[..., 3] * 0.55]).astype(np.uint8), "RGBA").filter(ImageFilter.GaussianBlur(12))
+                                      glow_src[..., 3] * 0.55]).astype(np.uint8), "RGBA").filter(ImageFilter.GaussianBlur(12 * R))
     shadow = Image.fromarray(np.dstack([np.zeros(glow_src.shape[:2] + (3,)), glow_src[..., 3] * 0.8]).astype(np.uint8),
-                             "RGBA").filter(ImageFilter.GaussianBlur(6))
-    out = Image.new("RGBA", (width, height))
-    out.alpha_composite(shadow, (4, 6))
+                             "RGBA").filter(ImageFilter.GaussianBlur(6 * R))
+    out = Image.new("RGBA", title.size)
+    out.alpha_composite(shadow, (4 * R, 6 * R))
     out.alpha_composite(glow)
     out.alpha_composite(title)
     return out
@@ -401,7 +412,7 @@ def logo_mark(size):
     icon = np.asarray(Image.open(OUT.parent.parent.parent / "src" / "Manifold" / "modicon.png").convert("RGBA"), dtype=float)
     distance = np.abs(icon[..., :3] - np.array(VOID)).sum(axis=2)
     icon[..., 3] = np.minimum(icon[..., 3], np.clip((distance - 12) * 12, 0, 255))
-    return Image.fromarray(icon.astype(np.uint8), "RGBA").resize((size, size), Image.LANCZOS)
+    return Image.fromarray(icon.astype(np.uint8), "RGBA").resize((size * R, size * R), Image.LANCZOS)
 
 
 # ---------------------------------------------------------------- assets
@@ -410,12 +421,17 @@ FRAMES = 36          # frames per animated loop
 FRAME_MS = 70        # 36 x 70 ms: a 2.5 s loop
 
 
+BANNER = (1200, 360)
+
+
 def banner_background():
-    w, h = 1200, 360
+    w, h = BANNER
     rng = np.random.default_rng(11)
-    bg = nebula(rng, w, h, tile=False)
+    # the clouds are soft, so they are drawn at page size and scaled up; stars go on at full size
+    clouds = to_image(nebula(rng, w, h, tile=False)).resize((w * R, h * R), Image.BICUBIC)
+    bg = np.asarray(clouds, dtype=float).copy()
     sprinkle_stars(rng, bg, 260, wrap=False)
-    fade = np.clip(1 - np.linspace(0, 1.4, w), 0.45, 1)[None, :, None]  # darker left for the title
+    fade = np.clip(1 - np.linspace(0, 1.4, w * R), 0.45, 1)[None, :, None]  # darker left for the title
     return to_image(bg * (1 - 0.45 * fade)).convert("RGBA")
 
 
@@ -424,7 +440,7 @@ def bob(t, phase, amplitude):
 
 
 def banner(t, background):
-    w, h = background.size
+    w, h = BANNER
     scene = Scene(w, h)
     # the hero island carries the gate; its grass takes the portal's light
     gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=t)
@@ -452,17 +468,18 @@ def banner(t, background):
 
 def divider():
     w, h = 800, 28
-    line = Image.new("RGBA", (w, h))
+    line = Image.new("RGBA", (w * R, h * R))
     px = line.load()
-    for x in range(w):
-        t = 1 - abs(x - w / 2) / (w / 2)
-        color = mix(SALMON, ICE, x / w)
+    for x in range(w * R):
+        t = 1 - abs(x - w * R / 2) / (w * R / 2)
+        color = mix(SALMON, ICE, x / (w * R))
         for y, a in ((12, 0.45), (13, 1.0), (14, 1.0), (15, 0.45)):
-            px[x, y] = color + (int(255 * a * t ** 1.2),)
+            for sub in range(R):
+                px[x, y * R + sub] = color + (int(255 * a * t ** 1.2),)
     scene = Scene(w, h)
     scene.add([vox(0, 0, 0, ICE, emissive=True)], w / 2, 9, 6)
     gem = scene.render(bloom=4)
-    out = line.filter(ImageFilter.GaussianBlur(3))
+    out = line.filter(ImageFilter.GaussianBlur(3 * R))
     out.alpha_composite(line)
     out.alpha_composite(gem)
     out.save(OUT / "divider.png", optimize=True)
@@ -474,17 +491,21 @@ def framed(img, arcs=(), t=0.0):
     The crop box is taken from a reference frame so an animation does not jitter.
     """
     if arcs:
-        under = arcs_layer(img.width, img.height, arcs, t=t)
+        under = arcs_layer(img.width // R, img.height // R, arcs, t=t)
         under.alpha_composite(img)
         img = under
     return img
 
 
+CARD = (220 * R, 160 * R)
+
+
 def card(art, box):
     left, top, right, bottom = box
-    art = art.crop((max(0, left - 6), max(0, top - 6), min(art.width, right + 6), min(art.height, bottom + 6)))
-    out = Image.new("RGBA", (220, 160))
-    out.alpha_composite(art, ((220 - art.width) // 2, (160 - art.height) // 2))
+    m = 6 * R
+    art = art.crop((max(0, left - m), max(0, top - m), min(art.width, right + m), min(art.height, bottom + m)))
+    out = Image.new("RGBA", CARD)
+    out.alpha_composite(art, ((CARD[0] - art.width) // 2, (CARD[1] - art.height) // 2))
     return out
 
 
@@ -553,20 +574,20 @@ def feature_safety():
     scene = Scene(260, 220)
     scene.add(island(np.random.default_rng(41), 3, 2, trees=1) + [vox(1, 1, 1, SALMON)], 130, 112, 9)
     img = scene.render(bloom=9)
-    rings = Image.new("RGBA", (260 * SS, 220 * SS))
+    rings = Image.new("RGBA", (260 * K, 220 * K))
     d = ImageDraw.Draw(rings)
     for n in range(3):
-        m = (n * 7) * SS
-        d.ellipse([(40 * SS) + m, (26 * SS) + m, (220 * SS) - m, (196 * SS) - m],
-                  outline=ICE + (150 - n * 45,), width=2 * SS)
-    rings = rings.resize((260, 220), Image.LANCZOS)
+        m = (n * 7) * K
+        d.ellipse([(40 * K) + m, (26 * K) + m, (220 * K) - m, (196 * K) - m],
+                  outline=ICE + (150 - n * 45,), width=2 * K)
+    rings = rings.resize((260 * R, 220 * R), Image.LANCZOS)
     rings.alpha_composite(img)
     left, top, right, bottom = rings.getbbox()
-    art = rings.crop((left - 6, top - 6, right + 6, bottom + 6))
-    out = Image.new("RGBA", (220, 160))
-    scale = min(1.0, 150 / art.height, 210 / art.width)
+    art = rings.crop((left - 6 * R, top - 6 * R, right + 6 * R, bottom + 6 * R))
+    out = Image.new("RGBA", CARD)
+    scale = min(1.0, 150 * R / art.height, 210 * R / art.width)
     art = art.resize((int(art.width * scale), int(art.height * scale)), Image.LANCZOS)
-    out.alpha_composite(art, ((220 - art.width) // 2, (160 - art.height) // 2))
+    out.alpha_composite(art, ((CARD[0] - art.width) // 2, (CARD[1] - art.height) // 2))
     out.save(OUT / "feature-safety.png", optimize=True)
 
 
@@ -597,8 +618,8 @@ if __name__ == "__main__":
     background = banner_background()
     global TITLE
     TITLE = Image.new("RGBA", background.size)
-    TITLE.alpha_composite(logo_mark(92), (52, 132))
-    TITLE.alpha_composite(title_layer(*background.size, "MANIFOLD", 160, 143, 10))
+    TITLE.alpha_composite(logo_mark(92), (52 * R, 132 * R))
+    TITLE.alpha_composite(title_layer(*BANNER, "MANIFOLD", 160, 143, 10))
     animated("banner-manifold", lambda t: banner(t, background), 0.0)
     animated("feature-worldgen", worldgen_scene, 0.8, box_from=union_box, frames=54)
     animated("feature-transit", transit_scene, 0.3, box_from=union_box, frames=48)
