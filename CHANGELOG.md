@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-27
+
+### Fixed
+- **Mods compiled against Manifold 0.4.1 or earlier crashed on `new TransitionOptions { ... }`.** Removing `PreserveInventory` in 0.4.2 also removed the struct's explicit parameterless constructor, which such mods call for every options object: from 0.4.2 on they threw `MissingMethodException` at the transit call, even if they never set `PreserveInventory`. The constructor is back, and `PreserveInventory` returns as an ignored, obsolete property so mods that set it load too. Found by running Chart's scenario fixture, built against 0.4.1, on 0.5.0.
+
 ## [0.5.0] - 2026-09-27
 
 A note on the NuGet package: `Pixnop.Manifold` 0.4.2 on nuget.org was packed after the release, from a later commit than the `v0.4.2` tag, so it already contains three API changes listed below (`PlayerEnteredDimensionEventArgs.TargetPosition` and its constructor, and `[Obsolete]` on `WithRelightHeight`) that the 0.4.2 mod zip does not. 0.5.0 brings the package and the mod back in line; build against it.

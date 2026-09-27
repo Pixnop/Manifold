@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics.CodeAnalysis;
 using Vintagestory.API.MathTools;
 
 namespace Manifold.Api.Transitions;
@@ -9,6 +11,15 @@ namespace Manifold.Api.Transitions;
 /// </summary>
 public readonly record struct TransitionOptions
 {
+    /// <summary>Initializes a new instance of the <see cref="TransitionOptions"/> struct with every option unset.</summary>
+    /// <remarks>
+    /// Declared explicitly because mods compiled against Manifold 0.4.1 or earlier call it for every
+    /// <c>new TransitionOptions { ... }</c>; without it they fail with a <see cref="MissingMethodException"/>.
+    /// </remarks>
+    public TransitionOptions()
+    {
+    }
+
     /// <summary>
     /// If set, used as the landing position instead of the resolver. Its dimension field is ignored
     /// and replaced with the target dimension's id on a copy; the instance you pass in is never mutated.
@@ -31,4 +42,13 @@ public readonly record struct TransitionOptions
     /// Useful for transiting to the built-in overworld with <see cref="SpawnBehavior.LastVisited"/>.
     /// </summary>
     public SpawnBehavior? SpawnBehavior { get; init; }
+
+    /// <summary>
+    /// Ignored: whether a player keeps their inventory follows the destination dimension's
+    /// <c>WithSeparateInventory</c> policy. Kept so mods compiled against Manifold 0.4.1 or earlier,
+    /// which may set it, keep loading.
+    /// </summary>
+    [Obsolete("Ignored: inventory handling follows the destination dimension's WithSeparateInventory policy.")]
+    [SuppressMessage("Info Code Smell", "S1133:Deprecated code should be removed", Justification = "Binary compatibility with mods compiled against Manifold 0.4.1 or earlier.")]
+    public bool PreserveInventory { get; init; }
 }
