@@ -353,7 +353,9 @@ internal sealed class TransitService : ITransitionService
     {
         if (options.OverridePosition is { } overridePos)
         {
-            return overridePos.SetDimension(target.InternalId);
+            // Copy before stamping: SetDimension mutates in place, and overridePos is the caller's
+            // own instance (possibly reused elsewhere, e.g. a cached arena spawn).
+            return overridePos.Copy().SetDimension(target.InternalId);
         }
 
         var resolver = options.Resolver ?? _defaultResolver;
@@ -369,7 +371,9 @@ internal sealed class TransitService : ITransitionService
     {
         if (options.OverridePosition is { } overridePos)
         {
-            return overridePos.SetDimension(target.InternalId);
+            // Copy before stamping: SetDimension mutates in place, and overridePos is the caller's
+            // own instance (possibly reused elsewhere, e.g. a cached arena spawn).
+            return overridePos.Copy().SetDimension(target.InternalId);
         }
 
         if (options.Resolver is { } resolver)

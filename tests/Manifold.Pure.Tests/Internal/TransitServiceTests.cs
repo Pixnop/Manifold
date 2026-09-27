@@ -445,6 +445,29 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Not_Mutate_Callers_OverridePosition()
+    {
+        var (svc, _, player, _, _, _) = NewService();
+        var overridePos = new BlockPos(5, 6, 7, 0);
+
+        svc.TeleportPlayer(player, Code("owner:target"), new TransitionOptions { OverridePosition = overridePos });
+
+        Assert.Equal(0, overridePos.dimension);
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Not_Mutate_Callers_OverridePosition()
+    {
+        var (svc, _, _, _, _, _) = NewService();
+        var entity = Substitute.For<Entity>();
+        var overridePos = new BlockPos(5, 6, 7, 0);
+
+        svc.TeleportEntity(entity, Code("owner:target"), new TransitionOptions { OverridePosition = overridePos });
+
+        Assert.Equal(0, overridePos.dimension);
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Restore_Previous_GameMode_When_Leaving_A_Forced_Dimension()
     {
         var (svc, registry, player, _, _, _) = NewService();
