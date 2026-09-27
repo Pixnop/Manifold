@@ -23,9 +23,11 @@
     <!-- MSB3277: cross-version System.* unification noise; VS DLL is compiled against a different runtime ref. -->
     <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
 
+    <!-- Frozen binding identity: companions compiled against Manifold must keep loading across
+         releases, so this stays put across ordinary releases and only bumps on a breaking one.
+         FileVersion/InformationalVersion follow the per-project <Version> (set explicitly only
+         in src/Manifold/Manifold.csproj, which packs the shipped DLL). -->
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
-    <Version>0.1.0</Version>
 
     <Authors>Pixnop</Authors>
     <Product>Manifold</Product>

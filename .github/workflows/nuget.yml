@@ -44,17 +44,19 @@ jobs:
           echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
 
       - name: Pack
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -e
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME#v}"
-          elif [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
+          elif [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
           else
             VERSION="0.0.0-dev.$GITHUB_RUN_NUMBER"
           fi
           echo "Packing version $VERSION"
-          dotnet pack src/Manifold/Manifold.csproj -c Release -p:PackageVersion="$VERSION" -o nupkgs
+          dotnet pack src/Manifold/Manifold.csproj -c Release -p:Version="$VERSION" -o nupkgs
           ls -la nupkgs
 
       - name: NuGet login (Trusted Publishing)
