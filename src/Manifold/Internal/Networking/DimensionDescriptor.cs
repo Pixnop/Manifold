@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ProtoBuf;
 
 namespace Manifold.Internal.Networking;
@@ -29,4 +30,12 @@ internal sealed class DimensionDescriptor
     /// <summary>State as int (cast from <see cref="Manifold.Api.DimensionState"/>).</summary>
     [ProtoMember(6)]
     public int State { get; set; }
+
+    /// <summary>
+    /// Registration-time metadata (<see cref="Manifold.Api.IDimension.Metadata"/>), added in this
+    /// version. An old client ignores this field; a new client talking to an old server (which never
+    /// sends it) sees an empty list and so an empty <see cref="Manifold.Api.IDimension.Metadata"/>.
+    /// </summary>
+    [ProtoMember(7)]
+    public List<MetadataEntry> Metadata { get; set; } = new();
 }
