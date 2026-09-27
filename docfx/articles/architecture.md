@@ -43,7 +43,7 @@ generation) and `ForceRemoveDimension` (evacuate-then-remove for an occupied Eph
 | Concern | Server | Client |
 |---------|--------|--------|
 | Registry mutations | `IDimensionRegistry.Define` / `Create` / `TryRemove` | Read-only mirror |
-| Transit | `ITransitionService.TeleportPlayer` / `TeleportEntity` / `TeleportBlock` | Not applicable |
+| Transit | `ITransitionService.TeleportPlayer` / `TryTeleportPlayer` / `TeleportEntity` / `TeleportBlock` | Not applicable |
 | Worldgen | `IWorldgenStrategy` called by `DimensionGenerator` (and `StreamingWorldgenDriver` for streaming dims) | Not applicable |
 | Dimension list | Authoritative | Replicated via `ManifoldNetworkChannel` |
 
@@ -83,8 +83,9 @@ Manifold ships one binary that must work against both.
 classes in the assembly today, purely as a boot health check (forward-compatible if a patch is ever
 added). If Harmony fails to load, `HarmonyPatcher.IsHealthy` is `false` and `IManifoldServer.IsHealthy`
 reports `false` too. Dimension registration still succeeds in that state (on a disconnected registry
-with no in-game effect), but `TeleportPlayer`/`TeleportEntity`/`TeleportBlock`, `RelightRegion`, and
-`ForceRemoveDimension` all throw `ManifoldUnhealthyException` instead of silently doing nothing.
+with no in-game effect), but `TeleportPlayer`/`TeleportEntity`/`TeleportBlock`, `RelightRegion`,
+`GenerateRegion`, and `ForceRemoveDimension` all throw `ManifoldUnhealthyException` instead of
+silently doing nothing.
 
 ## Package Dependencies
 

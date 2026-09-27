@@ -569,6 +569,48 @@ public sealed class DimensionRegistryTests
         Assert.True(goodRan);
     }
 
+    [Fact]
+    public void GetDimensionOf_Should_Throw_When_Entity_Is_Null()
+    {
+        var registry = NewRegistry();
+        Assert.Throws<ArgumentNullException>(() => registry.GetDimensionOf(null!));
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Return_Overworld_For_Id_Zero()
+    {
+        var registry = NewRegistry();
+        var entity = NSubstitute.Substitute.For<Vintagestory.API.Common.Entities.Entity>();
+
+        var dim = registry.GetDimensionOf(entity);
+
+        Assert.NotNull(dim);
+        Assert.Equal(Code("manifold:overworld"), dim!.Code);
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Return_Registered_Dimension_The_Entity_Is_In()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("testmod:nether"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        var entity = NSubstitute.Substitute.For<Vintagestory.API.Common.Entities.Entity>();
+        entity.Pos.Dimension = dim.InternalId;
+
+        Assert.Equal(dim.Code, registry.GetDimensionOf(entity)!.Code);
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Return_Null_When_Id_Matches_No_Registered_Dimension()
+    {
+        var registry = NewRegistry();
+        var entity = NSubstitute.Substitute.For<Vintagestory.API.Common.Entities.Entity>();
+        entity.Pos.Dimension = 999;
+
+        Assert.Null(registry.GetDimensionOf(entity));
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static DimensionRegistry NewRegistry()

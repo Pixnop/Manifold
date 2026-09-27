@@ -35,6 +35,19 @@ transitions.PlayerEntering += (_, e) =>
 transitions.TeleportPlayer(player, new AssetLocation("mymod", "nether"));
 ```
 
+`TeleportPlayer` is `void`: a subscriber cancelling the transit at `PlayerEntering`/`PlayerArriving`
+leaves the player where they were, silently as far as the return type is concerned. When you need to
+know whether the transit actually happened, call `TryTeleportPlayer` instead - same behavior, same
+exceptions, but it returns `true` if the player moved and `false` if a subscriber vetoed it:
+
+```csharp
+bool moved = transitions.TryTeleportPlayer(player, new AssetLocation("mymod", "nether"));
+if (!moved)
+{
+    player.SendMessage(GlobalConstants.GeneralChatGroup, "Something stopped you from entering.", EnumChatType.Notification);
+}
+```
+
 ## TeleportEntity
 
 `TeleportEntity` moves a non-player entity (a dropped item, a creature) between dimensions. It mirrors

@@ -53,6 +53,20 @@ IDimension dim = manifold.Registry
     .RegisterStatic();
 ```
 
+**`RegisterStatic()`/`Create()` do not generate any terrain.** Registration only reserves the engine
+dimension id and records the dimension in the registry; Manifold's active worldgen driver otherwise
+only runs when something visits the dimension (a player transit or a rejoining player). A dimension
+registered at boot and never transited into has no chunks until then. To pregenerate it up front -
+so it is ready before any player arrives - call `IManifoldServer.GenerateRegion` right after
+registering it:
+
+```csharp
+manifold.GenerateRegion(dim.Code, new BlockPos(0, 0, 0, 0)); // X/Z only; Y and dimension are ignored
+```
+
+This runs the same generation `TeleportPlayer` would (`GenerationRadius` chunks around the given
+column), synchronously, on the main thread, with no player involved.
+
 ### Reading the Registry
 
 ```csharp
@@ -64,6 +78,13 @@ foreach (IDimension d in manifold.Registry.All)
 {
     Console.WriteLine($"{d.Code} [{d.State}] owner={d.OwnerModId}");
 }
+
+// Which registered dimension is this entity in right now? (overworld for id 0, null if the
+// entity's position points at an id nothing has registered)
+IDimension? here = manifold.Registry.GetDimensionOf(somePlayer.Entity);
+
+// Who is currently inside a given dimension?
+System.Collections.Generic.IReadOnlyList<IServerPlayer> occupants = manifold.GetPlayersIn(dim.Code);
 ```
 
 ### Events

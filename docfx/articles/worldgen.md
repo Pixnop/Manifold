@@ -21,7 +21,7 @@ public interface IWorldgenStrategy
 
 ### OnInitialize
 
-Called once, on the first transit into the dimension (lazy initialization). `IWorldgenInitContext` gives you `Api` (the `ICoreServerAPI`), plus `DimensionId` and `Seed`; use `ctx.Api.World.GetBlock(...)` to resolve block ids. Store them in fields for later use in `GenerateColumn`.
+Called once, on the first generation for the dimension - a player transit or an `IManifoldServer.GenerateRegion` call (lazy initialization). `IWorldgenInitContext` gives you `Api` (the `ICoreServerAPI`), plus `DimensionId` and `Seed`; use `ctx.Api.World.GetBlock(...)` to resolve block ids. Store them in fields for later use in `GenerateColumn`.
 
 ```csharp
 public sealed class MyFloorStrategy : IWorldgenStrategy
@@ -80,14 +80,13 @@ When a player transits into a dimension for the first time (or after a server re
 
 This happens **synchronously on the main thread** before the player arrives - so the player never sees an ungenerated void.
 
-> **Generation is transit-driven - registration alone creates no terrain.** `RegisterStatic()` and
-> `Create()` only record the dimension; `WithFixedSpawn` and `WithGenerationRadius` describe what to
-> generate once a transit happens, not when. Until the first `TeleportPlayer`/`TeleportEntity`/
-> `TeleportBlock` targets the dimension (or a `.Streaming(...)` driver picks it up), every position
-> reads as air. If your mod needs content to exist before the first arrival - a spawn platform, a
-> prebuilt hub - trigger the generation yourself right after registration; a no-op `TeleportBlock`
-> from a guaranteed-air source into the dimension is the current supported way (see issue #69 for
-> the planned first-class API).
+> **Registration alone creates no terrain.** `RegisterStatic()` and `Create()` only record the
+> dimension; `WithFixedSpawn` and `WithGenerationRadius` describe what to generate, not when. Until
+> something generates it - a player transit, a rejoining player, or a `.Streaming(...)` driver -
+> every position reads as air. If your mod needs content to exist before the first arrival - a spawn
+> platform, a prebuilt hub - call `IManifoldServer.GenerateRegion(dimension, center)` yourself right
+> after registration; it runs the same bounded generation a transit would, synchronously, with no
+> player involved. See [The Registry](dimensions.md#the-registry) for an example.
 
 ## WithGenerationRadius
 

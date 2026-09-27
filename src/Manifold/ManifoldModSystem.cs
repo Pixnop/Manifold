@@ -131,7 +131,7 @@ public sealed class ManifoldModSystem : ModSystem
         transit.PlayerEntered += OnTransitPlayerEntered;
         transit.PlayerLeft += OnTransitPlayerLeft;
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, api, isHealthy: true);
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
 
         RegisterManifoldCommand(api);
@@ -201,30 +201,28 @@ public sealed class ManifoldModSystem : ModSystem
     }
 
     /// <summary>
-    /// Evacuates every occupant of <paramref name="internalId"/> via <paramref name="rescue"/>
+    /// Evacuates every player in <paramref name="occupants"/> via <paramref name="rescue"/>
     /// (best-effort per player - a failure is logged, not thrown) and reports how many actually left.
     /// A player <paramref name="rescue"/> silently failed to move is still standing in the dimension
     /// afterward, so it is counted as remaining, not evacuated - the caller must not destroy the
     /// dimension out from under them.
     /// </summary>
-    /// <param name="players">Online players to check (typically every connected <see cref="IServerPlayer"/>).</param>
+    /// <param name="occupants">
+    /// Players already known to be inside <paramref name="internalId"/> (e.g. from
+    /// <see cref="OccupancyScan.PlayersIn"/>); this does not filter them itself.
+    /// </param>
     /// <param name="internalId">Engine id of the dimension being evacuated.</param>
     /// <param name="rescue">Best-effort teleport-to-overworld for one occupant.</param>
     /// <returns>How many occupants were actually moved out, and how many are still inside.</returns>
     internal static (int Evacuated, int Remaining) EvacuateOccupants(
-        IEnumerable<IServerPlayer> players, int internalId, Action<IServerPlayer> rescue)
+        IEnumerable<IServerPlayer> occupants, int internalId, Action<IServerPlayer> rescue)
     {
         int evacuated = 0;
         int remaining = 0;
-        foreach (var p in players)
+        foreach (var p in occupants)
         {
-            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension != internalId)
-            {
-                continue;
-            }
-
             rescue(p);
-            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension == internalId)
+            if (OccupancyScan.IsIn(p, internalId))
             {
                 remaining++;
             }
@@ -253,7 +251,7 @@ public sealed class ManifoldModSystem : ModSystem
             new PlayerPositionStore(),
             new InventorySwapper(sapi));
         transit.MarkUnhealthy();
-        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, isHealthy: false);
+        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, generator, isHealthy: false);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
     }
 
@@ -349,7 +347,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
         var (evacuated, remaining) = EvacuateOccupants(
-            api.World.AllOnlinePlayers.OfType<IServerPlayer>(), dim.InternalId, RescueToOverworld);
+            OccupancyScan.PlayersIn(api, dim.InternalId), dim.InternalId, RescueToOverworld);
         if (remaining > 0)
         {
             return TextCommandResult.Error(
@@ -426,20 +424,7 @@ public sealed class ManifoldModSystem : ModSystem
     {
         // internalId 0 is the overworld; TryRemove throws on it before reaching the occupancy check,
         // so the == 0 guard is belt-and-suspenders (and a safe default if the predicate is reused).
-        if (_sapi is null || internalId == 0)
-        {
-            return false;
-        }
-
-        foreach (var p in _sapi.World.AllOnlinePlayers)
-        {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == internalId)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return _sapi is not null && internalId != 0 && OccupancyScan.IsOccupied(_sapi, internalId);
     }
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)

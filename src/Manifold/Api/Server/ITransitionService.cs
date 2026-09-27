@@ -50,6 +50,21 @@ public interface ITransitionService
     void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
+    /// Same transit as <see cref="TeleportPlayer"/>, but returns whether the player actually moved
+    /// (same events, same generation, same landing-position resolution) instead of leaving a
+    /// cancelled transit indistinguishable from a completed one.
+    /// </summary>
+    /// <param name="player">Server player to teleport.</param>
+    /// <param name="targetDim">Target dimension code.</param>
+    /// <param name="options">Optional transit settings.</param>
+    /// <returns><c>true</c> if the player was moved; <c>false</c> if a <see cref="PlayerEntering"/> or <see cref="PlayerArriving"/> subscriber cancelled the transit.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="player"/> or <paramref name="targetDim"/> is null.</exception>
+    /// <exception cref="Manifold.Api.DimensionNotFoundException">Target code unknown.</exception>
+    /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>
+    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
+    bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
+
+    /// <summary>
     /// Moves a non-player entity (item, mob) to another dimension. Generates the destination region if
     /// needed, re-homes the entity, then raises <see cref="EntityChangedDimension"/>. For players use
     /// <see cref="TeleportPlayer"/> instead.

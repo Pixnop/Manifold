@@ -184,6 +184,44 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TryTeleportPlayer_Should_Return_True_When_Not_Cancelled()
+    {
+        var (svc, _, _, _, _) = NewService();
+        var player = NewPlayer();
+        Assert.True(svc.TryTeleportPlayer(player, Code("owner:target")));
+    }
+
+    [Fact]
+    public void TryTeleportPlayer_Should_Return_False_When_PlayerEntering_Cancels()
+    {
+        var (svc, _, tele, _, _) = NewService();
+        var player = NewPlayer();
+        svc.PlayerEntering += (_, e) => e.Cancel = true;
+
+        Assert.False(svc.TryTeleportPlayer(player, Code("owner:target")));
+        tele.DidNotReceive().Teleport(Arg.Any<IServerPlayer>(), Arg.Any<BlockPos>());
+    }
+
+    [Fact]
+    public void TryTeleportPlayer_Should_Return_False_When_PlayerArriving_Cancels()
+    {
+        var (svc, _, tele, _, _) = NewService();
+        var player = NewPlayer();
+        svc.PlayerArriving += (_, e) => e.Cancel = true;
+
+        Assert.False(svc.TryTeleportPlayer(player, Code("owner:target")));
+        tele.DidNotReceive().Teleport(Arg.Any<IServerPlayer>(), Arg.Any<BlockPos>());
+    }
+
+    [Fact]
+    public void TryTeleportPlayer_Should_Throw_Same_Exceptions_As_TeleportPlayer()
+    {
+        var (svc, _, _, _, _) = NewService();
+        var player = NewPlayer();
+        Assert.Throws<DimensionNotFoundException>(() => svc.TryTeleportPlayer(player, Code("nope:nope")));
+    }
+
+    [Fact]
     public void TeleportEntity_Should_Throw_When_Entity_Is_A_Player()
     {
         var (svc, _, _, _, _) = NewService();

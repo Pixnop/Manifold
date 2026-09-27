@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Manifold.Api.Events;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 
 namespace Manifold.Api.Server;
 
@@ -65,4 +66,16 @@ public interface IDimensionRegistry
     /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
     /// <exception cref="DimensionStateException">The dimension is Persistent (use the admin purge command).</exception>
     bool TryRemove(AssetLocation code);
+
+    /// <summary>
+    /// The registered dimension <paramref name="entity"/> is currently in, resolved from its live
+    /// position's dimension id (<c>Entity.Pos.Dimension</c>). Returns the built-in overworld for id 0.
+    /// </summary>
+    /// <param name="entity">The entity to locate.</param>
+    /// <returns>
+    /// The dimension the entity is in, or <c>null</c> if its position's dimension id does not match
+    /// any dimension currently registered (e.g. one removed since the entity last moved).
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="entity"/> is null.</exception>
+    IDimension? GetDimensionOf(Entity entity);
 }

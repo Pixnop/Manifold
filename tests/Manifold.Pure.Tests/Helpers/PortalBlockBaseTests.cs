@@ -27,7 +27,7 @@ public sealed class PortalBlockBaseTests
 
         portal.TryTeleport(manifold, sapi, Substitute.For<IServerPlayer>());
 
-        manifold.Transitions.DidNotReceive().TeleportPlayer(
+        manifold.Transitions.DidNotReceive().TryTeleportPlayer(
             Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>());
     }
 
@@ -57,7 +57,7 @@ public sealed class PortalBlockBaseTests
         target.State.Returns(DimensionState.Active);
         manifold.Registry.Get(Arg.Any<AssetLocation>()).Returns(target);
         manifold.Transitions
-            .When(t => t.TeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
+            .When(t => t.TryTeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
             .Do(_ => throw new DimensionStateException("boom"));
         var sapi = Substitute.For<ICoreServerAPI>();
 
@@ -80,7 +80,7 @@ public sealed class PortalBlockBaseTests
 
         portal.TryTeleport(manifold, sapi, player);
 
-        manifold.Transitions.Received(1).TeleportPlayer(player, portal.PublicTargetDimensionCode, Arg.Any<TransitionOptions>());
+        manifold.Transitions.Received(1).TryTeleportPlayer(player, portal.PublicTargetDimensionCode, Arg.Any<TransitionOptions>());
     }
 
     private sealed class TestPortal : PortalBlockBase

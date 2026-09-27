@@ -28,9 +28,9 @@
 
 ## Features
 
-- **Custom dimensions** - declare persistent or ephemeral dimensions from any mod; boot-time (`RegisterStatic`) or runtime (`Create`).
+- **Custom dimensions** - declare persistent or ephemeral dimensions from any mod; boot-time (`RegisterStatic`) or runtime (`Create`). Registration alone generates no terrain; `IManifoldServer.GenerateRegion(dimension, center)` pregenerates it on demand, with no player and no transit involved.
 - **Active worldgen** - two modes, both configurable per dimension. **Bounded** (default): Manifold pre-generates a fixed chunk region around the transit target before the player arrives, radius set via `WithGenerationRadius`. **Streaming** (opt-in): call `.Streaming(loadRadius)` and Manifold generates chunks on demand as players move, with no invisible walls at a region edge (away from the world's negative corner - chunk columns with a negative X or Z do not exist in Vintage Story and are always skipped). The streaming radius is extended to the server view distance so generated terrain always reaches as far as the player can see.
-- **Player transit** - `ITransitionService.TeleportPlayer` moves a player between any two dimensions with a single call.
+- **Player transit** - `ITransitionService.TeleportPlayer` moves a player between any two dimensions with a single call; `TryTeleportPlayer` is the same transit but returns `false` instead of silently doing nothing when a subscriber vetoes it.
 - **Entity transit** - `ITransitionService.TeleportEntity` moves non-player entities (dropped items, mobs) between dimensions; the destination region is generated on demand before the entity is re-homed.
 - **Block transit** (0.4.0) - `ITransitionService.TeleportBlock(source, targetDim, targetLocal)` moves a single block plus its `BlockEntity` state (inventory, attributes, BE-behaviors) between dimensions. Completes the Player / Entity / Block triplet; the destination region is generated on demand and the BE state is round-tripped through `ToTreeAttributes` / `FromTreeAttributes`.
 - **Transit events** (0.4.0) - `PlayerEntering` (pre-generation, cancellable), `PlayerArriving` (post-generation, pre-teleport, cancellable), `PlayerLeft` / `PlayerEntered` (post-teleport), and `EntityChangedDimension` (post `TeleportEntity` for non-player entities).
@@ -42,6 +42,8 @@
 - **Runtime relight** - `IManifoldServer.RelightRegion(dimension, min, max)` and the `/manifold relight [radius]` admin command recalculate light in a custom dimension after a mod places blocks there (the engine's own relight is dimension-blind).
 - **Safe teardown** - a dimension is never removed while a player stands in it; `ForceRemoveDimension` evacuates an ephemeral one first, ephemeral dimensions are reaped when their last occupant transits out, and `/manifold purge <code>` is the admin path for persistent or quarantined ones. Players whose saved dimension no longer exists are rescued to the overworld on join.
 - **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
+- **Entity location** - `IDimensionRegistry.GetDimensionOf(entity)` finds which registered dimension an entity is currently in, from its live position.
+- **Dimension occupancy** - `IManifoldServer.GetPlayersIn(dimension)` lists the online players currently inside a dimension.
 - **Client mirror** - the dimension list is replicated to connected clients via `IManifoldClient`.
 - **Zero Harmony patches** - built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
 - **Opt-in helpers** - `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy` to get started with minimal boilerplate.

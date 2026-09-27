@@ -7,11 +7,28 @@ using Xunit;
 
 /// <summary>
 /// Terrain probes pregenerate their dimension explicitly (/atlasfx pregen) because the
-/// fixture no longer generates any mini-dimension region at boot; see the fixture mod.
+/// fixture no longer generates any mini-dimension region at boot, except "pregenerated"
+/// (see below), which is the deliberate exception exercising IManifoldServer.GenerateRegion.
 /// </summary>
 [Trait("Category", "E2E")]
 public class DimensionWorldgenScenarios : ManifoldScenarioBase
 {
+    [AtlasScenario]
+    public async Task Pregenerated_Should_HaveGraniteAtSpawn_When_NoPlayerEverTransited()
+    {
+        int pregenId = await DimensionId("pregenerated");
+
+        // A real joined player, present the whole time but never sent anywhere: proves the terrain
+        // below did not come from a transit, only from the GenerateRegion call the fixture makes
+        // right after RegisterStatic, with no player involved (issue #69).
+        ITestPlayer player = await World.JoinPlayer("atlas_pregen");
+        await World.Ticks(2);
+
+        var spawnColumn = new BlockPos(512, 3, 512, pregenId);
+        Assert.Equal("game:rock-granite", World.BlockAt(spawnColumn).Code?.ToString());
+        Assert.Equal(0, player.Position.dimension);
+    }
+
     [AtlasScenario]
     public async Task Dimensions_Should_GetDistinctModIds_When_Registered()
     {

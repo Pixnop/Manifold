@@ -7,6 +7,7 @@ using Manifold.Api.Events;
 using Manifold.Api.Server;
 using Manifold.Internal.Util;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 
 namespace Manifold.Internal;
 
@@ -108,6 +109,14 @@ internal sealed class DimensionRegistry : IDimensionRegistry
 
         RemoveAndRelease(code, dim);
         return true;
+    }
+
+    /// <inheritdoc/>
+    public IDimension? GetDimensionOf(Entity entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        int dimId = EntityPosAccess.Pos(entity).Dimension;
+        return GetByInternalId(dimId);
     }
 
     /// <summary>

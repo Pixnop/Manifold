@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Server;
+using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -11,21 +13,25 @@ namespace Manifold.Internal;
 internal sealed class ManifoldServerFacade : IManifoldServer
 {
     private readonly ICoreServerAPI _sapi;
+    private readonly DimensionGenerator _generator;
 
     /// <summary>Initializes a new instance of the <see cref="ManifoldServerFacade"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
     /// <param name="transitions">Transit service.</param>
     /// <param name="sapi">Server API (used by <see cref="RelightRegion"/>).</param>
+    /// <param name="generator">Dimension generator (used by <see cref="GenerateRegion"/>).</param>
     /// <param name="isHealthy">Whether Harmony patches applied successfully.</param>
     public ManifoldServerFacade(
         IDimensionRegistry registry,
         ITransitionService transitions,
         ICoreServerAPI sapi,
+        DimensionGenerator generator,
         bool isHealthy)
     {
         Registry = registry ?? throw new ArgumentNullException(nameof(registry));
         Transitions = transitions ?? throw new ArgumentNullException(nameof(transitions));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
+        _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         IsHealthy = isHealthy;
     }
 
@@ -89,6 +95,31 @@ internal sealed class ManifoldServerFacade : IManifoldServer
         return Registry.Get(dimension) is null || Registry.TryRemove(dimension);
     }
 
+    /// <inheritdoc/>
+    public void GenerateRegion(AssetLocation dimension, BlockPos center)
+    {
+        ArgumentNullException.ThrowIfNull(dimension);
+        ArgumentNullException.ThrowIfNull(center);
+        if (!IsHealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; pregeneration is disabled.");
+        }
+
+        var dim = DimensionGate.RequireActive(Registry, dimension);
+        _generator.EnsureRegion(
+            _sapi, dim.InternalId, ChunkMath.ToChunk(center.X), ChunkMath.ToChunk(center.Z), player: null);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<IServerPlayer> GetPlayersIn(AssetLocation dimension)
+    {
+        ArgumentNullException.ThrowIfNull(dimension);
+        var dim = Registry.Get(dimension)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{dimension}'.");
+        return new List<IServerPlayer>(OccupancyScan.PlayersIn(_sapi, dim.InternalId));
+    }
+
     /// <summary>
     /// Teleports every connected player currently inside <paramref name="internalId"/> back to the
     /// overworld (last-visited position) so the dimension can then be removed. Best-effort per player.
@@ -97,12 +128,9 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     {
         // Best-effort per player: a failed/cancelled rescue leaves them in place and TryRemove will
         // then refuse, so we never remove a dimension that still has someone inside.
-        foreach (var p in _sapi.World.AllOnlinePlayers)
+        foreach (var sp in OccupancyScan.PlayersIn(_sapi, internalId))
         {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == internalId)
-            {
-                OverworldRescue.TryEvacuate(Transitions, sp, _sapi.Logger);
-            }
+            OverworldRescue.TryEvacuate(Transitions, sp, _sapi.Logger);
         }
     }
 }
