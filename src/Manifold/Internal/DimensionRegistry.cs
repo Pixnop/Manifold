@@ -131,7 +131,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     internal IDimensionBuilder DefineForOwner(AssetLocation code, string ownerModId)
     {
         DimensionCodeValidator.Validate(code);
-        Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerModId);
         if (_snapshot.TryGetValue(code, out var existing))
         {
             if (existing.State != DimensionState.Pending)
