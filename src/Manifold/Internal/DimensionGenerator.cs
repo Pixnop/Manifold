@@ -95,40 +95,12 @@ internal sealed class DimensionGenerator
     /// <param name="player">Player to push chunks to, or <c>null</c> to skip force-send.</param>
     public void EnsureRegion(ICoreServerAPI sapi, int dimId, int centerCx, int centerCz, IServerPlayer? player)
     {
-        if (sapi is null)
+        if (!TryPrepare(sapi, dimId, out var dim, out var strategy))
         {
             return;
         }
 
-        // Overworld is handled natively; never drive it ourselves.
-        if (dimId == 0)
-        {
-            return;
-        }
-
-        if (IsDisabled(dimId))
-        {
-            return;
-        }
-
-        var dim = _registry.GetByInternalId(dimId);
-        if (dim?.Worldgen is not { } strategy)
-        {
-            return;
-        }
-
-        int radius = dim.GenerationRadius;
-
-        // Ensure OnInitialize runs SUCCESSFULLY once per dimension. On failure, remove the marker so the
-        // next visit retries init rather than generating uninitialized terrain (block ids unresolved).
-        // The failure still counts toward auto-disable via RecordFailure inside InvokeInitialize.
-        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
-        {
-            _initialized.TryRemove(dimId, out _);
-            return;
-        }
-
-        FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
+        FillRegionColumns(sapi, dimId, centerCx, centerCz, dim.GenerationRadius, strategy, player);
 
         // No automatic server-side relight here. The client lights freshly-received chunk columns
         // natively (sunlight flood on receipt + incremental relight on block edits), exactly as it
@@ -151,21 +123,8 @@ internal sealed class DimensionGenerator
     /// <returns><c>true</c> if newly generated (caller should relight).</returns>
     public bool EnsureColumn(ICoreServerAPI sapi, int dimId, int cx, int cz)
     {
-        if (sapi is null || dimId == 0 || IsDisabled(dimId) || cx < 0 || cz < 0)
+        if (cx < 0 || cz < 0 || !TryPrepare(sapi, dimId, out _, out var strategy))
         {
-            return false;
-        }
-
-        var dim = _registry.GetByInternalId(dimId);
-        if (dim?.Worldgen is not { } strategy)
-        {
-            return false;
-        }
-
-        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
-        {
-            // Retry init on the next visit instead of generating uninitialized terrain.
-            _initialized.TryRemove(dimId, out _);
             return false;
         }
 
@@ -264,6 +223,48 @@ internal sealed class DimensionGenerator
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Shared guard for <see cref="EnsureRegion"/> and <see cref="EnsureColumn"/>: resolves the
+    /// dimension's worldgen strategy and ensures <c>OnInitialize</c> has run successfully for it.
+    /// On an init failure, removes the initialised marker so the next visit retries instead of
+    /// generating uninitialised terrain (block ids unresolved); the failure still counts toward
+    /// auto-disable via <see cref="RecordFailure"/> inside <see cref="InvokeInitialize"/>.
+    /// </summary>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id.</param>
+    /// <param name="dim">The resolved dimension, if ready to generate.</param>
+    /// <param name="strategy">The dimension's worldgen strategy, if ready to generate.</param>
+    /// <returns><c>true</c> if the caller may proceed to generate/load columns.</returns>
+    private bool TryPrepare(
+        ICoreServerAPI? sapi, int dimId, out DimensionImpl dim, out IWorldgenStrategy strategy)
+    {
+        dim = null!;
+        strategy = null!;
+
+        // Overworld is handled natively; never drive it ourselves.
+        if (sapi is null || dimId == 0 || IsDisabled(dimId))
+        {
+            return false;
+        }
+
+        var found = _registry.GetByInternalId(dimId);
+        if (found?.Worldgen is not { } foundStrategy)
+        {
+            return false;
+        }
+
+        dim = found;
+        strategy = foundStrategy;
+
+        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
+        {
+            _initialized.TryRemove(dimId, out _);
+            return false;
+        }
+
+        return true;
     }
 
     private bool InvokeInitialize(IWorldgenStrategy strategy, ICoreServerAPI sapi, int dimId)
