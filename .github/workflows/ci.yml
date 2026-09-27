@@ -6,40 +6,34 @@ on:
   pull_request:
     branches: [main, dev]
 
-# Opt into the Node.js 24 action runtime ahead of the June 2026 forced switch.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   analyze:
     name: Build, test & SonarCloud
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
       - name: Setup JDK 17 (required by SonarScanner)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
+      # Pinned to 1.22.2: Manifold.Pure.Tests mocks IPlayer with NSubstitute, which cannot
+      # proxy an internal member IPlayer gained in 1.22.4 (see README.md's Building from
+      # Source section). The e2e job below runs the real engine and isn't affected.
       - name: Download Vintage Story server (for API DLL references)
-        run: |
-          set -e
-          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
-          mkdir -p "$HOME/vs"
-          tar -xzf vs_server.tar.gz -C "$HOME/vs"
-          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
-          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
-          echo "Resolved VINTAGE_STORY=$DLL_DIR"
+        uses: ./.github/actions/vs-server
+        with:
+          version: 1.22.2
 
       - name: Install SonarScanner for .NET
         run: dotnet tool install --global dotnet-sonarscanner
@@ -82,34 +76,19 @@ jobs:
     needs: analyze
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - name: Cache Vintage Story server
-        id: cache-vs
-        uses: actions/cache@v4
-        with:
-          path: ~/vs
-          key: vs-server-linux-x64-1.22.7
-
+      # 1.22.7: the integration suite boots a real engine and isn't limited by the
+      # NSubstitute/IPlayer issue pinning the analyze job to 1.22.2 above.
       - name: Download Vintage Story server
-        if: steps.cache-vs.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          curl -sSL --proto '=https' --proto-redir '=https' -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.7.tar.gz"
-          mkdir -p "$HOME/vs"
-          tar -xzf vs_server.tar.gz -C "$HOME/vs"
-
-      - name: Export VINTAGE_STORY
-        run: |
-          set -e
-          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
-          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
-          echo "Resolved VINTAGE_STORY=$DLL_DIR"
+        uses: ./.github/actions/vs-server
+        with:
+          version: 1.22.7
 
       - name: E2E scenarios
         run: |
@@ -120,7 +99,7 @@ jobs:
 
       - name: Upload E2E results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scenarios-trx
           path: TestResults/scenarios.trx
