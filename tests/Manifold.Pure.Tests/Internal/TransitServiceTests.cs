@@ -363,6 +363,68 @@ public sealed class TransitServiceTests
         player.Received(1).SetModdata("manifold:inv", Arg.Any<byte[]>());
     }
 
+    [Fact]
+    public void TeleportPlayer_Should_Restore_Previous_GameMode_When_Leaving_A_Forced_Dimension()
+    {
+        var (svc, registry, player, _, _, _) = NewService();
+        RegisterForced(registry, "owner:creative", EnumGameMode.Creative);
+        var moddata = BackModdata(player);
+        player.WorldData.CurrentGameMode = EnumGameMode.Survival;
+
+        svc.TeleportPlayer(player, Code("owner:creative"));
+        Assert.Equal(EnumGameMode.Creative, player.WorldData.CurrentGameMode);
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+        Assert.Equal(EnumGameMode.Survival, player.WorldData.CurrentGameMode);
+        Assert.Empty(moddata);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Keep_The_Original_GameMode_When_Chaining_Forced_Dimensions()
+    {
+        var (svc, registry, player, _, _, _) = NewService();
+        RegisterForced(registry, "owner:creative", EnumGameMode.Creative);
+        RegisterForced(registry, "owner:spectate", EnumGameMode.Spectator);
+        BackModdata(player);
+        player.WorldData.CurrentGameMode = EnumGameMode.Survival;
+
+        svc.TeleportPlayer(player, Code("owner:creative"));
+        svc.TeleportPlayer(player, Code("owner:spectate"));
+        Assert.Equal(EnumGameMode.Spectator, player.WorldData.CurrentGameMode);
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+        Assert.Equal(EnumGameMode.Survival, player.WorldData.CurrentGameMode);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Leave_GameMode_Alone_Between_Unforced_Dimensions()
+    {
+        var (svc, _, player, _, _, _) = NewService();
+        var moddata = BackModdata(player);
+        player.WorldData.CurrentGameMode = EnumGameMode.Creative;
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        Assert.Equal(EnumGameMode.Creative, player.WorldData.CurrentGameMode);
+        Assert.DoesNotContain("manifold:gamemode-before-forced", moddata.Keys);
+    }
+
+    private static void RegisterForced(DimensionRegistry registry, string code, EnumGameMode mode) =>
+        registry.DefineForOwner(Code(code), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithForcedGameMode(mode)
+            .RegisterStatic();
+
+    /// <summary>Backs the player's moddata with a dictionary: a bare substitute returns an empty array, not null.</summary>
+    private static System.Collections.Generic.Dictionary<string, byte[]> BackModdata(IServerPlayer player)
+    {
+        var store = new System.Collections.Generic.Dictionary<string, byte[]>();
+        player.GetModdata(Arg.Any<string>()).Returns(c => store.TryGetValue(c.Arg<string>(), out var v) ? v : null);
+        player.When(p => p.SetModdata(Arg.Any<string>(), Arg.Any<byte[]>())).Do(c => store[c.ArgAt<string>(0)] = c.ArgAt<byte[]>(1));
+        player.When(p => p.RemoveModdata(Arg.Any<string>())).Do(c => store.Remove(c.Arg<string>()));
+        return store;
+    }
+
     private static AssetLocation Code(string s) => new(s);
 
     private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover)

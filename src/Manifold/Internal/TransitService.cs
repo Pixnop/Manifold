@@ -16,6 +16,7 @@ namespace Manifold.Internal;
 internal sealed class TransitService : ITransitionService
 {
     private const string InventoryModdataKey = "manifold:inv";
+    private const string GameModeModdataKey = "manifold:gamemode-before-forced";
 
     private readonly DimensionRegistry _registry;
     private readonly ICoreServerAPI _sapi;
@@ -123,20 +124,7 @@ internal sealed class TransitService : ITransitionService
 
         _movers.Player.Teleport(player, targetPos);
 
-        // Apply a forced game mode if the destination dimension configures one.
-        if (targetImpl?.ForcedGameMode is { } gameMode)
-        {
-            try
-            {
-                player.WorldData.CurrentGameMode = gameMode;
-                player.BroadcastPlayerData(true);
-            }
-            catch
-            {
-                // Best effort - never block transit on a game-mode failure.
-            }
-        }
-
+        ApplyGameModePolicy(player, targetImpl);
         ApplyInventoryPolicy(player, target, targetImpl);
 
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
@@ -221,6 +209,47 @@ internal sealed class TransitService : ITransitionService
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
+
+    /// <summary>
+    /// A forced game mode belongs to its dimension. The mode the player had before entering the
+    /// first forced dimension is kept in their moddata (so it survives logout and restarts, like the
+    /// inventory store) and handed back when they transit to a dimension that forces nothing.
+    /// Chaining forced dimensions keeps the original mode, not the previous forced one.
+    /// </summary>
+    private void ApplyGameModePolicy(IServerPlayer player, DimensionImpl? targetImpl)
+    {
+        byte[]? saved = player.GetModdata(GameModeModdataKey);
+        EnumGameMode mode;
+        if (targetImpl?.ForcedGameMode is { } forced)
+        {
+            if (saved is null)
+            {
+                player.SetModdata(GameModeModdataKey, BitConverter.GetBytes((int)player.WorldData.CurrentGameMode));
+            }
+
+            mode = forced;
+        }
+        else if (saved is { Length: sizeof(int) })
+        {
+            player.RemoveModdata(GameModeModdataKey);
+            mode = (EnumGameMode)BitConverter.ToInt32(saved, 0);
+        }
+        else
+        {
+            return;
+        }
+
+        try
+        {
+            player.WorldData.CurrentGameMode = mode;
+            player.BroadcastPlayerData(true);
+        }
+        catch (Exception ex)
+        {
+            // Never block a transit that already happened on a game-mode failure.
+            _sapi.Logger?.Warning("[Manifold] Could not set game mode {0} for {1}: {2}", mode, player.PlayerName, ex);
+        }
+    }
 
     private void LogSubscriberError(Exception ex) =>
         _sapi.Logger?.Warning("[Manifold] A transit event subscriber threw and was isolated: {0}", ex);
