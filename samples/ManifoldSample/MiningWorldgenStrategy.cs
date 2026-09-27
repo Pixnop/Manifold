@@ -22,10 +22,16 @@ public sealed class MiningWorldgenStrategy : IWorldgenStrategy
     /// <summary>World Z of the carved spawn room and the dimension's fixed spawn point.</summary>
     public const int SpawnZ = 16;
 
-    /// <summary>World Y of the dimension's fixed spawn point (one block above the room floor).</summary>
-    public const int SpawnY = RoomFloorY + 1;
+    /// <summary>
+    /// World Y of the dimension's fixed spawn point: one block above the solid rock floor,
+    /// i.e. the same height as the room's floor air layer.
+    /// </summary>
+    public const int SpawnY = RoomFloorY;
 
     private const int RoomRadius = 2;
+
+    // The room's air layers run RoomFloorY..RoomCeilingY inclusive, so the solid rock floor
+    // right below the room sits at RoomFloorY - 1.
     private const int RoomFloorY = 22;
     private const int RoomCeilingY = 26;
     private const int OreChanceDenominator = 40;
