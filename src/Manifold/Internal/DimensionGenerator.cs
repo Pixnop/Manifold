@@ -81,7 +81,10 @@ internal sealed class DimensionGenerator
         _disabled.TryRemove(dimId, out _);
     }
 
-    /// <summary>Returns the consecutive failure count for the given dimension.</summary>
+    /// <summary>
+    /// Returns the consecutive failure count for the given dimension. No production caller; kept as
+    /// a deliberate test seam for asserting <see cref="RecordFailure"/>'s counting/auto-disable logic.
+    /// </summary>
     /// <param name="dimId">Engine dimension id.</param>
     /// <returns>Count of consecutive failures since last success.</returns>
     public int GetConsecutiveFailureCount(int dimId) =>

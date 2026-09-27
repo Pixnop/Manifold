@@ -45,11 +45,6 @@ internal sealed record DimensionImpl(
     int? StreamingBudgetPerTick,
     int? SkyCapY) : IDimension
 {
-    /// <summary>Return a copy with the supplied <see cref="State"/>.</summary>
-    /// <param name="newState">The new state.</param>
-    /// <returns>Copy with updated state.</returns>
-    public DimensionImpl WithState(DimensionState newState) => this with { State = newState };
-
     /// <summary>
     /// Builds a dimension record with no worldgen and every builder-configurable field at its
     /// default: the shape shared by the built-in overworld and a manifest-seeded Pending/Quarantined
