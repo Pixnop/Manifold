@@ -85,7 +85,6 @@ public sealed class MyModSystem : ModSystem
         base.StartServerSide(sapi);
 
         var manifold = sapi.GetManifoldServer(this); // owner-scoped facade
-        if (!manifold.IsHealthy) return;
 
         manifold.Registry
             .Define(new AssetLocation("mymod", "void"))
@@ -113,7 +112,7 @@ public sealed class MyModSystem : ModSystem
 |-------------|---------|
 | Vintage Story | 1.22.x (integration suite runs on 1.22.7) |
 | .NET | 10 |
-| Harmony | Not required (0Harmony provided by the game) |
+| Harmony | Not referenced |
 | protobuf-net | Not required (bundled with the game) |
 
 ---

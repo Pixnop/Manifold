@@ -52,7 +52,7 @@ public abstract class PortalBlockBase : Block
         }
 
         var manifold = ManifoldAccess.GetServer(sapi);
-        if (manifold is null || !manifold.IsHealthy)
+        if (manifold is null)
         {
             return;
         }

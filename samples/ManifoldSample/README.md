@@ -44,7 +44,7 @@ If any step fails, the failing assertion identifies the layer:
 
 | Failing step | Layer at fault |
 |---|---|
-| Boot clean | ManifoldModSystem wiring, HarmonyPatcher, or VS API surface drift |
+| Boot clean | ManifoldModSystem wiring, or VS API surface drift |
 | Sample registered | GetManifoldServer extension, DimensionBuilder, BasicVoidWorldgenStrategy |
 | Command transit | DimensionCommandBuilder, TransitService, PlayerTeleporter (cross-dim) |
 | Block transit | PortalBlockBase.OnEntityCollide, ManifoldAccess resolver |

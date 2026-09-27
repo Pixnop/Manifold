@@ -28,7 +28,6 @@ internal sealed class TransitService : ITransitionService
     private readonly PlayerPositionStore _positionStore;
     private readonly IInventorySwapper _inventory;
     private readonly HashSet<int> _warnedMissingSpawnPoint = new();
-    private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
@@ -81,7 +80,7 @@ internal sealed class TransitService : ITransitionService
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(targetDim);
         ArgumentNullException.ThrowIfNull(targetLocal);
-        var target = RequireActiveTarget(targetDim);
+        var target = DimensionGate.RequireActive(_registry, targetDim);
 
         var targetPos = targetLocal.Copy();
         targetPos.dimension = target.InternalId;
@@ -105,7 +104,7 @@ internal sealed class TransitService : ITransitionService
                 nameof(entity));
         }
 
-        var target = RequireActiveTarget(targetDim);
+        var target = DimensionGate.RequireActive(_registry, targetDim);
 
         // Capture source dim BEFORE the move so the post-event reports the actual previous
         // dimension. The default-to-overworld fallback mirrors TeleportPlayer's handling of
@@ -132,7 +131,7 @@ internal sealed class TransitService : ITransitionService
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(targetDim);
-        var target = RequireActiveTarget(targetDim);
+        var target = DimensionGate.RequireActive(_registry, targetDim);
 
         int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
@@ -186,27 +185,6 @@ internal sealed class TransitService : ITransitionService
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
         SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
         return true;
-    }
-
-    /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
-    internal void MarkUnhealthy() => _unhealthy = true;
-
-    /// <summary>
-    /// Common transit gate shared by all three Teleport* methods: refuses when Manifold is
-    /// unhealthy, and resolves <paramref name="targetDim"/> to a registered, <see cref="DimensionState.Active"/>
-    /// dimension (<see cref="DimensionGate.RequireActive"/>).
-    /// </summary>
-    /// <param name="targetDim">Target dimension code.</param>
-    /// <returns>The resolved target dimension.</returns>
-    private IDimension RequireActiveTarget(AssetLocation targetDim)
-    {
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
-        return DimensionGate.RequireActive(_registry, targetDim);
     }
 
     /// <summary>

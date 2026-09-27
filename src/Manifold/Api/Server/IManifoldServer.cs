@@ -19,7 +19,7 @@ public interface IManifoldServer
     /// <summary>Gets the transition service.</summary>
     ITransitionService Transitions { get; }
 
-    /// <summary>Returns <c>true</c> if Manifold successfully initialized all Harmony patches at boot.</summary>
+    /// <summary>Always <c>true</c>. Kept for compatibility with mods compiled against earlier versions.</summary>
     bool IsHealthy { get; }
 
     /// <summary>
@@ -35,7 +35,6 @@ public interface IManifoldServer
     /// <param name="max">Maximum corner of the region (local coordinates).</param>
     /// <exception cref="System.ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
-    /// <exception cref="ManifoldUnhealthyException">Manifold failed to initialize at boot.</exception>
     void RelightRegion(AssetLocation dimension, BlockPos min, BlockPos max);
 
     /// <summary>
@@ -53,7 +52,6 @@ public interface IManifoldServer
     /// not be evacuated and the dimension is therefore still in use.
     /// </returns>
     /// <exception cref="System.ArgumentNullException"><paramref name="dimension"/> is null.</exception>
-    /// <exception cref="ManifoldUnhealthyException">Manifold failed to initialize at boot.</exception>
     /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
     /// <exception cref="DimensionStateException">The dimension is Persistent (use the admin purge).</exception>
     bool ForceRemoveDimension(AssetLocation dimension);
@@ -73,7 +71,6 @@ public interface IManifoldServer
     /// <see cref="Vintagestory.API.MathTools.BlockPos.dimension"/> fields are ignored.
     /// </param>
     /// <exception cref="System.ArgumentNullException"><paramref name="dimension"/> or <paramref name="center"/> is null.</exception>
-    /// <exception cref="ManifoldUnhealthyException">Manifold failed to initialize at boot.</exception>
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
     /// <exception cref="DimensionStateException">The dimension is not <see cref="DimensionState.Active"/>.</exception>
     void GenerateRegion(AssetLocation dimension, BlockPos center);

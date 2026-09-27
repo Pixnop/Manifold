@@ -124,11 +124,6 @@ public sealed class DimensionCommandBuilder
                     return TextCommandResult.Error("Manifold not loaded.");
                 }
 
-                if (!manifold.IsHealthy)
-                {
-                    return TextCommandResult.Error("Manifold is unhealthy; transit unavailable.");
-                }
-
                 return TryTeleport(manifold, player, Target!, Options);
             });
     }

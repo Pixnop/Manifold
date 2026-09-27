@@ -41,7 +41,7 @@ Add Manifold as a dependency in your `modinfo.json`, get the facade, and registe
 
 - Vintage Story **1.22.x** (the integration suite runs on 1.22.7)
 - **.NET 10**
-- No Harmony required (0Harmony and protobuf are provided by the game itself)
+- No Harmony reference; protobuf is provided by the game itself
 
 ## License
 

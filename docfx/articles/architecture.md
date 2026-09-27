@@ -20,13 +20,11 @@ ManifoldModSystem
   ├── TransitService            - TeleportPlayer/Entity/Block logic, event dispatch, game-mode and inventory policy
   ├── GeneratedColumnStore      - persisted set of already-generated columns (load vs. regenerate)
   ├── PlayerPositionStore       - persisted per-player, per-dimension last-visited positions
-  ├── ManifoldNetworkChannel    - serialises the dimension list and pushes updates to clients
-  └── HarmonyPatcher            - runs PatchAll (currently zero patches) as a boot health gate; see Zero Harmony below
+  └── ManifoldNetworkChannel    - serialises the dimension list and pushes updates to clients
 ```
 
-Each service is an internal class in the `Manifold.Internal` namespace (`HarmonyPatcher` lives in the
-`Manifold.Internal.HarmonyPatches` sub-namespace). Consumers never reference these types directly - they
-interact only through the `Manifold.Api` interfaces.
+Each service is an internal class in the `Manifold.Internal` namespace. Consumers never reference
+these types directly - they interact only through the `Manifold.Api` interfaces.
 
 ## Facades
 
@@ -79,20 +77,15 @@ The only non-public access in Manifold is `EntityPosAccess`: a reflection-built 
 `Entity.Pos` as either a field or a property, since VS 1.22 changed its shape from one to the other and
 Manifold ships one binary that must work against both.
 
-`0Harmony` is still referenced: `HarmonyPatcher` runs `PatchAll` with zero `[HarmonyPatch]`-annotated
-classes in the assembly today, purely as a boot health check (forward-compatible if a patch is ever
-added). If Harmony fails to load, `HarmonyPatcher.IsHealthy` is `false` and `IManifoldServer.IsHealthy`
-reports `false` too. Dimension registration still succeeds in that state (on a disconnected registry
-with no in-game effect), but `TeleportPlayer`/`TeleportEntity`/`TeleportBlock`, `RelightRegion`,
-`GenerateRegion`, and `ForceRemoveDimension` all throw `ManifoldUnhealthyException` instead of
-silently doing nothing.
+Manifold does not reference Harmony at all. `IManifoldServer.IsHealthy` and `IManifoldClient.IsHealthy`
+are always `true` and `ManifoldUnhealthyException` is never thrown; both are kept only for binary
+compatibility with mods compiled against earlier versions.
 
 ## Package Dependencies
 
 | Package | Source | Purpose |
 |---------|--------|---------|
 | `VintagestoryAPI` | Provided by the game at `$VINTAGE_STORY` | Core VS types |
-| `0Harmony` | Bundled with VS | Referenced at boot: `PatchAll` runs with zero patches, purely as the health check described above |
 | `protobuf-net` | Bundled with VS | Network message serialization |
 
 No NuGet packages beyond the test tooling are introduced by Manifold.
