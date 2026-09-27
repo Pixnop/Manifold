@@ -27,9 +27,9 @@ internal sealed class DimensionGenerator
 
     private readonly DimensionRegistry _registry;
     private readonly GeneratedColumnStore _generatedColumns;
-    private readonly ConcurrentDictionary<int, bool> _initialized = new();
+    private readonly HashSet<int> _initialized = new();
     private readonly ConcurrentDictionary<int, int> _failureCounts = new();
-    private readonly ConcurrentDictionary<int, bool> _disabled = new();
+    private readonly HashSet<int> _disabled = new();
 
     /// <summary>
     /// Candidate opaque block codes for the dark-sky ceiling cap, tried in order. The first that
@@ -64,7 +64,7 @@ internal sealed class DimensionGenerator
     /// <summary>Returns <c>true</c> if the strategy for the given dimension has been auto-disabled.</summary>
     /// <param name="dimId">Engine dimension id.</param>
     /// <returns><c>true</c> if disabled.</returns>
-    public bool IsDisabled(int dimId) => _disabled.TryGetValue(dimId, out var d) && d;
+    public bool IsDisabled(int dimId) => _disabled.Contains(dimId);
 
     /// <summary>
     /// Drops all per-dimension generator state (initialised flag, failure count, auto-disabled flag)
@@ -76,9 +76,9 @@ internal sealed class DimensionGenerator
     /// <param name="dimId">Engine dimension id being released.</param>
     public void ForgetDimension(int dimId)
     {
-        _initialized.TryRemove(dimId, out _);
+        _initialized.Remove(dimId);
         _failureCounts.TryRemove(dimId, out _);
-        _disabled.TryRemove(dimId, out _);
+        _disabled.Remove(dimId);
     }
 
     /// <summary>
@@ -260,9 +260,9 @@ internal sealed class DimensionGenerator
         dim = found;
         strategy = foundStrategy;
 
-        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
+        if (_initialized.Add(dimId) && !InvokeInitialize(strategy, sapi, dimId))
         {
-            _initialized.TryRemove(dimId, out _);
+            _initialized.Remove(dimId);
             return false;
         }
 
@@ -386,9 +386,8 @@ internal sealed class DimensionGenerator
     {
         int count = _failureCounts.AddOrUpdate(dimId, 1, (_, prev) => prev + 1);
         StrategyThrew?.Invoke(dimId, strategy, ex);
-        if (count >= MaxConsecutiveFailures && !IsDisabled(dimId))
+        if (count >= MaxConsecutiveFailures && _disabled.Add(dimId))
         {
-            _disabled[dimId] = true;
             StrategyAutoDisabled?.Invoke(dimId);
         }
     }
