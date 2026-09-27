@@ -212,6 +212,15 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportEntity_Should_Throw_When_Unhealthy()
+    {
+        var (svc, _, _, _, _) = NewService();
+        svc.MarkUnhealthy();
+        var entity = Substitute.For<Entity>();
+        Assert.Throws<ManifoldUnhealthyException>(() => svc.TeleportEntity(entity, Code("owner:target")));
+    }
+
+    [Fact]
     public void TeleportEntity_Should_Call_Mover_With_Resolved_Position()
     {
         var (svc, registry, _, mover, _) = NewService();
