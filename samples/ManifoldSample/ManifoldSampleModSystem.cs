@@ -18,9 +18,15 @@ public sealed class ManifoldSampleModSystem : ModSystem
 {
     private const string ModId = "manifoldsample";
 
-    // Bumped on every /miningreset so the next MiningWorldgenStrategy instance draws a different
-    // ore layout for manifoldsample:mining.
+    // Ore-layout salt for the mining dimension, in memory only (a mod restart resets it to 0,
+    // which is fine for a sample with no persistence). Bumped in HandleMiningDim on every
+    // (re)creation, not on /miningreset itself, so a fresh MiningWorldgenStrategy always draws a
+    // different layout - including when the previous incarnation disappeared via auto-reap (its
+    // last occupant left, or the server shut down) rather than an explicit /miningreset.
     private int _miningDimSalt;
+
+    /// <summary>Test-only peek at the in-memory mining-dimension ore-layout salt.</summary>
+    internal int MiningDimSaltForTests => _miningDimSalt;
 
     /// <summary>Run after Manifold (0.05) so the facade is ready.</summary>
     public override double ExecuteOrder() => 0.5;
@@ -290,26 +296,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
                     return TextCommandResult.Error("Players only.");
                 }
 
-                bool created = manifold.Registry.Get(miningCode) is null;
-                if (created)
-                {
-                    manifold.Registry
-                        .Define(miningCode)
-                        .Ephemeral()
-                        .WithWorldgen(new MiningWorldgenStrategy(_miningDimSalt))
-                        .WithFixedSpawn(new BlockPos(
-                            MiningWorldgenStrategy.SpawnX,
-                            MiningWorldgenStrategy.SpawnY,
-                            MiningWorldgenStrategy.SpawnZ,
-                            0))
-                        .WithGenerationRadius(3)
-                        .Create();
-                }
-
-                manifold.Transitions.TeleportPlayer(serverPlayer, miningCode);
-                return TextCommandResult.Success(created
-                    ? "Created manifoldsample:mining and sent you in."
-                    : "Sent you to manifoldsample:mining.");
+                return HandleMiningDim(manifold, miningCode, serverPlayer);
             });
 
         api.ChatCommands.Create("miningreset")
@@ -327,11 +314,41 @@ public sealed class ManifoldSampleModSystem : ModSystem
                     return TextCommandResult.Error("Could not evacuate everyone from manifoldsample:mining; it is still in use.");
                 }
 
-                _miningDimSalt++;
                 return TextCommandResult.Success("Reset manifoldsample:mining; run /miningdim to generate a fresh one.");
             });
 
         Mod.Logger.Notification(
             "[ManifoldSample] Registered void + flat + dark + stream + vault dimensions and /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim, /miningdim, /miningreset commands.");
+    }
+
+    /// <summary>
+    /// Handles <c>/miningdim</c>: creates the mining dimension if it is not currently registered,
+    /// bumping the in-memory ore-layout salt for that new instance, then teleports the player in.
+    /// Internal (rather than a lambda inline in <see cref="StartServerSide"/>) so a unit test can
+    /// exercise the create-vs-teleport-only branch without wiring real chat commands.
+    /// </summary>
+    internal TextCommandResult HandleMiningDim(IManifoldServer manifold, AssetLocation miningCode, IServerPlayer serverPlayer)
+    {
+        bool created = manifold.Registry.Get(miningCode) is null;
+        if (created)
+        {
+            _miningDimSalt++;
+            manifold.Registry
+                .Define(miningCode)
+                .Ephemeral()
+                .WithWorldgen(new MiningWorldgenStrategy(_miningDimSalt))
+                .WithFixedSpawn(new BlockPos(
+                    MiningWorldgenStrategy.SpawnX,
+                    MiningWorldgenStrategy.SpawnY,
+                    MiningWorldgenStrategy.SpawnZ,
+                    0))
+                .WithGenerationRadius(3)
+                .Create();
+        }
+
+        manifold.Transitions.TeleportPlayer(serverPlayer, miningCode);
+        return TextCommandResult.Success(created
+            ? "Created manifoldsample:mining and sent you in."
+            : "Sent you to manifoldsample:mining.");
     }
 }
