@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Manifold.Api.Worldgen;
+using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -21,7 +22,8 @@ namespace Manifold.Internal;
 /// </remarks>
 internal sealed class DimensionGenerator
 {
-    private const int MaxConsecutiveFailures = 4;
+    /// <summary>Consecutive strategy failures before auto-disabling a dimension's worldgen.</summary>
+    internal const int MaxConsecutiveFailures = 4;
 
     private readonly DimensionRegistry _registry;
     private readonly GeneratedColumnStore _generatedColumns;
@@ -334,15 +336,14 @@ internal sealed class DimensionGenerator
             return;
         }
 
-        int baseX = cx * 32;
-        int baseZ = cz * 32;
+        int baseX = cx * ChunkMath.ChunkSize;
+        int baseZ = cz * ChunkMath.ChunkSize;
         var pos = new BlockPos(baseX, capY, baseZ, dimId);
-        for (int lx = 0; lx < 32; lx++)
+        for (int lx = 0; lx < ChunkMath.ChunkSize; lx++)
         {
-            for (int lz = 0; lz < 32; lz++)
+            for (int lz = 0; lz < ChunkMath.ChunkSize; lz++)
             {
                 pos.Set(baseX + lx, capY, baseZ + lz);
-                pos.dimension = dimId;
                 accessor.SetBlock(capBlockId, pos);
             }
         }
