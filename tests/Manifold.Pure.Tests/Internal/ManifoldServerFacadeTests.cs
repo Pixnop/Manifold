@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api;
+using Manifold.Api.Transitions;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
 using NSubstitute;
@@ -58,8 +60,14 @@ public sealed class ManifoldServerFacadeTests
         facade.RelightRegion(
             new AssetLocation("owner:target"), new BlockPos(0, 0, 0, 0), new BlockPos(31, 64, 31, 0));
 
-        // Runtime relight must push to clients (sendToClients: true) or the change is invisible.
-        sapi.WorldManager.Received(1).FullRelight(Arg.Any<BlockPos>(), Arg.Any<BlockPos>(), true);
+        // Runtime relight must push to clients (sendToClients: true) and target the dimension's own
+        // internal id - a BlockPos built without one defaults to dim 0, which would relight the
+        // overworld instead.
+        var id = facade.Registry.Get(new AssetLocation("owner:target"))!.InternalId;
+        sapi.WorldManager.Received(1).FullRelight(
+            Arg.Is<BlockPos>(p => p.dimension == id),
+            Arg.Is<BlockPos>(p => p.dimension == id && p.X == 31),
+            true);
     }
 
     [Fact]
@@ -108,11 +116,18 @@ public sealed class ManifoldServerFacadeTests
         var occupant = PlayerAt(dimId, "occupant");
         sapi.World.AllOnlinePlayers.Returns(new IPlayer[] { occupant });
 
+        var order = new List<string>();
+        transitions.When(t => t.TeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
+            .Do(_ => order.Add("teleport"));
+        facade.Registry.Destroyed += (_, _) => order.Add("destroyed");
+
         Assert.True(facade.ForceRemoveDimension(new AssetLocation("owner:ephemeral")));
 
-        // The only call to the transit substitute is the occupant evacuation. Counting ReceivedCalls
-        // proves the occupant was teleported, without the matcher plumbing around the struct param.
-        Assert.Single(transitions.ReceivedCalls());
+        transitions.Received(1).TeleportPlayer(
+            occupant,
+            Arg.Is<AssetLocation>(c => c.Equals(new AssetLocation("manifold:overworld"))),
+            Arg.Is<TransitionOptions>(o => o.SpawnBehavior == SpawnBehavior.LastVisited));
+        Assert.Equal(new[] { "teleport", "destroyed" }, order);
         Assert.Null(facade.Registry.Get(new AssetLocation("owner:ephemeral")));
     }
 

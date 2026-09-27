@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Manifold.Api.Worldgen;
+using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -9,18 +10,20 @@ using Vintagestory.API.Server;
 namespace Manifold.Internal;
 
 /// <summary>
-/// Active worldgen driver. Replaces the old <c>ChunkColumnGeneration</c>-hook approach.
-/// Generates or loads chunk columns on demand by directly calling the engine's
-/// <c>CreateChunkColumnForDimension</c> / <c>LoadChunkColumnForDimension</c> APIs.
+/// Active worldgen driver. Generates or loads chunk columns on demand by directly calling the
+/// engine's <c>CreateChunkColumnForDimension</c> / <c>LoadChunkColumnForDimension</c> APIs; no
+/// Harmony patches or event hooks are involved.
 /// </summary>
 /// <remarks>
 /// Server-side, main thread. Call <see cref="EnsureRegion"/> whenever a player enters a custom
 /// dimension; the generator creates missing columns, fills them via the registered
-/// <see cref="IWorldgenStrategy"/>, relights them, and pushes them to the player.
+/// <see cref="IWorldgenStrategy"/>, and pushes them to the player (no server relight; see
+/// <see cref="EnsureRegion"/>).
 /// </remarks>
 internal sealed class DimensionGenerator
 {
-    private const int MaxConsecutiveFailures = 4;
+    /// <summary>Consecutive strategy failures before auto-disabling a dimension's worldgen.</summary>
+    internal const int MaxConsecutiveFailures = 4;
 
     private readonly DimensionRegistry _registry;
     private readonly GeneratedColumnStore _generatedColumns;
@@ -78,7 +81,10 @@ internal sealed class DimensionGenerator
         _disabled.TryRemove(dimId, out _);
     }
 
-    /// <summary>Returns the consecutive failure count for the given dimension.</summary>
+    /// <summary>
+    /// Returns the consecutive failure count for the given dimension. No production caller; kept as
+    /// a deliberate test seam for asserting <see cref="RecordFailure"/>'s counting/auto-disable logic.
+    /// </summary>
     /// <param name="dimId">Engine dimension id.</param>
     /// <returns>Count of consecutive failures since last success.</returns>
     public int GetConsecutiveFailureCount(int dimId) =>
@@ -95,48 +101,16 @@ internal sealed class DimensionGenerator
     /// <param name="player">Player to push chunks to, or <c>null</c> to skip force-send.</param>
     public void EnsureRegion(ICoreServerAPI sapi, int dimId, int centerCx, int centerCz, IServerPlayer? player)
     {
-        if (sapi is null)
+        if (!TryPrepare(sapi, dimId, out var dim, out var strategy))
         {
             return;
         }
 
-        // Overworld is handled natively; never drive it ourselves.
-        if (dimId == 0)
-        {
-            return;
-        }
+        FillRegionColumns(sapi, dimId, centerCx, centerCz, dim.GenerationRadius, strategy, player);
 
-        if (IsDisabled(dimId))
-        {
-            return;
-        }
-
-        var dim = _registry.GetByInternalId(dimId);
-        if (dim?.Worldgen is not { } strategy)
-        {
-            return;
-        }
-
-        int radius = dim.GenerationRadius;
-
-        // Ensure OnInitialize runs SUCCESSFULLY once per dimension. On failure, remove the marker so the
-        // next visit retries init rather than generating uninitialized terrain (block ids unresolved).
-        // The failure still counts toward auto-disable via RecordFailure inside InvokeInitialize.
-        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
-        {
-            _initialized.TryRemove(dimId, out _);
-            return;
-        }
-
-        FillRegionColumns(sapi, dimId, centerCx, centerCz, radius, strategy, player);
-
-        // No automatic server-side relight here. The client lights freshly-received chunk columns
-        // natively (sunlight flood on receipt + incremental relight on block edits), exactly as it
-        // did in every released version - where this relight was a dim-0 no-op and custom-dim
-        // lighting was correct. Forcing a server FullRelight on the custom dim (#60) floods skylight
-        // and is force-sent by the streaming driver, overriding the correct client lighting (dims
-        // full-bright, torches/edits not relighting). Modders who need an explicit relight after a
-        // runtime edit use IManifoldServer.RelightRegion / the /manifold relight command.
+        // No server relight: a server FullRelight floods skylight into custom dims and overrides
+        // the client's own lighting (which floods sunlight and relights edits on receipt natively).
+        // Consumers relight explicitly via IManifoldServer.RelightRegion / the /manifold relight command.
     }
 
     /// <summary>
@@ -148,24 +122,11 @@ internal sealed class DimensionGenerator
     /// <param name="dimId">Engine dimension id.</param>
     /// <param name="cx">Chunk X.</param>
     /// <param name="cz">Chunk Z.</param>
-    /// <returns><c>true</c> if newly generated (caller should relight).</returns>
+    /// <returns><c>true</c> if the column was newly generated; <c>false</c> if loaded or skipped.</returns>
     public bool EnsureColumn(ICoreServerAPI sapi, int dimId, int cx, int cz)
     {
-        if (sapi is null || dimId == 0 || IsDisabled(dimId) || cx < 0 || cz < 0)
+        if (cx < 0 || cz < 0 || !TryPrepare(sapi, dimId, out _, out var strategy))
         {
-            return false;
-        }
-
-        var dim = _registry.GetByInternalId(dimId);
-        if (dim?.Worldgen is not { } strategy)
-        {
-            return false;
-        }
-
-        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
-        {
-            // Retry init on the next visit instead of generating uninitialized terrain.
-            _initialized.TryRemove(dimId, out _);
             return false;
         }
 
@@ -177,7 +138,7 @@ internal sealed class DimensionGenerator
     /// given dimension. The dimension field of both positions is overwritten with
     /// <paramref name="dimId"/> so callers cannot accidentally relight the overworld (which is
     /// exactly the bug this guards against - a <c>BlockPos</c> built without a dimension targets
-    /// dim 0). Best-effort: lighting failures never propagate.
+    /// dim 0). Best-effort: a lighting failure is logged and reported, never thrown.
     /// </summary>
     /// <param name="sapi">Server API.</param>
     /// <param name="dimId">Engine dimension id to relight in.</param>
@@ -191,17 +152,20 @@ internal sealed class DimensionGenerator
     /// freshly generated column is sent to the client separately (on transit / by the streaming
     /// driver).
     /// </param>
-    public static void RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
+    /// <returns><c>true</c> if the relight succeeded; <c>false</c> if it threw (logged as a warning).</returns>
+    public static bool RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
     {
         var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
         var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
         try
         {
             sapi.WorldManager.FullRelight(minPos, maxPos, sendToClients);
+            return true;
         }
-        catch
+        catch (Exception ex)
         {
-            // FullRelight is best-effort; never block on a lighting failure.
+            sapi.Logger.Warning("[Manifold] Relight of dim {0} {1}..{2} failed: {3}", dimId, minPos, maxPos, ex);
+            return false;
         }
     }
 
@@ -263,6 +227,48 @@ internal sealed class DimensionGenerator
         }
     }
 
+    /// <summary>
+    /// Shared guard for <see cref="EnsureRegion"/> and <see cref="EnsureColumn"/>: resolves the
+    /// dimension's worldgen strategy and ensures <c>OnInitialize</c> has run successfully for it.
+    /// On an init failure, removes the initialised marker so the next visit retries instead of
+    /// generating uninitialised terrain (block ids unresolved); the failure still counts toward
+    /// auto-disable via <see cref="RecordFailure"/> inside <see cref="InvokeInitialize"/>.
+    /// </summary>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id.</param>
+    /// <param name="dim">The resolved dimension, if ready to generate.</param>
+    /// <param name="strategy">The dimension's worldgen strategy, if ready to generate.</param>
+    /// <returns><c>true</c> if the caller may proceed to generate/load columns.</returns>
+    private bool TryPrepare(
+        ICoreServerAPI? sapi, int dimId, out DimensionImpl dim, out IWorldgenStrategy strategy)
+    {
+        dim = null!;
+        strategy = null!;
+
+        // Overworld is handled natively; never drive it ourselves.
+        if (sapi is null || dimId == 0 || IsDisabled(dimId))
+        {
+            return false;
+        }
+
+        var found = _registry.GetByInternalId(dimId);
+        if (found?.Worldgen is not { } foundStrategy)
+        {
+            return false;
+        }
+
+        dim = found;
+        strategy = foundStrategy;
+
+        if (_initialized.TryAdd(dimId, true) && !InvokeInitialize(strategy, sapi, dimId))
+        {
+            _initialized.TryRemove(dimId, out _);
+            return false;
+        }
+
+        return true;
+    }
+
     private bool InvokeInitialize(IWorldgenStrategy strategy, ICoreServerAPI sapi, int dimId)
     {
         try
@@ -292,8 +298,8 @@ internal sealed class DimensionGenerator
             return false;
         }
 
-        // First-ever visit: allocate empty chunk slots, populate via strategy. Relight is done ONCE
-        // for the whole region by the caller (per-column relight was the ~40s bottleneck).
+        // First-ever visit: allocate empty chunk slots, populate via strategy. No server relight:
+        // the client lights freshly-received columns itself; see EnsureRegion.
         sapi.WorldManager.CreateChunkColumnForDimension(cx, cz, dimId);
 
         // Bulk accessor batches all SetBlock writes into a single Commit.
@@ -333,15 +339,14 @@ internal sealed class DimensionGenerator
             return;
         }
 
-        int baseX = cx * 32;
-        int baseZ = cz * 32;
+        int baseX = cx * ChunkMath.ChunkSize;
+        int baseZ = cz * ChunkMath.ChunkSize;
         var pos = new BlockPos(baseX, capY, baseZ, dimId);
-        for (int lx = 0; lx < 32; lx++)
+        for (int lx = 0; lx < ChunkMath.ChunkSize; lx++)
         {
-            for (int lz = 0; lz < 32; lz++)
+            for (int lz = 0; lz < ChunkMath.ChunkSize; lz++)
             {
                 pos.Set(baseX + lx, capY, baseZ + lz);
-                pos.dimension = dimId;
                 accessor.SetBlock(capBlockId, pos);
             }
         }

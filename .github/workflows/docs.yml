@@ -19,10 +19,6 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-# Opt into the Node.js 24 action runtime ahead of the June 2026 forced switch.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
@@ -31,20 +27,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
+      # 1.22.2, matching ci.yml's analyze job: docfx only needs the API DLL for metadata.
       - name: Download Vintage Story server
-        run: |
-          set -e
-          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
-          mkdir -p "$HOME/vs"
-          tar -xzf vs_server.tar.gz -C "$HOME/vs"
-          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
-          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+        uses: ./.github/actions/vs-server
+        with:
+          version: 1.22.2
 
       - name: Install DocFX
         run: dotnet tool install --global docfx
@@ -53,10 +46,10 @@ jobs:
         run: docfx docfx/docfx.json
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docfx/_site
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

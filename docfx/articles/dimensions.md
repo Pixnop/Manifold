@@ -7,16 +7,26 @@ A **dimension** in Manifold is a named, isolated world region with its own terra
 Dimensions follow a well-defined lifecycle:
 
 ```
-  Define (boot)  ──►  Active  ──►  (server shutdown)
-  Create (runtime)              └──►  Quarantined  (owning mod removed)
+  Define(...).RegisterStatic()/.Create() ──► Active ──► (server shutdown, or removal)
+                                                  │
+                          restart, owner absent   │  restart, owner loaded but
+                          ─────────────────────►  │  not yet re-declared
+                                                   ▼
+                       Quarantined ◄───────────────  Pending ──► Active
+                       (owner re-declares:              (owner re-declares with
+                        Pending, then Active)             the same code: Active)
 ```
+
+A dimension always starts `Active` the moment `RegisterStatic()`/`Create()` completes. What happens
+across a restart depends on whether the owning mod is loaded and whether it re-declares the dimension
+with the same code - see [Dimension States](#dimension-states) and [Quarantine](#quarantine) below.
 
 ### Static vs. Dynamic Registration
 
 | Method | When to use |
 |--------|-------------|
-| `RegisterStatic()` | Boot-time, from `StartServerSide`. Idempotent - re-calling on a subsequent server start reuses the same internal id. Use this for dimensions that always exist while your mod is installed. |
-| `Create()` | Runtime, after boot. Use for player-created or event-driven dimensions. Lifetime must be `Ephemeral` or `Persistent`. |
+| `RegisterStatic()` | Boot-time, from `StartServerSide`. Persistent only (defaults to `Persistent`; `Ephemeral()` is rejected - use `Create()` for that). Call once per boot: on the next server start the same call re-claims the persisted entry under the same internal id, but calling it twice in the same boot throws `DimensionAlreadyRegisteredException`. Use this for dimensions that always exist while your mod is installed. |
+| `Create()` | Runtime, after boot. Use for player-created or event-driven dimensions. Requires an explicit `Persistent()` or `Ephemeral()` (throws `DimensionLifetimeUnspecifiedException` otherwise). |
 
 ### Persistent vs. Ephemeral
 
@@ -27,7 +37,7 @@ Dimensions follow a well-defined lifecycle:
 
 An `Ephemeral` dimension is reaped automatically when its last occupant **transits out** (`Destroyed` fires and its chunks are discarded), and it is removed at shutdown. **Disconnecting does not reap it** - a logged-out player keeps the dimension and reconnects straight back into it while the server is up. For a dimension a player must be able to leave and return to (including across a restart), use `Persistent`.
 
-A dimension is **never destroyed while a player is inside it**. `IDimensionRegistry.TryRemove(code)` returns `false` if anyone is still in the dimension; move occupants out first, or call `IManifoldServer.ForceRemoveDimension(code)` to evacuate them to the overworld and then remove it. Persistent dimensions cannot be removed through the API (use `/manifold purge <code>` as an admin to release quarantined ones).
+A dimension is **never destroyed while a player is inside it**. See [Removing dimensions](#removing-dimensions) below for `TryRemove`, `ForceRemoveDimension`, ephemeral auto-reap, and the admin purge command.
 
 ## The Registry
 
@@ -77,14 +87,43 @@ The built-in overworld is `manifold:overworld` (internal id 0). It is a first-cl
 | State | Meaning |
 |-------|---------|
 | `Active` | Normal operation - transit and worldgen permitted. |
-| `Pending` | Seen in a prior savegame but the owning mod has not yet re-registered it in this session. Typically resolves to Active within the same boot once the mod's `StartServerSide` runs. |
+| `Pending` | Seen in a prior savegame (or the current one, right after boot) and the owning mod is loaded, but has not (yet, or ever again) re-declared the dimension with `Define(code)...RegisterStatic()`/`Create()` in this session. Transit throws `DimensionStateException` while a dimension stays Pending. |
 | `Quarantined` | Owning mod is no longer installed. Chunks are kept on disk, but transit is refused. An admin can release the id with `/manifold purge <code>`. |
 
 ## Quarantine
 
-When a savegame is loaded and Manifold finds a persisted dimension whose owning mod is absent from the loaded mod list, the dimension enters the `Quarantined` state. This prevents id collision and chunk loss: the engine dimension slot and the saved chunks are preserved until an admin explicitly purges the entry.
+At boot, before any consumer mod's `StartServerSide` runs, Manifold reads the manifest and classifies
+each persisted entry right away: `Quarantined` if its owning mod is not in the loaded mod list,
+otherwise `Pending`. This prevents id collision and chunk loss: the engine dimension slot and the
+saved chunks are preserved either way.
 
-If you reinstall the owning mod, the dimension automatically transitions from `Pending` back to `Active` at the next server start.
+A `Pending` entry becomes `Active` only when its owner calls `Define(code)...RegisterStatic()` (or
+`...Create()`) again with the matching code - there is no automatic promotion. If your mod owns a
+runtime `Create()`-made `Persistent` dimension, re-declare it at boot with the same code, worldgen
+strategy and policies, or it stays `Pending` forever and every transit into it throws
+`DimensionStateException`. To find dimensions your mod needs to re-declare, iterate `Registry.All` for
+`State == DimensionState.Pending && OwnerModId == yourModId`.
+
+If you reinstall a mod whose dimension was `Quarantined`, that dimension does not become `Active` on
+its own either: it becomes `Pending` at the next boot (the owner is loaded again), and then `Active`
+once the owner re-declares it, exactly like any other `Pending` entry.
+
+## Removing dimensions
+
+| Method | Scope | Refuses / throws |
+|--------|-------|-------------------|
+| `IDimensionRegistry.TryRemove(code)` | Any dimension. | Returns `false` if the code is unknown or a connected player is still inside. Throws `DimensionBuiltInImmutableException` for the overworld, `DimensionStateException` for a `Persistent` dimension (use the admin purge command instead). |
+| `IManifoldServer.ForceRemoveDimension(code)` | `Ephemeral` only. | Evacuates every connected occupant to the overworld (`LastVisited` position) first, then removes. Returns `false` if the code is unknown, or if an occupant could not be evacuated (the dimension is left in place). For `BuiltIn`/`Persistent` it defers to `TryRemove` - same exceptions, without evacuating anyone first. |
+| `/manifold purge <code>` (privilege `controlserver`) | Any non-built-in dimension - `Active`, `Pending`, `Quarantined`, `Persistent` or `Ephemeral`. | Evacuates occupants first; if any player could not be evacuated, reports an error naming how many remain and does not purge. Errors (does not evacuate) if the code is unknown or built-in. On success, releases the engine id and fires `Destroyed`. |
+
+An `Ephemeral` dimension also reaps itself automatically: when its last occupant **transits out** (not
+on disconnect), `Destroyed` fires and its chunks are discarded - see [Persistent vs.
+Ephemeral](#persistent-vs-ephemeral) above.
+
+Whenever a dimension disappears (any of the above, or a savegame that no longer has it), a player
+whose saved position still points at it is not left stranded: `PlayerNowPlaying` checks the joining
+player's dimension, and if it is unknown or not `Active`, teleports them to the overworld at their
+last-visited position there. This is best-effort and logged, never thrown.
 
 ## Dimension Metadata (0.4.0)
 

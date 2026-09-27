@@ -4,8 +4,7 @@
     <OutputType>Library</OutputType>
     <AssemblyName>ManifoldSample</AssemblyName>
     <RootNamespace>ManifoldSample</RootNamespace>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);CS1591;SA0001;SA1633;SA1200;SA1101;SA1309;SA1413;SA1503;SA1623;SA1629;SA1600;SA1601;SA1602;SA1204</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;SA0001;SA1600;SA1601;SA1602</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 

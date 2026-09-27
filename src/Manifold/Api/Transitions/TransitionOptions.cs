@@ -3,14 +3,26 @@ using Vintagestory.API.MathTools;
 namespace Manifold.Api.Transitions;
 
 /// <summary>
-/// Optional knobs for <see cref="Server.ITransitionService.TeleportPlayer"/>.
+/// Optional knobs for <see cref="Server.ITransitionService.TeleportPlayer"/> and
+/// <see cref="Server.ITransitionService.TeleportEntity"/> (<see cref="SpawnBehavior"/> applies to
+/// players only).
 /// </summary>
 public readonly record struct TransitionOptions
 {
-    /// <summary>If set, overrides the resolver-computed target position. Caller-supplied dim encoding mandatory.</summary>
+    /// <summary>
+    /// If set, used as the landing position instead of the resolver. Its dimension field is ignored
+    /// and replaced with the target dimension's id on a copy; the instance you pass in is never mutated.
+    /// </summary>
     public BlockPos? OverridePosition { get; init; }
 
-    /// <summary>Resolver used when <see cref="OverridePosition"/> is null. Defaults to <see cref="TargetPositionResolvers.SameXZSurfaceY"/>.</summary>
+    /// <summary>
+    /// Custom resolver used when <see cref="OverridePosition"/> is null. Setting it replaces the
+    /// destination dimension's configured <see cref="SpawnBehavior"/> entirely, for both players and
+    /// entities. When null: players land per <see cref="SpawnBehavior"/> (this struct's, else the
+    /// destination dimension's), falling back to <see cref="TargetPositionResolvers.SameXZSurfaceY"/>
+    /// where that behavior needs one; non-player entities always use
+    /// <see cref="TargetPositionResolvers.SameXZSurfaceY"/>.
+    /// </summary>
     public ITargetPositionResolver? Resolver { get; init; }
 
     /// <summary>

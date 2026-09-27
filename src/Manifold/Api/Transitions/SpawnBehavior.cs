@@ -6,7 +6,11 @@ public enum SpawnBehavior
     /// <summary>Keep the player's current X/Z; land on the surface (default).</summary>
     SameCoordinates,
 
-    /// <summary>Always land at the dimension's configured fixed spawn point.</summary>
+    /// <summary>
+    /// Land at the dimension's fixed spawn point (<c>WithFixedSpawn</c>), used as-is with no surface
+    /// search. If none is configured, falls back to <see cref="TargetPositionResolvers.SameXZSurfaceY"/>
+    /// and logs a warning once per dimension.
+    /// </summary>
     DimensionSpawn,
 
     /// <summary>Return to where the player last was in this dimension; first visit falls back to SameCoordinates.</summary>

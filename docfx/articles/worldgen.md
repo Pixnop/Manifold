@@ -21,7 +21,7 @@ public interface IWorldgenStrategy
 
 ### OnInitialize
 
-Called once, on the first transit into the dimension (lazy initialization). Use `IWorldgenInitContext` to resolve block ids from the `IBlockAccessor` or `IWorldAccessor`. Store them in fields for later use in `GenerateColumn`.
+Called once, on the first transit into the dimension (lazy initialization). `IWorldgenInitContext` gives you `Api` (the `ICoreServerAPI`), plus `DimensionId` and `Seed`; use `ctx.Api.World.GetBlock(...)` to resolve block ids. Store them in fields for later use in `GenerateColumn`.
 
 ```csharp
 public sealed class MyFloorStrategy : IWorldgenStrategy
@@ -30,7 +30,8 @@ public sealed class MyFloorStrategy : IWorldgenStrategy
 
     public void OnInitialize(IWorldgenInitContext ctx)
     {
-        _stoneBlockId = ctx.BlockAccessor.GetBlock(new AssetLocation("game", "rock-granite")).Id;
+        // GetBlock returns null for an unknown code; fall back to id 0 (air) rather than crash.
+        _stoneBlockId = ctx.Api.World.GetBlock(new AssetLocation("game", "rock-granite"))?.Id ?? 0;
     }
 
     public void GenerateColumn(IWorldgenChunkContext ctx)
@@ -60,6 +61,12 @@ Called once per chunk column within the generation radius. The `IWorldgenChunkCo
 | `BlockAccessor` | Write blocks with `SetBlock(blockId, pos)`. Positions **must** be dimension-encoded. |
 | `Rng` | `LCGRandom` seeded deterministically per column - use for reproducible procedural generation. |
 
+The seed is `worldSeed ^ (chunkX * 1299721) ^ (chunkZ * 1000033)` - derived from the world seed and the
+column's own coordinates, not the dimension. Two dimensions generating the same column coordinates get
+the same seed and therefore the same first `Rng` draw; if your strategy needs dimension-distinct
+output at identical coordinates, fold `ctx.DimensionId` into your own derived seed inside
+`GenerateColumn`.
+
 > **Important:** Always dimension-encode positions. A `BlockPos` without `DimensionId` defaults to dimension 0 (the overworld) and will silently write to the wrong world.
 
 ## Active Bounded-Region Generation
@@ -67,8 +74,8 @@ Called once per chunk column within the generation radius. The `IWorldgenChunkCo
 When a player transits into a dimension for the first time (or after a server restart for a Persistent dimension), Manifold:
 
 1. Computes the target chunk column from the transit destination position.
-2. Iterates all columns within `generationRadius` chunks in X and Z.
-3. For each column: calls `CreateChunkColumnForDimension`, then `strategy.GenerateColumn`, then sends the column to the client. There is no relight pass (see [Lighting](#lighting-in-custom-dimensions)).
+2. Iterates all columns within `generationRadius` chunks in X and Z, skipping any column whose chunk X or Z is negative (see [WithGenerationRadius](#withgenerationradius)).
+3. For each remaining column: calls `CreateChunkColumnForDimension`, then `strategy.GenerateColumn`, then sends the column to the client. There is no relight pass (see [Lighting](#lighting-in-custom-dimensions)).
 4. Completes the player teleport once generation finishes.
 
 This happens **synchronously on the main thread** before the player arrives - so the player never sees an ungenerated void.
@@ -98,6 +105,10 @@ manifold.Registry
 - Default is **2** (5x5 columns).
 - Range: **0** (center column only) to **16** (33x33 columns).
 - Larger radii cost more time per transit. For most dimensions, 2-5 is sufficient.
+- Chunk columns with a negative X or Z do not exist in Vintage Story and are always skipped, by both
+  bounded generation and streaming. A region centered near world coordinates (0, 0) is clipped on the
+  negative sides. Put spawns and content well inside positive coordinates - the sample uses
+  (1024, 64, 1024) - to get the full, unclipped region.
 
 Already-generated columns are tracked in the savegame and are not re-generated on subsequent server starts.
 
@@ -146,8 +157,8 @@ When a player enters a streaming dimension:
 |---|---|---|
 | Builder method | `WithGenerationRadius(r)` | `.Streaming(loadRadius)` |
 | When chunks are generated | Synchronously at transit | On demand as players move |
-| Region size | Fixed `(2r+1) x (2r+1)` columns | Follows each player continuously |
-| Walking past the edge | Ungenerated (void) | No edge - new chunks stream in |
+| Region size | Fixed `(2r+1) x (2r+1)` columns (clipped where that would cross a negative X or Z) | Follows each player continuously (same clipping near negative X or Z) |
+| Walking past the edge | Ungenerated (void) | No edge away from the world's negative corner - new chunks stream in |
 | Best for | Dungeons, arenas, lobby spaces | Open-world or exploration dimensions |
 
 The two modes coexist. A dimension can use only bounded generation, only streaming, or both (bounded for the initial landing pad, streaming for ongoing movement).
@@ -165,7 +176,11 @@ What that means in practice:
 
 - **Open or mostly-air dimensions render fully lit**, whatever the time of day. Use
   `WithDarkSky(ceilingY)` when you want a dark dimension: it seals every generated column with an
-  opaque ceiling so the area below is lit only by block light (torches, lamps, lava).
+  opaque ceiling so the area below is lit only by block light (torches, lamps, lava). Pair it with
+  `WithFixedSpawn(...)` at a Y below `ceilingY`. The default `SameCoordinates` resolver scans downward
+  from the world's height looking for the first solid block; with no fixed spawn (or on a first
+  `LastVisited` visit) it finds the ceiling cap first and lands the player on top of it, in full
+  skylight, not in the dark space below.
 - **Solid-filled dimensions** (terrain carved into rooms) are dark without any option.
 - **Blocks placed after generation** are not relit by the engine in a custom dimension; use
   `RelightRegion` or `/manifold relight`, described below.

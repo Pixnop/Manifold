@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Package version to publish (e.g. 0.4.2). Empty publishes a dev version."
+        description: "Package version to publish (e.g. 0.5.0). Empty publishes a dev version."
         required: false
         default: ""
 
@@ -21,40 +21,50 @@ permissions:
   contents: read
   id-token: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      # A manual publish of an already released version must pack that release's tagged
+      # sources, not whatever the dispatching branch holds today. Checked out beside the
+      # workspace so this workflow's own local actions stay available.
+      - name: Check out the release tag
+        if: inputs.version != ''
+        uses: actions/checkout@v7
+        with:
+          ref: v${{ inputs.version }}
+          path: release
+
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
+      # 1.22.2, matching ci.yml's analyze job: only the API DLL is needed to pack.
       - name: Download Vintage Story server (for API DLLs)
-        run: |
-          set -e
-          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
-          mkdir -p "$HOME/vs"
-          tar -xzf vs_server.tar.gz -C "$HOME/vs"
-          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
-          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+        uses: ./.github/actions/vs-server
+        with:
+          version: 1.22.2
 
       - name: Pack
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -e
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME#v}"
-          elif [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
+          elif [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
           else
             VERSION="0.0.0-dev.$GITHUB_RUN_NUMBER"
           fi
-          echo "Packing version $VERSION"
-          dotnet pack src/Manifold/Manifold.csproj -c Release -p:PackageVersion="$VERSION" -o nupkgs
+          SRC=.
+          if [ "$GITHUB_REF_TYPE" != "tag" ] && [ -n "$INPUT_VERSION" ]; then
+            SRC=release
+          fi
+          echo "Packing version $VERSION from $SRC"
+          dotnet pack "$SRC/src/Manifold/Manifold.csproj" -c Release -p:Version="$VERSION" -o nupkgs
           ls -la nupkgs
 
       - name: NuGet login (Trusted Publishing)

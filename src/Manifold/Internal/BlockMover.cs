@@ -14,12 +14,6 @@ namespace Manifold.Internal;
 /// <remarks>Server-side, main thread.</remarks>
 internal sealed class BlockMover : IBlockMover
 {
-    // Vintage Story embeds the dimension into a block entity's stored Y coordinate:
-    // internalY = localY + dimension * 32768 (32 blocks * 1024 chunk rows per dimension).
-    // SetAndCorrectDimension decodes it back. We re-encode the target position into the
-    // serialized tree so the rehydrated BlockEntity knows it lives at the destination.
-    private const int DimensionYStride = 32768;
-
     private readonly ICoreServerAPI _sapi;
 
     /// <summary>Initializes a new instance of the <see cref="BlockMover"/> class.</summary>
@@ -62,9 +56,9 @@ internal sealed class BlockMover : IBlockMover
 
             // Re-stamp the embedded position to the target. Without this the rehydrated BlockEntity
             // keeps the source coordinates and the engine cannot route interactions to it (e.g. a
-            // chest teleports but cannot be opened). posy is dimension-encoded.
+            // chest teleports but cannot be opened). posy is dimension-encoded (see below).
             beTree.SetInt("posx", target.X);
-            beTree.SetInt("posy", target.Y + (target.dimension * DimensionYStride));
+            beTree.SetInt("posy", target.Y + (target.dimension * BlockPos.DimensionBoundary));
             beTree.SetInt("posz", target.Z);
         }
 

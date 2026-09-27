@@ -107,8 +107,10 @@ public sealed class DimensionAllocatorTests
         var allocator = new DimensionAllocator();
         int id = allocator.Reserve(Code("mod:a"));
         allocator.Release(id);
-        int fresh = allocator.Reserve(Code("mod:a"));
-        Assert.Equal(id, fresh);
+
+        int reused = allocator.Reserve(Code("mod:b"));
+        Assert.Equal(id, reused);
+        Assert.NotEqual(reused, allocator.Reserve(Code("mod:a")));
     }
 
     [Fact]
@@ -122,40 +124,6 @@ public sealed class DimensionAllocatorTests
 
         Assert.Throws<DimensionCapacityExceededException>(
             () => allocator.Reserve(Code("mod:overflow")));
-    }
-
-    [Fact]
-    public void TryGetCode_Should_Return_True_And_Code_When_Id_Known()
-    {
-        var allocator = new DimensionAllocator();
-        int id = allocator.Reserve(Code("mod:a"));
-        Assert.True(allocator.TryGetCode(id, out var code));
-        Assert.Equal("mod:a", code!.ToString());
-    }
-
-    [Fact]
-    public void TryGetCode_Should_Return_False_When_Id_Unknown()
-    {
-        var allocator = new DimensionAllocator();
-        Assert.False(allocator.TryGetCode(99, out var code));
-        Assert.Null(code);
-    }
-
-    [Fact]
-    public void TryGetId_Should_Return_True_And_Id_When_Code_Known()
-    {
-        var allocator = new DimensionAllocator();
-        allocator.Reserve(Code("mod:a"));
-        Assert.True(allocator.TryGetId(Code("mod:a"), out var id));
-        Assert.Equal(10, id);
-    }
-
-    [Fact]
-    public void TryGetId_Should_Return_False_When_Code_Unknown()
-    {
-        var allocator = new DimensionAllocator();
-        Assert.False(allocator.TryGetId(Code("mod:nope"), out var id));
-        Assert.Equal(0, id);
     }
 
     private static AssetLocation Code(string s) => new(s);

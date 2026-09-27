@@ -32,8 +32,9 @@ public static class TargetPositionResolvers
 
             // Scan downward in the TARGET dimension for the highest non-air block; land just above it.
             // A new BlockPos is constructed each iteration to ensure dimension encoding is correct.
-            const int scanTop = 160;
-            for (int y = scanTop; y >= 1; y--)
+            // Start from the world's actual ceiling, not a fixed constant: terrain taller than a
+            // constant would scan starting inside the mountain and land the player in it.
+            for (int y = api.WorldManager.MapSizeY - 1; y >= 1; y--)
             {
                 var probe = new BlockPos(x, y, z, target.InternalId);
                 var block = api.World.BlockAccessor.GetBlock(probe);

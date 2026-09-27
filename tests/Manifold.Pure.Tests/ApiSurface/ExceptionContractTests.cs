@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Manifold.Api;
 using Xunit;
 
@@ -16,15 +18,12 @@ public sealed class ExceptionContractTests
     [Fact]
     public void All_Manifold_Exceptions_Should_Inherit_From_ManifoldException()
     {
-        Assert.IsAssignableFrom<ManifoldException>(new ManifoldUnhealthyException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new ManifoldNotInitializedException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new DimensionAlreadyRegisteredException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new DimensionNotFoundException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new DimensionLifetimeUnspecifiedException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new DimensionCapacityExceededException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new DimensionStateException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new DimensionBuiltInImmutableException("x"));
-        Assert.IsAssignableFrom<ManifoldException>(new WorldgenStrategyContractException("x"));
+        // Reflection over every *Exception type in the API, not a hand-picked list: a future
+        // exception that forgets to derive from ManifoldException is caught automatically.
+        var exceptionTypes = typeof(ManifoldException).Assembly.GetExportedTypes()
+            .Where(t => t.Name.EndsWith("Exception", StringComparison.Ordinal) && t != typeof(ManifoldException));
+
+        Assert.All(exceptionTypes, t => Assert.True(typeof(ManifoldException).IsAssignableFrom(t), t.Name));
     }
 
     private sealed class TestException : ManifoldException

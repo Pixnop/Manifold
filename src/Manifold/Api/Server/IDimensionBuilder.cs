@@ -19,6 +19,9 @@ public interface IDimensionBuilder
 
     /// <summary>Marks the dimension as persistent. Mutually exclusive with <see cref="Ephemeral"/>.</summary>
     /// <returns>This builder, for chaining.</returns>
+    /// <exception cref="System.InvalidOperationException">
+    /// Lifetime was already set to <see cref="Ephemeral"/>, or the builder was already finalised.
+    /// </exception>
     IDimensionBuilder Persistent();
 
     /// <summary>
@@ -29,6 +32,9 @@ public interface IDimensionBuilder
     /// is up. Use <see cref="Persistent"/> if the dimension must survive a restart.
     /// </summary>
     /// <returns>This builder, for chaining.</returns>
+    /// <exception cref="System.InvalidOperationException">
+    /// Lifetime was already set to <see cref="Persistent"/>, or the builder was already finalised.
+    /// </exception>
     IDimensionBuilder Ephemeral();
 
     /// <summary>
@@ -37,6 +43,7 @@ public interface IDimensionBuilder
     /// </summary>
     /// <param name="chunks">Radius in chunks (0 = only the target column).</param>
     /// <returns>This builder.</returns>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="chunks"/> is outside 0..16.</exception>
     IDimensionBuilder WithGenerationRadius(int chunks);
 
     /// <summary>
@@ -61,29 +68,40 @@ public interface IDimensionBuilder
     /// <returns>This builder.</returns>
     IDimensionBuilder WithFixedSpawn(BlockPos spawnPoint);
 
-    /// <summary>Forces a game mode when players enter this dimension. Omit to preserve the player's current mode.</summary>
+    /// <summary>
+    /// Forces a game mode when players enter this dimension. Omit to preserve the player's current
+    /// mode. The player's mode from before the first forced dimension is saved (persisted in their
+    /// moddata, so it survives logout and restarts) and restored when they next enter a dimension
+    /// that forces no mode; chaining forced dimensions keeps that original mode rather than the
+    /// previous forced one.
+    /// </summary>
     /// <param name="mode">The game mode to force on entry.</param>
     /// <returns>This builder.</returns>
     IDimensionBuilder WithForcedGameMode(EnumGameMode mode);
 
     /// <summary>
     /// Opts the dimension into streaming worldgen: chunks are generated on demand as players move,
-    /// keeping a radius of <paramref name="loadRadius"/> chunks around each player. Range 1..32.
+    /// keeping at least <paramref name="loadRadius"/> chunks generated around each player. Range
+    /// 1..32. The effective radius is <c>max(loadRadius, server view distance)</c>, so a value below
+    /// the server's view distance has no effect and behaves like the view distance instead.
     /// Omit for bounded generation (see <see cref="WithGenerationRadius"/>).
     /// </summary>
     /// <param name="loadRadius">Chunk radius kept generated around each player.</param>
     /// <returns>This builder.</returns>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="loadRadius"/> is outside 1..32.</exception>
     IDimensionBuilder Streaming(int loadRadius);
 
     /// <summary>
-    /// Caps how many columns the streaming driver may ensure for this dimension per tick. Default
-    /// is 4. Increase for dimensions with heavy traffic (a hub, a popular arena); decrease for
-    /// background dimensions that should not compete with the main world for scheduler slots.
-    /// Per-dimension caps are independent: a busy dim cannot starve a quiet one. Range 1..64.
-    /// Only meaningful on streaming dimensions (combine with <see cref="Streaming"/>).
+    /// Caps how many columns the streaming driver may ensure for this dimension per streaming-driver
+    /// tick (every 250 ms, not every server tick). Default is 4. Increase for dimensions with heavy
+    /// traffic (a hub, a popular arena); decrease for background dimensions that should not compete
+    /// with the main world for scheduler slots. Per-dimension caps are independent: a busy dim cannot
+    /// starve a quiet one. Range 1..64. Only meaningful on streaming dimensions (combine with
+    /// <see cref="Streaming"/>).
     /// </summary>
-    /// <param name="maxColumnsPerTick">Per-dimension column budget per tick (range 1..64).</param>
+    /// <param name="maxColumnsPerTick">Per-dimension column budget per streaming-driver tick (range 1..64).</param>
     /// <returns>This builder, for chaining.</returns>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="maxColumnsPerTick"/> is outside 1..64.</exception>
     IDimensionBuilder WithStreamingBudget(int maxColumnsPerTick);
 
     /// <summary>
@@ -97,6 +115,7 @@ public interface IDimensionBuilder
     /// </summary>
     /// <param name="ceilingY">Y of the opaque ceiling layer (range 1..1024). Place it one block above your tallest content.</param>
     /// <returns>This builder, for chaining.</returns>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="ceilingY"/> is outside 1..1024.</exception>
     /// <remarks>
     /// Best for enclosed / underground dimensions. The outermost ring of the generated region can
     /// still leak some light from the un-generated chunks beyond it; generate a chunk of margin
@@ -107,11 +126,17 @@ public interface IDimensionBuilder
 
     /// <summary>
     /// Opts the dimension into separate per-player inventories for the given categories. On entering
-    /// the dimension the player's chosen inventories are swapped to this dimension's set (empty on the
-    /// first visit) and restored on leaving. Omit for a shared inventory.
+    /// the dimension the player's chosen inventories are swapped to this dimension's set and restored
+    /// on leaving. Omit for a shared inventory.
     /// </summary>
     /// <param name="categories">Inventory categories to keep separate.</param>
     /// <returns>This builder.</returns>
+    /// <remarks>
+    /// Per-dimension sets are stored per player, keyed by this dimension's code, in the player's
+    /// moddata; they persist across restarts and are NOT cleared when the dimension is destroyed. A
+    /// dimension later recreated with the same code restores each returning player's previous set
+    /// rather than starting empty. Use a unique code per instance if each instance must start empty.
+    /// </remarks>
     IDimensionBuilder WithSeparateInventory(ManifoldInventory categories);
 
     /// <summary>
@@ -135,11 +160,22 @@ public interface IDimensionBuilder
     /// re-calling with the same code reuses the existing internal id.
     /// </summary>
     /// <returns>The registered dimension.</returns>
+    /// <exception cref="System.InvalidOperationException">
+    /// The builder was already finalised, or <see cref="Ephemeral"/> was set (use <see cref="Create"/> instead).
+    /// </exception>
+    /// <exception cref="WorldgenStrategyContractException"><see cref="WithWorldgen"/> was not called.</exception>
+    /// <exception cref="DimensionCapacityExceededException">No engine dimension id is available.</exception>
     IDimension RegisterStatic();
 
     /// <summary>
     /// Finalises as a runtime-created dimension. Lifetime must be explicit (see <see cref="Persistent"/>/<see cref="Ephemeral"/>).
     /// </summary>
     /// <returns>The newly created dimension.</returns>
+    /// <exception cref="System.InvalidOperationException">The builder was already finalised.</exception>
+    /// <exception cref="WorldgenStrategyContractException"><see cref="WithWorldgen"/> was not called.</exception>
+    /// <exception cref="DimensionLifetimeUnspecifiedException">
+    /// Neither <see cref="Persistent"/> nor <see cref="Ephemeral"/> was called.
+    /// </exception>
+    /// <exception cref="DimensionCapacityExceededException">No engine dimension id is available.</exception>
     IDimension Create();
 }

@@ -19,8 +19,13 @@ classes never run in parallel (one live server per process).
 ## Isolation modes
 
 Most scenarios share their class host's world and isolate through disjoint
-coordinates, unique entity ids, and unique dimension paths. Scenarios with
-no joined players use `RollbackWorld = true`: the host's world is restored
+coordinates, unique entity ids, and unique dimension paths. Some scenarios
+with no joined players use `RollbackWorld = true` (currently `SmokeScenarios`,
+`EntityTransitScenarios`, `BlockTransitScenarios`, `OverworldTransitScenarios`,
+`EphemeralDimensionScenarios`, `DimensionLifecycleScenarios`, and
+`RecyclingScenarios`); others that also join no player (`AdminCommandScenarios`,
+`DarkSkyScenarios`, `DimensionMetadataScenarios`, `DimensionWorldgenScenarios`)
+isolate through disjoint coordinates instead. The host's world is restored
 from a snapshot instead of paying a full recycle. Since Atlas 0.8.0 the
 snapshot covers mini-dimension chunk columns too, and Manifold cooperates
 through the `atlas:rollback:restored` event bus hook: after every restore,
@@ -36,9 +41,14 @@ desync-gone proof: re-creating a dimension whose first incarnation only a
 rollback removed. Boot-time mini-dimension terrain no longer disqualifies
 rollback; the fixture still generates terrain on demand only
 (`/atlasfx pregen <dimpath>` or a transit) purely to keep snapshots small.
-Classes with joined players cannot roll back yet and carry a
+Classes with joined players cannot roll back yet. Five of them
+(`MultiPlayerScenarios`, `PlayerInventoryScenarios`, `TransitEventScenarios`,
+`PlayerTransitScenarios`, `StreamingWorldgenScenarios`) carry a
 `rollback-stage2-candidate` comment stating what a future rollback stage
-would need.
+would need; the others that join players (`ClientMirrorScenarios`,
+`CommandBuilderScenarios`, `InventoryAccessScenarios`, `QuarantineScenarios`,
+`ReconnectScenarios`, `TeardownScenarios`, `TravelPolicyScenarios`) do not
+carry that comment yet.
 
 Persistence scenarios use `RestartWorld = true` (Atlas 0.7.0): the class host
 is shut down gracefully and a replacement boots against the persisted save,

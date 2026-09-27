@@ -73,10 +73,10 @@ internal sealed class PlayerInventoryStore
         return ms.ToArray();
     }
 
-    /// <summary>Deserialise a store from moddata bytes; returns an empty store on null/empty/corrupt input.</summary>
+    /// <summary>Deserialise a store from moddata bytes; returns an empty store on null/empty input.</summary>
     /// <param name="data">Serialised bytes, or <c>null</c>/empty for an empty store.</param>
-    /// <returns>The deserialised store, or a fresh empty store if input is absent or corrupt.</returns>
-    public static PlayerInventoryStore FromBytes(byte[]? data)
+    /// <returns>The deserialised store, an empty store if input is absent, or <c>null</c> if it is corrupt.</returns>
+    public static PlayerInventoryStore? TryFromBytes(byte[]? data)
     {
         var store = new PlayerInventoryStore();
         if (data is not { Length: > 0 })
@@ -105,7 +105,7 @@ internal sealed class PlayerInventoryStore
         }
         catch
         {
-            return new PlayerInventoryStore();
+            return null;
         }
 
         return store;

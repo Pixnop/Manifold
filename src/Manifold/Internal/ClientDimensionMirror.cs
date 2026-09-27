@@ -44,7 +44,12 @@ internal sealed class ClientDimensionMirror
     public IDimension? Get(AssetLocation code) =>
         code is not null && _snapshot.TryGetValue(code, out var dim) ? dim : null;
 
-    /// <summary>Replace the entire mirror with the supplied snapshot.</summary>
+    /// <summary>
+    /// Replace the entire mirror with the supplied snapshot, raising <see cref="Removed"/> for every
+    /// dimension the new snapshot drops and <see cref="Added"/> for every one it introduces (diffed
+    /// against the previous snapshot). Fires on the join-time snapshot too (the old snapshot is empty,
+    /// so every joined dimension is reported as Added) and on a rollback resync.
+    /// </summary>
     /// <param name="packet">Snapshot packet from server.</param>
     public void ApplyManifest(ManifestSnapshotPacket packet)
     {
@@ -56,7 +61,25 @@ internal sealed class ClientDimensionMirror
             builder[impl.Code] = impl;
         }
 
-        _snapshot = builder.ToImmutable();
+        var previous = _snapshot;
+        var updated = builder.ToImmutable();
+        _snapshot = updated;
+
+        foreach (var kvp in previous)
+        {
+            if (!updated.ContainsKey(kvp.Key))
+            {
+                Removed?.Invoke(kvp.Value);
+            }
+        }
+
+        foreach (var kvp in updated)
+        {
+            if (!previous.ContainsKey(kvp.Key))
+            {
+                Added?.Invoke(kvp.Value);
+            }
+        }
     }
 
     /// <summary>Add (or replace) a single dimension entry.</summary>

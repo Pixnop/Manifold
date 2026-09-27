@@ -26,7 +26,10 @@ public interface IManifoldClient
     /// <summary>All dimensions known to the client mirror.</summary>
     IReadOnlyCollection<IDimension> Dimensions { get; }
 
-    /// <summary>True if Manifold loaded healthily on the server (Harmony patches OK).</summary>
+    /// <summary>
+    /// Always <c>true</c> in this version: server health is not replicated to clients. Query
+    /// <see cref="Server.IManifoldServer.IsHealthy"/> on the server if you need the real state.
+    /// </summary>
     bool IsHealthy { get; }
 
     /// <summary>Find a dimension by code.</summary>

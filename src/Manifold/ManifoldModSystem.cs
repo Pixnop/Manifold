@@ -82,7 +82,8 @@ public sealed class ManifoldModSystem : ModSystem
             BuildUnhealthyServerFacade(api);
             Mod.Logger.Error(
                 "[Manifold] Disabled - Harmony patches failed at boot. "
-                + "IsHealthy=false; consumer mutations will throw.");
+                + "IsHealthy=false; dimension registration still succeeds (on a disconnected registry "
+                + "with no in-game effect), but transit and relight calls throw ManifoldUnhealthyException.");
             return;
         }
 
@@ -90,7 +91,8 @@ public sealed class ManifoldModSystem : ModSystem
         _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(
             _manifestStore,
-            new ModLoaderQuery(api.ModLoader));
+            new ModLoaderQuery(api.ModLoader),
+            Mod.Logger);
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(api);
 
@@ -113,7 +115,9 @@ public sealed class ManifoldModSystem : ModSystem
             Mod.Logger.Error("[Manifold] Worldgen strategy threw for dim {0}: {1}", dim, ex);
         _generator.StrategyAutoDisabled += dim =>
             Mod.Logger.Warning(
-                "[Manifold] Worldgen strategy auto-disabled for dim {0} after 4 consecutive throws.", dim);
+                "[Manifold] Worldgen strategy auto-disabled for dim {0} after {1} consecutive throws.",
+                dim,
+                DimensionGenerator.MaxConsecutiveFailures);
 
         var inventorySwapper = new InventorySwapper(api);
         var transit = new TransitService(
@@ -156,8 +160,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network = new ManifoldNetworkChannel();
 
-        // The mirror is held alive by the network-event delegates and ClientFacade below; it needs no
-        // field (OnClientPlayerTransited no longer references it - see its v1-scaffolding note).
+        // The mirror is kept alive by the channel delegates and ClientFacade below; it needs no field.
         var clientMirror = new ClientDimensionMirror();
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
@@ -166,7 +169,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror);
+        ClientFacade = new ManifoldClientFacade(clientMirror, api.Logger);
         ManifoldAccess.SetClientResolver(_ => ClientFacade);
     }
 
@@ -195,6 +198,43 @@ public sealed class ManifoldModSystem : ModSystem
 
         _harmony?.Dispose();
         base.Dispose();
+    }
+
+    /// <summary>
+    /// Evacuates every occupant of <paramref name="internalId"/> via <paramref name="rescue"/>
+    /// (best-effort per player - a failure is logged, not thrown) and reports how many actually left.
+    /// A player <paramref name="rescue"/> silently failed to move is still standing in the dimension
+    /// afterward, so it is counted as remaining, not evacuated - the caller must not destroy the
+    /// dimension out from under them.
+    /// </summary>
+    /// <param name="players">Online players to check (typically every connected <see cref="IServerPlayer"/>).</param>
+    /// <param name="internalId">Engine id of the dimension being evacuated.</param>
+    /// <param name="rescue">Best-effort teleport-to-overworld for one occupant.</param>
+    /// <returns>How many occupants were actually moved out, and how many are still inside.</returns>
+    internal static (int Evacuated, int Remaining) EvacuateOccupants(
+        IEnumerable<IServerPlayer> players, int internalId, Action<IServerPlayer> rescue)
+    {
+        int evacuated = 0;
+        int remaining = 0;
+        foreach (var p in players)
+        {
+            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension != internalId)
+            {
+                continue;
+            }
+
+            rescue(p);
+            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension == internalId)
+            {
+                remaining++;
+            }
+            else
+            {
+                evacuated++;
+            }
+        }
+
+        return (evacuated, remaining);
     }
 
     private void BuildUnhealthyServerFacade(ICoreServerAPI sapi)
@@ -245,18 +285,20 @@ public sealed class ManifoldModSystem : ModSystem
                     int cx = ChunkMath.ToChunk(pos.X);
                     int cz = ChunkMath.ToChunk(pos.Z);
 
-                    var min = new BlockPos((cx - radius) * 32, 0, (cz - radius) * 32, dimId);
+                    var min = new BlockPos((cx - radius) * ChunkMath.ChunkSize, 0, (cz - radius) * ChunkMath.ChunkSize, dimId);
                     var max = new BlockPos(
-                        ((cx + radius) * 32) + 31,
+                        ((cx + radius) * ChunkMath.ChunkSize) + (ChunkMath.ChunkSize - 1),
                         api.WorldManager.MapSizeY - 1,
-                        ((cz + radius) * 32) + 31,
+                        ((cz + radius) * ChunkMath.ChunkSize) + (ChunkMath.ChunkSize - 1),
                         dimId);
 
                     // Runtime relight of already-loaded chunks: must push to clients or the
                     // recomputed light is invisible (server-correct, client never re-meshes).
-                    DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
-                    return TextCommandResult.Success(
-                        $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.");
+                    bool relit = DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
+                    return relit
+                        ? TextCommandResult.Success(
+                            $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.")
+                        : TextCommandResult.Error($"Relight of dim {dimId} failed; see the server log.");
                 })
             .EndSubCommand()
             .BeginSubCommand("purge")
@@ -297,25 +339,25 @@ public sealed class ManifoldModSystem : ModSystem
             return TextCommandResult.Error($"No dimension registered with code '{code}'.");
         }
 
-        // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
-        int evacuated = 0;
-        foreach (var p in api.World.AllOnlinePlayers)
+        if (dim.IsBuiltIn || dim.Lifetime == DimensionLifetime.BuiltIn)
         {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == dim.InternalId)
-            {
-                RescueToOverworld(sp);
-                evacuated++;
-            }
+            // Check before evacuating: the built-in overworld is where evacuation itself sends
+            // occupants, so evacuating "into" it is a no-op that would otherwise look like a stuck
+            // player and report the wrong error instead of this one.
+            return TextCommandResult.Error($"Dimension '{code}' is built-in and cannot be purged.");
         }
 
-        try
+        // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
+        var (evacuated, remaining) = EvacuateOccupants(
+            api.World.AllOnlinePlayers.OfType<IServerPlayer>(), dim.InternalId, RescueToOverworld);
+        if (remaining > 0)
         {
-            _registry.Purge(code);
+            return TextCommandResult.Error(
+                $"Could not purge dimension '{code}': {remaining} player(s) still inside after the evacuation attempt.");
         }
-        catch (DimensionBuiltInImmutableException ex)
-        {
-            return TextCommandResult.Error(ex.Message);
-        }
+
+        // The built-in check above already filters the only case Purge itself throws for.
+        _registry.Purge(code);
 
         string suffix = evacuated > 0 ? $", evacuated {evacuated} player(s)" : string.Empty;
         return TextCommandResult.Success(
@@ -365,19 +407,11 @@ public sealed class ManifoldModSystem : ModSystem
             return;
         }
 
-        try
+        if (OverworldRescue.TryEvacuate(transit, player, Mod.Logger))
         {
-            transit.TeleportPlayer(
-                player,
-                new AssetLocation("manifold", "overworld"),
-                new TransitionOptions { SpawnBehavior = SpawnBehavior.LastVisited });
             Mod.Logger.Notification(
                 "[Manifold] Rescued {0} to the overworld (their dimension no longer exists).",
                 player.PlayerName);
-        }
-        catch (System.Exception ex)
-        {
-            Mod.Logger.Warning("[Manifold] Failed to rescue {0} to the overworld: {1}", player.PlayerName, ex.Message);
         }
     }
 
@@ -589,7 +623,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Restore the persisted set of generated columns so revisits LOAD (preserving player
         // modifications) instead of regenerating over them, and the per-player last positions.
         _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
-        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey));
+        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey), Mod.Logger);
 
         return (dropped, reseeded);
     }

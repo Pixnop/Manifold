@@ -8,28 +8,21 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Opt into the Node.js 24 action runtime ahead of the June 2026 forced switch.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
+      # 1.22.2, matching ci.yml's analyze job: the declared minimum game version.
       - name: Download Vintage Story server
-        run: |
-          set -e
-          curl -sSL -o vs_server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.2.tar.gz"
-          mkdir -p "$HOME/vs"
-          tar -xzf vs_server.tar.gz -C "$HOME/vs"
-          DLL_DIR="$(dirname "$(find "$HOME/vs" -name VintagestoryAPI.dll | head -1)")"
-          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+        uses: ./.github/actions/vs-server
+        with:
+          version: 1.22.2
 
       - name: Build
         run: dotnet build Manifold.slnx -c Release
@@ -57,13 +50,13 @@ jobs:
           ls -la ./*.zip
 
       - name: Upload Manifold artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Manifold
           path: Manifold-*.zip
 
       - name: Upload ManifoldSample artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ManifoldSample
           path: ManifoldSample-*.zip

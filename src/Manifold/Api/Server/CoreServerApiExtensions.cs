@@ -33,7 +33,11 @@ public static class CoreServerApiExtensions
     /// <param name="sapi">Server API.</param>
     /// <param name="caller">Your mod system (its <c>Mod.Info.ModID</c> is recorded as the dimension owner).</param>
     /// <returns>An owner-scoped facade whose <c>Registry.Define</c> records the correct owner.</returns>
-    /// <exception cref="ManifoldNotInitializedException">Manifold not loaded or not started.</exception>
+    /// <exception cref="System.ArgumentNullException"><paramref name="sapi"/> or <paramref name="caller"/> is null.</exception>
+    /// <exception cref="ManifoldNotInitializedException">
+    /// Manifold is not loaded or not started, or <paramref name="caller"/> has no <c>Mod.Info</c>
+    /// (not a loader-managed <c>ModSystem</c>).
+    /// </exception>
     public static IManifoldServer GetManifoldServer(this ICoreServerAPI sapi, ModSystem caller)
     {
         ArgumentNullException.ThrowIfNull(sapi);
@@ -43,7 +47,10 @@ public static class CoreServerApiExtensions
             ?? throw new ManifoldNotInitializedException("Caller ModSystem has no Mod info.");
         if (shared.Registry is not DimensionRegistry sharedRegistry)
         {
-            // Unhealthy or unexpected facade - return shared as-is (Define will throw clearly).
+            // Defensive fallback for a facade whose Registry is not the concrete DimensionRegistry -
+            // never happens today, healthy or not: both facades use one, and Define succeeds on
+            // either (even the unhealthy facade's registry is a real, if disconnected, one). Only
+            // Transitions and RelightRegion throw ManifoldUnhealthyException when unhealthy.
             return shared;
         }
 

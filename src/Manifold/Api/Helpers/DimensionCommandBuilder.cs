@@ -1,5 +1,7 @@
 using System;
+using Manifold.Api.Server;
 using Manifold.Api.Transitions;
+using Manifold.Internal;
 using Vintagestory.API.Common;
 using Vintagestory.API.Server;
 
@@ -97,6 +99,10 @@ public sealed class DimensionCommandBuilder
 
     /// <summary>Register the command with VS chat commands.</summary>
     /// <param name="sapi">Server API.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sapi"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="Command"/> or <see cref="TargetDimension"/> was not set (see <see cref="Validate"/>).
+    /// </exception>
     public void Register(ICoreServerAPI sapi)
     {
         ArgumentNullException.ThrowIfNull(sapi);
@@ -105,11 +111,12 @@ public sealed class DimensionCommandBuilder
             .Create(Name!)
             .WithDescription(Description)
             .RequiresPrivilege(Privilege)
+            .RequiresPlayer()
             .HandleWith(args =>
             {
                 if (args.Caller.Player is not IServerPlayer player)
                 {
-                    return TextCommandResult.Error("This command is server-only.");
+                    return TextCommandResult.Error("Players only.");
                 }
 
                 var manifold = ManifoldAccess.GetServer(sapi);
@@ -123,8 +130,45 @@ public sealed class DimensionCommandBuilder
                     return TextCommandResult.Error("Manifold is unhealthy; transit unavailable.");
                 }
 
-                manifold.Transitions.TeleportPlayer(player, Target!, Options);
-                return TextCommandResult.Success($"Teleported to {Target}.");
+                return TryTeleport(manifold, player, Target!, Options);
             });
+    }
+
+    /// <summary>
+    /// Attempts the transit and turns the outcome into a chat reply: an error naming the failure when
+    /// the target is missing or not Active (<see cref="Manifold.Api.ManifoldException"/>), an error
+    /// when a <c>PlayerEntering</c>/<c>PlayerArriving</c> subscriber cancels the transit, success
+    /// otherwise. Detects the cancelled case via <see cref="TransitService.TryTeleportPlayer"/> when
+    /// <paramref name="manifold"/>'s <c>Transitions</c> is that internal type (always true outside of
+    /// tests) - <see cref="Server.ITransitionService.TeleportPlayer"/> itself stays <c>void</c>.
+    /// </summary>
+    /// <param name="manifold">Manifold's server facade.</param>
+    /// <param name="player">The player to teleport.</param>
+    /// <param name="target">Target dimension code.</param>
+    /// <param name="options">Transit options.</param>
+    /// <returns>A success reply if the player moved; an error reply otherwise.</returns>
+    internal static TextCommandResult TryTeleport(
+        IManifoldServer manifold, IServerPlayer player, AssetLocation target, TransitionOptions options)
+    {
+        try
+        {
+            bool moved = manifold.Transitions is TransitService core
+                ? core.TryTeleportPlayer(player, target, options)
+                : TeleportAndAssumeMoved(manifold.Transitions, player, target, options);
+            return moved
+                ? TextCommandResult.Success($"Teleported to {target}.")
+                : TextCommandResult.Error("Transit was cancelled.");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error(ex.Message);
+        }
+    }
+
+    private static bool TeleportAndAssumeMoved(
+        ITransitionService transitions, IServerPlayer player, AssetLocation target, TransitionOptions options)
+    {
+        transitions.TeleportPlayer(player, target, options);
+        return true;
     }
 }

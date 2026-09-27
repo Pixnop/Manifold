@@ -91,36 +91,4 @@ internal sealed class DimensionAllocator
             _byCode.Remove(code);
         }
     }
-
-    /// <summary>Reverse lookup: id → code.</summary>
-    /// <param name="id">The dimension id to look up.</param>
-    /// <param name="code">The asset location code, or null if not found.</param>
-    /// <returns><c>true</c> if the id is reserved.</returns>
-    public bool TryGetCode(int id, out AssetLocation? code)
-    {
-        if (_byId.TryGetValue(id, out var c))
-        {
-            code = c;
-            return true;
-        }
-
-        code = null;
-        return false;
-    }
-
-    /// <summary>Forward lookup: code → id.</summary>
-    /// <param name="code">The asset location code to look up.</param>
-    /// <param name="id">The dimension id, or 0 if not found.</param>
-    /// <returns><c>true</c> if the code is reserved.</returns>
-    public bool TryGetId(AssetLocation code, out int id)
-    {
-        if (code is not null && _byCode.TryGetValue(code, out var i))
-        {
-            id = i;
-            return true;
-        }
-
-        id = 0;
-        return false;
-    }
 }
