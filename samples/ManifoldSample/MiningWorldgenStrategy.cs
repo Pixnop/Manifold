@@ -62,6 +62,11 @@ public sealed class MiningWorldgenStrategy : IWorldgenStrategy
     public void OnInitialize(IWorldgenInitContext ctx)
     {
         _rockBlockId = WorldgenHelpers.ResolveFirst(ctx.Api, "game:rock-granite", "game:rock-andesite", "game:rock-basalt");
+
+        // game:torch-basic-lit-up burns out to torch-basic-burnedout-up after 48 in-game hours
+        // (see its transientPropsByType). Fine for a sample room players only pass through
+        // occasionally; a dimension meant to stay lit unattended would want a non-transient
+        // light block instead.
         _lightBlockId = WorldgenHelpers.ResolveFirst(ctx.Api, "game:torch-basic-lit-up");
 
         _oreBlockIds.Clear();
