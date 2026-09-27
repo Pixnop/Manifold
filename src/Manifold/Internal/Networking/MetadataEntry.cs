@@ -22,9 +22,9 @@ internal sealed class MetadataEntry
 
     /// <summary>
     /// Value for every integer-like <see cref="Kind"/>: <c>bool</c> as 0/1, <c>char</c> as its code
-    /// point, every integral primitive up to 64 bits, and an enum's underlying value converted with
-    /// <c>Convert.ToInt64</c> (throws for a <c>ulong</c>-backed enum above <see cref="long.MaxValue"/>,
-    /// the one case this format cannot carry).
+    /// point, every integral primitive up to 64 bits, and an enum's underlying value, reinterpreted
+    /// bit-for-bit as a <c>long</c> so a <c>ulong</c>-backed enum above <see cref="long.MaxValue"/>
+    /// round-trips exactly.
     /// </summary>
     [ProtoMember(3)]
     public long IntegerValue { get; set; }

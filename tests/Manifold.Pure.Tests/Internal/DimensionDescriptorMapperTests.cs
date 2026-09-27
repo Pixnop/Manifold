@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -17,6 +18,13 @@ public sealed class DimensionDescriptorMapperTests
         Red = 0,
         Green = 5,
         Blue = 9,
+    }
+
+    [Flags]
+    private enum SampleFlags : ulong
+    {
+        None = 0,
+        HighBit = 1UL << 63,
     }
 
     [Fact]
@@ -143,6 +151,21 @@ public sealed class DimensionDescriptorMapperTests
         // GetMetadata<SampleColor>("color") also works on the client mirror.
         var value = Assert.IsType<SampleColor>(roundtrip.Metadata["color"]);
         Assert.Equal(SampleColor.Green, value);
+    }
+
+    [Fact]
+    public void Metadata_Should_RoundTrip_A_UInt64_Flags_Enum_Value_Above_LongMaxValue()
+    {
+        var metadata = new Dictionary<string, object?> { ["flags"] = SampleFlags.HighBit };
+
+        var wireOut = DimensionDescriptorMapper.ToDescriptor(MakeDimension(metadata));
+        var wireIn = RoundTripThroughRealProtobuf(wireOut);
+        var roundtrip = DimensionDescriptorMapper.ToImpl(wireIn);
+
+        // Convert.ToInt64 alone throws OverflowException for this value; the mapper must convert
+        // through ulong so bit 63 survives the round trip.
+        var value = Assert.IsType<SampleFlags>(roundtrip.Metadata["flags"]);
+        Assert.Equal(SampleFlags.HighBit, value);
     }
 
     [Fact]

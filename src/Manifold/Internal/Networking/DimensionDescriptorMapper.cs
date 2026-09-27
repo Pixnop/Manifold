@@ -136,7 +136,14 @@ internal static class DimensionDescriptorMapper
                 var enumType = e.GetType();
                 entry.EnumTypeFullName = enumType.FullName;
                 entry.EnumAssemblyName = enumType.Assembly.GetName().Name;
-                entry.IntegerValue = Convert.ToInt64(e);
+
+                // Convert bit-preservingly: Convert.ToInt64 throws for a ulong-backed enum above
+                // long.MaxValue (for example a [Flags] enum : ulong with bit 63 set). Going through
+                // ulong first and reinterpreting the bits keeps every enum representable; the
+                // client's Enum.ToObject(Type, long) round-trips it exactly the same way.
+                entry.IntegerValue = Type.GetTypeCode(Enum.GetUnderlyingType(enumType)) == TypeCode.UInt64
+                    ? unchecked((long)Convert.ToUInt64(e))
+                    : Convert.ToInt64(e);
                 break;
             default:
                 throw new NotSupportedException($"Unsupported metadata value type '{value.GetType()}'.");
