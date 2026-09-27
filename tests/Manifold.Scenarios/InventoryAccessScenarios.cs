@@ -32,7 +32,15 @@ public class InventoryAccessScenarios : ManifoldScenarioBase
 
         CommandResult transit = await World.ExecuteCommand("/atlasfx teleport-player atlas_invdim flat");
         Assert.True(transit.Ok, transit.Message);
-        await World.Until(() => player.Position.dimension == flatId, timeoutTicks: 600);
+
+        // ChangeDimension flips the dimension at once, but the X/Z teleport lands a few ticks later,
+        // once its chunks load: wait for the fixture's spawn column, not just the dimension, or the
+        // chest goes into an ungenerated column at the old overworld coordinates.
+        await World.Until(
+            () => player.Position.dimension == flatId
+                && Math.Abs(player.Position.X - 512) <= 1
+                && Math.Abs(player.Position.Z - 512) <= 1,
+            timeoutTicks: 600);
 
         await AssertChestOpensNextTo(player);
     }
