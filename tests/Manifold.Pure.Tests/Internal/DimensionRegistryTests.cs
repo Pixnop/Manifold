@@ -435,10 +435,18 @@ public sealed class DimensionRegistryTests
     [Fact]
     public void TryRemove_Occupancy_Guard_Does_Not_Run_For_Persistent_Dimensions()
     {
-        // Persistent removal still throws before any occupancy check (immutability wins).
-        var registry = NewRegistry(_ => false);
+        // Persistent removal still throws before any occupancy check (immutability wins) - the
+        // predicate must never even be asked, not just report "empty".
+        bool asked = false;
+        var registry = NewRegistry(_ =>
+        {
+            asked = true;
+            return true;
+        });
         registry.DefineForOwner(Code("a:b"), "testmod").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
         Assert.Throws<DimensionStateException>(() => registry.TryRemove(Code("a:b")));
+        Assert.False(asked);
     }
 
     [Fact]
