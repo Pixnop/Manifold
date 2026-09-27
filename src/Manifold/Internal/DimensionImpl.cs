@@ -49,4 +49,37 @@ internal sealed record DimensionImpl(
     /// <param name="newState">The new state.</param>
     /// <returns>Copy with updated state.</returns>
     public DimensionImpl WithState(DimensionState newState) => this with { State = newState };
+
+    /// <summary>
+    /// Builds a dimension record with no worldgen and every builder-configurable field at its
+    /// default: the shape shared by the built-in overworld and a manifest-seeded Pending/Quarantined
+    /// entry, both of which gain their real worldgen/spawn/etc. settings later (the overworld never
+    /// does; a manifest entry does when <see cref="DimensionRegistry.DefineForOwner"/> completes it).
+    /// </summary>
+    /// <param name="code">Dimension code.</param>
+    /// <param name="id">Engine dimension id.</param>
+    /// <param name="builtIn">Whether this is the built-in overworld.</param>
+    /// <param name="lifetime">Lifetime category.</param>
+    /// <param name="owner">Owning mod id.</param>
+    /// <param name="state">Initial runtime state.</param>
+    /// <returns>A placeholder dimension record.</returns>
+    internal static DimensionImpl Placeholder(
+        AssetLocation code, int id, bool builtIn, DimensionLifetime lifetime, string owner, DimensionState state) =>
+        new(
+            Code: code,
+            InternalId: id,
+            IsBuiltIn: builtIn,
+            Lifetime: lifetime,
+            OwnerModId: owner,
+            State: state,
+            Worldgen: null,
+            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
+            SpawnBehavior: SpawnBehavior.SameCoordinates,
+            SpawnPoint: null,
+            ForcedGameMode: null,
+            StreamingLoadRadius: null,
+            SeparateInventory: ManifoldInventory.None,
+            Metadata: DimensionBuilderImpl.EmptyMetadata,
+            StreamingBudgetPerTick: null,
+            SkyCapY: null);
 }

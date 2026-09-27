@@ -51,23 +51,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         _isOccupied = isOccupied;
         _logger = logger;
 
-        var overworld = new DimensionImpl(
-            Code: OverworldCode,
-            InternalId: 0,
-            IsBuiltIn: true,
-            Lifetime: DimensionLifetime.BuiltIn,
-            OwnerModId: "manifold",
-            State: DimensionState.Active,
-            Worldgen: null,
-            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
-            SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
-            SpawnPoint: null,
-            ForcedGameMode: null,
-            StreamingLoadRadius: null,
-            SeparateInventory: ManifoldInventory.None,
-            Metadata: DimensionBuilderImpl.EmptyMetadata,
-            StreamingBudgetPerTick: null,
-            SkyCapY: null);
+        var overworld = DimensionImpl.Placeholder(
+            OverworldCode, id: 0, builtIn: true, DimensionLifetime.BuiltIn, "manifold", DimensionState.Active);
         _snapshot = _snapshot.Add(OverworldCode, overworld);
     }
 
@@ -121,9 +106,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             return false;
         }
 
-        _snapshot = _snapshot.Remove(code);
-        _allocator.Release(dim.InternalId);
-        SafeEvent.Raise(Destroyed, this, new DimensionDestroyedEventArgs(dim), LogSubscriberError);
+        RemoveAndRelease(code, dim);
         return true;
     }
 
@@ -183,23 +166,8 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         }
 
         _allocator.ReserveSpecific(entry.Code, entry.InternalId);
-        var dim = new DimensionImpl(
-            Code: entry.Code,
-            InternalId: entry.InternalId,
-            IsBuiltIn: false,
-            Lifetime: entry.Lifetime,
-            OwnerModId: entry.OwnerModId,
-            State: state,
-            Worldgen: null,
-            GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
-            SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
-            SpawnPoint: null,
-            ForcedGameMode: null,
-            StreamingLoadRadius: null,
-            SeparateInventory: ManifoldInventory.None,
-            Metadata: DimensionBuilderImpl.EmptyMetadata,
-            StreamingBudgetPerTick: null,
-            SkyCapY: null);
+        var dim = DimensionImpl.Placeholder(
+            entry.Code, entry.InternalId, builtIn: false, entry.Lifetime, entry.OwnerModId, state);
         _snapshot = _snapshot.Add(entry.Code, dim);
     }
 
@@ -228,9 +196,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
                 $"Dimension '{code}' is built-in and cannot be purged.");
         }
 
-        _snapshot = _snapshot.Remove(code);
-        _allocator.Release(dim.InternalId);
-        SafeEvent.Raise(Destroyed, this, new DimensionDestroyedEventArgs(dim), LogSubscriberError);
+        RemoveAndRelease(code, dim);
         return true;
     }
 
@@ -285,6 +251,15 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         _snapshot = _snapshot.Add(request.Code, dim);
         SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(dim), LogSubscriberError);
         return dim;
+    }
+
+    /// <summary>Shared tail of <see cref="TryRemove"/> and <see cref="Purge"/>: drop the snapshot
+    /// entry, release the engine id back to the allocator, and raise <see cref="Destroyed"/>.</summary>
+    private void RemoveAndRelease(AssetLocation code, DimensionImpl dim)
+    {
+        _snapshot = _snapshot.Remove(code);
+        _allocator.Release(dim.InternalId);
+        SafeEvent.Raise(Destroyed, this, new DimensionDestroyedEventArgs(dim), LogSubscriberError);
     }
 
     private void LogSubscriberError(Exception ex) =>

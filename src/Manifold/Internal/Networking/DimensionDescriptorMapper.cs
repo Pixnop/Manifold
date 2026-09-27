@@ -21,24 +21,14 @@ internal static class DimensionDescriptorMapper
         State = (int)dim.State,
     };
 
-    /// <summary>Wire → client-side <see cref="DimensionImpl"/> (Worldgen is null on client).</summary>
+    /// <summary>Wire → client-side <see cref="DimensionImpl"/> (Worldgen is always null on client).</summary>
     /// <param name="d">Wire descriptor.</param>
     /// <returns>Client-side dimension record.</returns>
-    public static DimensionImpl ToImpl(DimensionDescriptor d) => new(
-        Code: new AssetLocation(d.Code),
-        InternalId: d.InternalId,
-        IsBuiltIn: d.IsBuiltIn,
-        Lifetime: (DimensionLifetime)d.Lifetime,
-        OwnerModId: d.OwnerModId,
-        State: (DimensionState)d.State,
-        Worldgen: null,
-        GenerationRadius: DimensionBuilderImpl.DefaultGenerationRadius,
-        SpawnBehavior: Api.Transitions.SpawnBehavior.SameCoordinates,
-        SpawnPoint: null,
-        ForcedGameMode: null,
-        StreamingLoadRadius: null,
-        SeparateInventory: Manifold.Api.ManifoldInventory.None,
-        Metadata: DimensionBuilderImpl.EmptyMetadata,
-        StreamingBudgetPerTick: null,
-        SkyCapY: null);
+    public static DimensionImpl ToImpl(DimensionDescriptor d) => DimensionImpl.Placeholder(
+        new AssetLocation(d.Code),
+        d.InternalId,
+        d.IsBuiltIn,
+        (DimensionLifetime)d.Lifetime,
+        d.OwnerModId,
+        (DimensionState)d.State);
 }
