@@ -201,28 +201,26 @@ public sealed class ManifoldModSystem : ModSystem
     }
 
     /// <summary>
-    /// Evacuates every occupant of <paramref name="internalId"/> via <paramref name="rescue"/>
+    /// Evacuates every player in <paramref name="occupants"/> via <paramref name="rescue"/>
     /// (best-effort per player - a failure is logged, not thrown) and reports how many actually left.
     /// A player <paramref name="rescue"/> silently failed to move is still standing in the dimension
     /// afterward, so it is counted as remaining, not evacuated - the caller must not destroy the
     /// dimension out from under them.
     /// </summary>
-    /// <param name="players">Online players to check (typically every connected <see cref="IServerPlayer"/>).</param>
+    /// <param name="occupants">
+    /// Players already known to be inside <paramref name="internalId"/> (e.g. from
+    /// <see cref="OccupancyScan.PlayersIn"/>); this does not filter them itself.
+    /// </param>
     /// <param name="internalId">Engine id of the dimension being evacuated.</param>
     /// <param name="rescue">Best-effort teleport-to-overworld for one occupant.</param>
     /// <returns>How many occupants were actually moved out, and how many are still inside.</returns>
     internal static (int Evacuated, int Remaining) EvacuateOccupants(
-        IEnumerable<IServerPlayer> players, int internalId, Action<IServerPlayer> rescue)
+        IEnumerable<IServerPlayer> occupants, int internalId, Action<IServerPlayer> rescue)
     {
         int evacuated = 0;
         int remaining = 0;
-        foreach (var p in players)
+        foreach (var p in occupants)
         {
-            if (!OccupancyScan.IsIn(p, internalId))
-            {
-                continue;
-            }
-
             rescue(p);
             if (OccupancyScan.IsIn(p, internalId))
             {
@@ -349,7 +347,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
         var (evacuated, remaining) = EvacuateOccupants(
-            api.World.AllOnlinePlayers.OfType<IServerPlayer>(), dim.InternalId, RescueToOverworld);
+            OccupancyScan.PlayersIn(api, dim.InternalId), dim.InternalId, RescueToOverworld);
         if (remaining > 0)
         {
             return TextCommandResult.Error(

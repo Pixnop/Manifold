@@ -35,17 +35,18 @@ public sealed class ManifoldModSystemTests
     }
 
     [Fact]
-    public void EvacuateOccupants_Should_Ignore_Players_In_Other_Dimensions()
+    public void EvacuateOccupants_Should_Rescue_Every_Given_Player_Without_Re_Filtering()
     {
-        var elsewhere = PlayerAt(7);
+        // Callers now pass an already-filtered occupant list (e.g. OccupancyScan.PlayersIn), so
+        // EvacuateOccupants itself must not re-check position before rescuing - it trusts the list.
+        // A player whose recorded dimension does not match internalId still gets rescued here.
+        var given = PlayerAt(7);
         bool rescued = false;
 
         var (evacuated, remaining) = ManifoldModSystem.EvacuateOccupants(
-            new[] { elsewhere }, 42, _ => rescued = true);
+            new[] { given }, 42, _ => rescued = true);
 
-        Assert.False(rescued);
-        Assert.Equal(0, evacuated);
-        Assert.Equal(0, remaining);
+        Assert.True(rescued);
     }
 
     [Fact]
