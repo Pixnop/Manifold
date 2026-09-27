@@ -19,12 +19,10 @@ public class DimensionMetadataScenarios : ManifoldScenarioBase
     {
         await DimensionId("flat");
 
-        CommandResult label = await World.ExecuteCommand("/atlasfx metadata flat fixture-label");
-        Assert.True(label.Ok, label.Message);
+        CommandResult label = await Ok("/atlasfx metadata flat fixture-label");
         Assert.Equal("String:granite-slab", label.Message);
 
-        CommandResult level = await World.ExecuteCommand("/atlasfx metadata flat fixture-level");
-        Assert.True(level.Ok, level.Message);
+        CommandResult level = await Ok("/atlasfx metadata flat fixture-level");
         Assert.Equal("Int32:3", level.Message);
     }
 

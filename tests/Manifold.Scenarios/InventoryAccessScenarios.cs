@@ -30,8 +30,7 @@ public class InventoryAccessScenarios : ManifoldScenarioBase
         int flatId = await DimensionId("flat");
         ITestPlayer player = await World.JoinPlayer("atlas_invdim");
 
-        CommandResult transit = await World.ExecuteCommand("/atlasfx teleport-player atlas_invdim flat");
-        Assert.True(transit.Ok, transit.Message);
+        await Ok("/atlasfx teleport-player atlas_invdim flat");
 
         // ChangeDimension flips the dimension at once, but the X/Z teleport lands a few ticks later,
         // once its chunks load: wait for the fixture's spawn column, not just the dimension, or the

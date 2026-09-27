@@ -26,8 +26,7 @@ public class MultiPlayerScenarios : ManifoldScenarioBase
         await bob.GiveItem("game:stick", 7);
 
         // Alice enters the separate-inventory vault; Bob stays in the overworld.
-        CommandResult toVault = await World.ExecuteCommand("/atlasfx teleport-player atlas_alice vault");
-        Assert.True(toVault.Ok, toVault.Message);
+        await Ok("/atlasfx teleport-player atlas_alice vault");
         await World.Until(() => alice.Position.dimension == vaultId, timeoutTicks: 600);
         await World.Until(() => HotbarCount(alice, "game:stick") == 0, timeoutTicks: 200);
 
@@ -36,8 +35,7 @@ public class MultiPlayerScenarios : ManifoldScenarioBase
         Assert.Equal(0, bob.Position.dimension);
 
         // Bob transits to flat: two players in two different custom dimensions at the same coordinates.
-        CommandResult toFlat = await World.ExecuteCommand("/atlasfx teleport-player atlas_bob flat");
-        Assert.True(toFlat.Ok, toFlat.Message);
+        await Ok("/atlasfx teleport-player atlas_bob flat");
         await World.Until(() => bob.Position.dimension == flatId, timeoutTicks: 600);
         Assert.Equal(7, HotbarCount(bob, "game:stick"));
 
@@ -59,8 +57,7 @@ public class MultiPlayerScenarios : ManifoldScenarioBase
         Assert.Equal(bob.Entity.EntityId, Assert.Single(flatPlayers).EntityId);
 
         // Alice returns: her sticks come back, Bob is unaffected in flat.
-        CommandResult back = await World.ExecuteCommand("/atlasfx teleport-player atlas_alice overworld");
-        Assert.True(back.Ok, back.Message);
+        await Ok("/atlasfx teleport-player atlas_alice overworld");
         await World.Until(() => alice.Position.dimension == 0, timeoutTicks: 600);
         await World.Until(() => HotbarCount(alice, "game:stick") == 5, timeoutTicks: 200);
         Assert.Equal(7, HotbarCount(bob, "game:stick"));

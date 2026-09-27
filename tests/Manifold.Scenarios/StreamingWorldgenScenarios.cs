@@ -26,24 +26,19 @@ public class StreamingWorldgenScenarios : ManifoldScenarioBase
         ITestPlayer player = await World.JoinPlayer("atlasstreamer");
         await World.Ticks(2);
 
-        CommandResult toStream = await World.ExecuteCommand("/atlasfx teleport-player atlasstreamer stream");
-        Assert.True(toStream.Ok, toStream.Message);
+        await Ok("/atlasfx teleport-player atlasstreamer stream");
         await World.Until(() => player.Position.dimension == streamId, timeoutTicks: 600);
 
         // The transit itself only ensures the landing region; the slab under the player must be
         // there once the streaming driver has had its ticks (budgeted at one column per tick).
         var underPlayer = new BlockPos(512, 3, 512, streamId);
-        await World.Until(
-            () => World.BlockAt(underPlayer).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 2400);
+        await BlockBecomes(underPlayer, "game:rock-granite", timeoutTicks: 2400);
 
         // Move the player well outside the transit-ensured region; only the streaming driver can
         // generate there. Streaming's promise is no invisible walls at a region edge.
         var farLanding = new BlockPos(512 + 192, 8, 512, streamId);
         await player.TeleportTo(farLanding);
         var underFarLanding = new BlockPos(512 + 192, 3, 512, streamId);
-        await World.Until(
-            () => World.BlockAt(underFarLanding).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 2400);
+        await BlockBecomes(underFarLanding, "game:rock-granite", timeoutTicks: 2400);
     }
 }

@@ -30,12 +30,9 @@ public class DimensionWorldgenScenarios : ManifoldScenarioBase
         var inSlab = new BlockPos(512, 3, 512, flatId);
         var aboveSlab = new BlockPos(512, 10, 512, flatId);
 
-        CommandResult pregen = await World.ExecuteCommand("/atlasfx pregen flat");
-        Assert.True(pregen.Ok, pregen.Message);
+        await Ok("/atlasfx pregen flat");
 
-        await World.Until(
-            () => World.BlockAt(inSlab).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 1200);
+        await BlockBecomes(inSlab, "game:rock-granite", timeoutTicks: 1200);
 
         Assert.Equal("game:air", World.BlockAt(aboveSlab).Code.ToString());
     }
@@ -48,12 +45,10 @@ public class DimensionWorldgenScenarios : ManifoldScenarioBase
         var probeFlat = new BlockPos(512, 3, 512, flatId);
         var probeVoid = new BlockPos(512, 3, 512, voidId);
 
-        Assert.True((await World.ExecuteCommand("/atlasfx pregen flat")).Ok);
-        Assert.True((await World.ExecuteCommand("/atlasfx pregen void")).Ok);
+        await Ok("/atlasfx pregen flat");
+        await Ok("/atlasfx pregen void");
 
-        await World.Until(
-            () => World.BlockAt(probeFlat).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 1200);
+        await BlockBecomes(probeFlat, "game:rock-granite", timeoutTicks: 1200);
 
         // Same local coordinates, different dimension, different worldgen output.
         Assert.Equal("game:air", World.BlockAt(probeVoid).Code.ToString());

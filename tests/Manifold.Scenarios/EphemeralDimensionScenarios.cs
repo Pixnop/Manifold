@@ -5,12 +5,7 @@ using Atlas.XUnit;
 using Vintagestory.API.MathTools;
 using Xunit;
 
-// RollbackWorld (Atlas 0.8.0): the dimension created mid-scenario loads mini-dimension chunk
-// columns, which are part of the snapshot since rollback stage 3, and Manifold rebuilds its
-// in-memory registry, allocator, and stores from the restored SaveGame through the
-// atlas:rollback:restored hook (ManifoldModSystem.OnAtlasRollbackRestored). Strict: no scenario
-// here joins players or otherwise legitimately degrades the rollback, and the resync-proof pair
-// below is only meaningful when the rollback actually happens.
+// Strict rollback (see README): nothing here joins players.
 [Trait("Category", "E2E")]
 public class EphemeralDimensionScenarios : ManifoldScenarioBase
 {
@@ -24,9 +19,7 @@ public class EphemeralDimensionScenarios : ManifoldScenarioBase
 
         // Runtime-created dimension must produce worldgen output, same as boot-time ones.
         var probe = new BlockPos(512, 3, 512, tempId);
-        await World.Until(
-            () => World.BlockAt(probe).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 1200);
+        await BlockBecomes(probe, "game:rock-granite", timeoutTicks: 1200);
 
         CommandResult removeResult = await World.ExecuteCommand("/atlasfx remove temp1");
         Assert.True(removeResult.Ok, "remove reported failure.");
@@ -71,8 +64,6 @@ public class EphemeralDimensionScenarios : ManifoldScenarioBase
         // Worldgen must run again over the rolled-back columns: a stale generated-columns store
         // would make the generator load the (now deleted) columns as void and this probe time out.
         var probe = new BlockPos(512, 3, 512, id);
-        await World.Until(
-            () => World.BlockAt(probe).Code?.ToString() == "game:rock-granite",
-            timeoutTicks: 1200);
+        await BlockBecomes(probe, "game:rock-granite", timeoutTicks: 1200);
     }
 }

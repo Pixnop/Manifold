@@ -37,8 +37,7 @@ public class DimensionPersistenceScenarios : ManifoldScenarioBase
         Assert.Equal($"Active:{await DimensionId("flat")}", flatState.Message);
 
         // Static metadata is re-declared at registration, so it is back after the restart.
-        CommandResult flatLabel = await World.ExecuteCommand("/atlasfx metadata flat fixture-label");
-        Assert.True(flatLabel.Ok, flatLabel.Message);
+        CommandResult flatLabel = await Ok("/atlasfx metadata flat fixture-label");
         Assert.Equal("String:granite-slab", flatLabel.Message);
 
         // Runtime persistent dimension: nothing re-registered it on the restarted boot, so the
@@ -46,8 +45,7 @@ public class DimensionPersistenceScenarios : ManifoldScenarioBase
         // written when the fixture created the dimension on the FIRST boot, so the read also
         // proves SaveGame moddata survived the restart.
         int keeperId = await DimensionId("keeper");
-        CommandResult keeperState = await World.ExecuteCommand("/atlasfx state keeper");
-        Assert.True(keeperState.Ok, keeperState.Message);
+        CommandResult keeperState = await Ok("/atlasfx state keeper");
         Assert.Equal($"Pending:{keeperId}", keeperState.Message);
 
         // A Pending dimension refuses transit until its owner re-claims it.
@@ -82,27 +80,22 @@ public class DimensionPersistenceScenarios : ManifoldScenarioBase
 
         // The owner re-creates it under the same code: the registry promotes the Pending entry
         // to Active instead of allocating a new id (the documented owner-reclaim path).
-        CommandResult reclaimed = await World.ExecuteCommand("/atlasfx create-persistent keeper");
-        Assert.True(reclaimed.Ok, reclaimed.Message);
+        CommandResult reclaimed = await Ok("/atlasfx create-persistent keeper");
         Assert.Equal($"created {keeperId}", reclaimed.Message);
         CommandResult active = await World.ExecuteCommand("/atlasfx state keeper");
         Assert.Equal($"Active:{keeperId}", active.Message);
 
         // Re-declared metadata is live again on the promoted dimension.
-        CommandResult label = await World.ExecuteCommand("/atlasfx metadata keeper fixture-label");
-        Assert.True(label.Ok, label.Message);
+        CommandResult label = await Ok("/atlasfx metadata keeper fixture-label");
         Assert.Equal("String:runtime-persistent", label.Message);
 
         // And the re-claimed dimension is fully operational: transit in works end to end.
         Entity chicken = World.SpawnEntity("game:chicken-hen", World.Spawn.Offset(4, 1, 4));
         await World.Ticks(2);
-        CommandResult transit = await World.ExecuteCommand(
+        await Ok(
             $"/atlasfx teleport-entity {chicken.EntityId} keeper");
-        Assert.True(transit.Ok, transit.Message);
         var arrival = new BlockPos(512, 6, 512, keeperId);
-        await World.Until(
-            () => World.EntitiesIn(arrival.Area(16)).Any(e => e.EntityId == chicken.EntityId),
-            timeoutTicks: 600);
+        await EntityReaches(chicken, arrival);
     }
 
     /// <summary>

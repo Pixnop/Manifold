@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Manifold.Api;
 using Manifold.Api.Client;
 using Manifold.Api.Events;
@@ -101,13 +102,7 @@ public sealed class ManifoldModSystem : ModSystem
         _generatedColumns = new GeneratedColumnStore();
         _positionStore = new PlayerPositionStore();
 
-        // The boot hydrate: seed the registry from the persisted manifest and restore the
-        // generated-columns / player-position stores. Refactored into a re-runnable method so the
-        // Atlas rollback hook can run the exact same hydrate again against a restored SaveGame
-        // (see OnAtlasRollbackRestored). At boot the registry holds only the overworld, so the
-        // method's drop pass is a no-op and this reduces to the original seed loop plus the store
-        // loads. Runs BEFORE wiring Created/Destroyed below: seeding raises no events anyway, so
-        // the ordering only documents that boot-seeded entries broadcast nothing.
+        // Hydrate from the SaveGame before wiring Created/Destroyed (also re-run on Atlas rollback, see OnAtlasRollbackRestored).
         ResyncFromSaveGame();
 
         _registry.Created += OnRegistryCreated;
@@ -147,13 +142,7 @@ public sealed class ManifoldModSystem : ModSystem
         api.Event.ServerRunPhase(EnumServerRunPhase.Shutdown, OnServerShutdown);
         api.Event.SaveGameLoaded += OnSaveGameLoaded;
 
-        // Atlas rollback cooperation: a test-harness world-snapshot restore rewrites the SaveGame
-        // (manifest, genchunks, lastpos) under a registry that still holds pre-rollback state.
-        // Re-running the boot hydrate here closes that desync. Subscribed above the 0.5 default so
-        // Manifold's state is coherent before consumer mods' own restored-handlers run, mirroring
-        // ExecuteOrder at boot. The subscription is deliberately unconditional: the event never
-        // fires outside Atlas test runs, so in production it costs a string comparison per
-        // unrelated bus event and nothing else.
+        // Priority 0.6 > default 0.5: Manifold resyncs before consumer mods' restored-handlers (mirrors ExecuteOrder at boot).
         api.Event.RegisterEventBusListener(OnAtlasRollbackRestored, 0.6, AtlasRollbackRestoredEvent);
 
         Mod.Logger.Notification("[Manifold] Initialized (healthy).");
@@ -495,18 +484,23 @@ public sealed class ManifoldModSystem : ModSystem
     /// </summary>
     private void OnAtlasRollbackRestored(string eventName, ref EnumHandling handling, IAttribute data)
     {
-        if (_registry is null)
-        {
-            return;
-        }
-
         (int dropped, int reseeded) = ResyncFromSaveGame();
 
         // Connected clients mirror the registry; after a resync their mirror may describe dropped
         // or missing dimensions. Send the same full snapshot a joining player gets. The drop pass
         // already broadcast per-dimension removals via Destroyed; the snapshot makes the mirror
         // authoritative in one message regardless.
-        BroadcastManifestSnapshot();
+        if (_network is not null && _registry is not null && _sapi is not null)
+        {
+            var snapshot = BuildManifestSnapshot();
+            foreach (var p in _sapi.World.AllOnlinePlayers)
+            {
+                if (p is IServerPlayer sp)
+                {
+                    _network.SendManifestSnapshot(sp, snapshot);
+                }
+            }
+        }
 
         var payload = data as ITreeAttribute;
         Mod.Logger.Notification(
@@ -600,28 +594,9 @@ public sealed class ManifoldModSystem : ModSystem
         return (dropped, reseeded);
     }
 
-    /// <summary>Sends the full manifest snapshot (the join-time packet) to every online player.</summary>
-    private void BroadcastManifestSnapshot()
-    {
-        if (_network is null || _registry is null || _sapi is null)
-        {
-            return;
-        }
-
-        var snapshot = new ManifestSnapshotPacket();
-        foreach (var dim in _registry.All)
-        {
-            snapshot.Dimensions.Add(DimensionDescriptorMapper.ToDescriptor(dim));
-        }
-
-        foreach (var p in _sapi.World.AllOnlinePlayers)
-        {
-            if (p is IServerPlayer sp)
-            {
-                _network.SendManifestSnapshot(sp, snapshot);
-            }
-        }
-    }
+    /// <summary>Builds the full manifest snapshot (the join-time packet, and the rollback-resync broadcast).</summary>
+    private ManifestSnapshotPacket BuildManifestSnapshot() =>
+        new() { Dimensions = _registry!.All.Select(DimensionDescriptorMapper.ToDescriptor).ToList() };
 
     private void OnPlayerDisconnect(IServerPlayer player)
     {
@@ -677,13 +652,7 @@ public sealed class ManifoldModSystem : ModSystem
             return;
         }
 
-        var snapshot = new ManifestSnapshotPacket();
-        foreach (var dim in _registry.All)
-        {
-            snapshot.Dimensions.Add(DimensionDescriptorMapper.ToDescriptor(dim));
-        }
-
-        _network.SendManifestSnapshot(player, snapshot);
+        _network.SendManifestSnapshot(player, BuildManifestSnapshot());
 
         if (EntityPosAccess.PosOrNull(player.Entity) is { } entityPos)
         {

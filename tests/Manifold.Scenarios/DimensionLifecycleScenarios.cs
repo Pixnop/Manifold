@@ -31,13 +31,11 @@ public class DimensionLifecycleScenarios : ManifoldScenarioBase
     [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task EphemeralDimension_Should_RefuseTransitThenAllowRecreate_When_Removed()
     {
-        CommandResult created = await World.ExecuteCommand("/atlasfx create-ephemeral cycle");
-        Assert.True(created.Ok, created.Message);
+        await Ok("/atlasfx create-ephemeral cycle");
         int firstId = await DimensionId("cycle");
         Assert.InRange(firstId, 10, 1023);
 
-        CommandResult removed = await World.ExecuteCommand("/atlasfx remove cycle");
-        Assert.True(removed.Ok, removed.Message);
+        CommandResult removed = await Ok("/atlasfx remove cycle");
         Assert.Equal("removed", removed.Message);
 
         // Transit into the removed dimension must be refused, not crash the server.
@@ -50,17 +48,13 @@ public class DimensionLifecycleScenarios : ManifoldScenarioBase
         Assert.Contains("DimensionNotFoundException", refused.Message);
 
         // The code is free again: re-creating under the same path yields a working dimension.
-        CommandResult recreated = await World.ExecuteCommand("/atlasfx create-ephemeral cycle");
-        Assert.True(recreated.Ok, recreated.Message);
+        await Ok("/atlasfx create-ephemeral cycle");
         int secondId = ReadDimensionId("cycle")!.Value;
         Assert.InRange(secondId, 10, 1023);
 
-        CommandResult transit = await World.ExecuteCommand(
+        await Ok(
             $"/atlasfx teleport-entity {chicken.EntityId} cycle");
-        Assert.True(transit.Ok, transit.Message);
         var arrival = new BlockPos(512, 6, 512, secondId);
-        await World.Until(
-            () => World.EntitiesIn(arrival.Area(16)).Any(e => e.EntityId == chicken.EntityId),
-            timeoutTicks: 600);
+        await EntityReaches(chicken, arrival);
     }
 }

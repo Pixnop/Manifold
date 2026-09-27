@@ -6,11 +6,7 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Xunit;
 
-// RollbackWorld (Atlas 0.8.0): mini-dimension chunk columns and their chunk-stored entities are
-// part of the snapshot since rollback stage 3, and Manifold resyncs its in-memory registry and
-// stores from the restored SaveGame through the atlas:rollback:restored hook
-// (ManifoldModSystem.OnAtlasRollbackRestored). Strict: nothing in this class joins players or
-// otherwise legitimately degrades the rollback, so a degrade is a regression and must fail.
+// Strict rollback (see README): nothing here joins players.
 [Trait("Category", "E2E")]
 public class EntityTransitScenarios : ManifoldScenarioBase
 {
@@ -28,9 +24,7 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         Assert.True(result.Ok, "teleport-entity reported failure.");
 
         var arrival = new BlockPos(512, 6, 512, flatId);
-        await World.Until(
-            () => World.EntitiesIn(arrival.Area(16)).Any(e => e.EntityId == chicken.EntityId),
-            timeoutTicks: 600);
+        await EntityReaches(chicken, arrival);
 
         Entity arrived = World.EntitiesIn(arrival.Area(16)).Single(e => e.EntityId == chicken.EntityId);
         Assert.True(arrived.Alive, "Entity died during transit.");
@@ -51,9 +45,7 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         Assert.True(result.Ok, "teleport-entity reported failure.");
 
         var arrival = new BlockPos(512, 6, 512, flatId);
-        await World.Until(
-            () => World.EntitiesIn(arrival.Area(16)).Any(e => e.EntityId == chicken.EntityId),
-            timeoutTicks: 600);
+        await EntityReaches(chicken, arrival);
 
         // The dimension-0 query at the origin must no longer see the entity.
         Assert.DoesNotContain(
@@ -71,19 +63,13 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         chicken.WatchedAttributes.SetString("atlasfixture-marker", "round-trip");
         await World.Ticks(2);
 
-        CommandResult toFlat = await World.ExecuteCommand($"/atlasfx teleport-entity {chicken.EntityId} flat");
-        Assert.True(toFlat.Ok, toFlat.Message);
+        await Ok($"/atlasfx teleport-entity {chicken.EntityId} flat");
         var flatArrival = new BlockPos(512, 6, 512, flatId);
-        await World.Until(
-            () => World.EntitiesIn(flatArrival.Area(16)).Any(e => e.EntityId == chicken.EntityId),
-            timeoutTicks: 600);
+        await EntityReaches(chicken, flatArrival);
 
         // Back to dimension 0: the fixture lands overworld transits at the vanilla default spawn.
-        CommandResult back = await World.ExecuteCommand($"/atlasfx teleport-entity {chicken.EntityId} overworld");
-        Assert.True(back.Ok, back.Message);
-        await World.Until(
-            () => World.EntitiesIn(World.Spawn.Area(16)).Any(e => e.EntityId == chicken.EntityId),
-            timeoutTicks: 600);
+        await Ok($"/atlasfx teleport-entity {chicken.EntityId} overworld");
+        await EntityReaches(chicken, World.Spawn);
 
         Entity returned = World.EntitiesIn(World.Spawn.Area(16)).Single(e => e.EntityId == chicken.EntityId);
         Assert.True(returned.Alive, "Entity died during the round trip.");
