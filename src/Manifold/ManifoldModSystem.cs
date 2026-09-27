@@ -129,7 +129,6 @@ public sealed class ManifoldModSystem : ModSystem
             _positionStore,
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
-        transit.PlayerLeft += OnTransitPlayerLeft;
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
@@ -160,16 +159,18 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network = new ManifoldNetworkChannel();
 
-        // The mirror is kept alive by the channel delegates and ClientFacade below; it needs no field.
-        var clientMirror = new ClientDimensionMirror();
+        // The mirror and transit handler are kept alive by the channel delegates and ClientFacade
+        // below; neither needs a field.
+        var clientMirror = new ClientDimensionMirror(api.Logger);
+        var transitHandler = new ClientTransitHandler(clientMirror, api.Logger);
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
         _network.OnClientManifest += clientMirror.ApplyManifest;
-        _network.OnClientPlayerTransited += OnClientPlayerTransited;
+        _network.OnClientPlayerTransited += transitHandler.Handle;
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror, api.Logger);
+        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
         ManifoldAccess.SetClientResolver(_ => ClientFacade);
     }
 
@@ -429,6 +430,10 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)
     {
+        // Send the transit packet before reaping the source dimension below: the client resolves
+        // this packet's source/target codes through its dimension mirror, and reaping broadcasts a
+        // DimensionRemovedPacket that would otherwise remove the source from that mirror first,
+        // making the transit unresolvable on the client (see ReapEphemeralIfEmpty).
         _network?.SendPlayerTransited(e.Player, new PlayerTransitedPacket
         {
             SourceCode = e.SourceDimension.Code.ToString(),
@@ -437,10 +442,7 @@ public sealed class ManifoldModSystem : ModSystem
             TargetY = e.TargetPosition.Y,
             TargetZ = e.TargetPosition.Z,
         });
-    }
 
-    private void OnTransitPlayerLeft(object? sender, PlayerLeftDimensionEventArgs e)
-    {
         // When a player transits out, try to reap the dimension they left if it is an empty ephemeral
         // instance. Disconnect does NOT reap (see OnPlayerDisconnect): a logged-out player keeps their
         // dimension so they reconnect into it; it is only reaped on a deliberate leave or at shutdown.
@@ -740,14 +742,6 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         Dispose();
-    }
-
-    private void OnClientPlayerTransited(PlayerTransitedPacket packet)
-    {
-        // Reserved scaffolding for IManifoldClient.LocalPlayerTransited (not raised yet - the event
-        // args require an IServerPlayer the client does not have; see the event's XML doc). The packet
-        // type stays registered so v1 can light up the event without a protocol change. No per-packet
-        // work until then: consumers use ClientMirror Added/Removed + IClientPlayer events for now.
     }
 
     private int CountByState(DimensionState state)

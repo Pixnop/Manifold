@@ -36,7 +36,7 @@
 - **Transit events** (0.4.0) - `PlayerEntering` (pre-generation, cancellable), `PlayerArriving` (post-generation, pre-teleport, cancellable), `PlayerLeft` / `PlayerEntered` (post-teleport), and `EntityChangedDimension` (post `TeleportEntity` for non-player entities).
 - **Travel policy per dimension** - spawn behavior (`SameCoordinates` / `DimensionSpawn` / `LastVisited`), optional forced game mode, all configured through a fluent builder.
 - **Per-dimension inventory** (opt-in) - `WithSeparateInventory(ManifoldInventory.Hotbar | Backpack | Character)` gives a dimension its own player inventory for the chosen categories. Entering swaps to the dimension's set (empty on the first visit), leaving restores the previous one. Stored in player moddata so it survives logout and restarts, with no item loss.
-- **Per-dimension metadata** (0.4.0) - `.WithMetadata(key, value)` attaches typed registration-time hints to a dimension; consumers read them via `IDimension.Metadata` or the typed `GetMetadata<T>(key, defaultValue)` extension. Supports primitives, `string`, `enum`, `byte[]`, and `null`.
+- **Per-dimension metadata** (0.4.0) - `.WithMetadata(key, value)` attaches typed registration-time hints to a dimension; consumers read them via `IDimension.Metadata` or the typed `GetMetadata<T>(key, defaultValue)` extension. Supports primitives, `string`, `enum`, `byte[]`, and `null`. Replicated to client mirrors.
 - **Per-dimension streaming budget** (0.4.0) - `.WithStreamingBudget(maxColumnsPerTick)` (range 1..64) caps how many columns the streaming driver may ensure for that dimension per tick. Budgets are independent so a busy dim cannot starve a quiet one.
 - **Dark dimensions** - `WithDarkSky(ceilingY)` seals every generated column with an opaque ceiling, so an enclosed dimension stays dark and is lit only by block light. Pair it with `WithFixedSpawn` at a Y below `ceilingY`, or the default landing resolver lands players on top of the ceiling instead of inside the dark space. The engine has no per-dimension day/night, so open custom dimensions otherwise render fully lit.
 - **Runtime relight** - `IManifoldServer.RelightRegion(dimension, min, max)` and the `/manifold relight [radius]` admin command recalculate light in a custom dimension after a mod places blocks there (the engine's own relight is dimension-blind).
@@ -44,7 +44,7 @@
 - **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
 - **Entity location** - `IDimensionRegistry.GetDimensionOf(entity)` finds which registered dimension an entity is currently in, from its live position.
 - **Dimension occupancy** - `IManifoldServer.GetPlayersIn(dimension)` lists the online players currently inside a dimension.
-- **Client mirror** - the dimension list is replicated to connected clients via `IManifoldClient`.
+- **Client mirror** - the dimension list (with metadata) is replicated to connected clients via `IManifoldClient`, which also raises `LocalPlayerChangedDimension` on the local player's transit and exposes `GetDimensionOf(entity)`.
 - **Zero Harmony patches** - built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
 - **Opt-in helpers** - `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy` to get started with minimal boilerplate.
 

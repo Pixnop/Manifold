@@ -89,9 +89,9 @@ internal sealed class ManifoldServerFacade : IManifoldServer
 
         EvacuateOccupants(dim.InternalId);
 
-        // Evacuating the last occupant fires PlayerLeft, whose transit-out auto-reap may have already
-        // removed the now-empty dimension. If so, that is the success we wanted - report it as such
-        // rather than letting a second TryRemove return false for a code that is already gone.
+        // Evacuating the last occupant completes a transit, whose transit-out auto-reap may have
+        // already removed the now-empty dimension. If so, that is the success we wanted - report it
+        // as such rather than letting a second TryRemove return false for a code that is already gone.
         return Registry.Get(dimension) is null || Registry.TryRemove(dimension);
     }
 

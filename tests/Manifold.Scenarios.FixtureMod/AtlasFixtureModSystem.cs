@@ -10,6 +10,13 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
+/// <summary>Sample enum value for the "flat" fixture dimension's "fixture-tint" metadata entry.</summary>
+public enum FixtureTint
+{
+    Plain = 0,
+    Painted = 7,
+}
+
 /// <summary>
 /// Server-side fixture driven by the Manifold.Scenarios suite. All Manifold API
 /// calls live here because scenario code cannot share assembly identity with the
@@ -42,6 +49,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .WithGenerationRadius(2)
             .WithMetadata("fixture-label", "granite-slab")
             .WithMetadata("fixture-level", 3)
+            .WithMetadata("fixture-active", true)
+            .WithMetadata("fixture-signature", new byte[] { 1, 2, 3 })
+            .WithMetadata("fixture-tint", FixtureTint.Painted)
+            .WithMetadata("fixture-note", null)
             .RegisterStatic();
         PublishDimensionId("flat", flat.InternalId);
 
@@ -332,7 +343,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
     private TextCommandResult OnCreateEphemeral(TextCommandCallingArgs args)
     {
         var path = (string)args[0];
-        IDimension dimension = DefineSlab(path).Ephemeral().Create();
+        IDimension dimension = DefineSlab(path)
+            .WithMetadata("fixture-tint", FixtureTint.Painted)
+            .Ephemeral()
+            .Create();
         PublishDimensionId(path, dimension.InternalId);
 
         // Same pregeneration problem as boot-time dimensions: Create() only registers the
