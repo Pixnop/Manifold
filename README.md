@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="manifold.svg" width="180" alt="Manifold logo" />
+  <img src="docfx/images/logo.svg" width="180" alt="Manifold logo" />
 </p>
 
 # Manifold
