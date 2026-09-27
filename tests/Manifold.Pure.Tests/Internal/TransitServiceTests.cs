@@ -468,6 +468,75 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Fall_Back_To_Default_Resolver_When_DimensionSpawn_Has_No_Spawn_Point()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:nospawn"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSpawnBehavior(SpawnBehavior.DimensionSpawn) // no WithFixedSpawn: no configured spawn point
+            .RegisterStatic();
+
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var defaultResolver = Substitute.For<ITargetPositionResolver>();
+        defaultResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(1, 2, 3, 0));
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            defaultResolver,
+            new DimensionGenerator(registry, new GeneratedColumnStore()),
+            new PlayerPositionStore(),
+            Substitute.For<IInventorySwapper>());
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+
+        // Must not throw and must not land at the magic (0, 64, 0) - it falls back to the default
+        // resolver instead.
+        svc.TeleportPlayer(player, Code("owner:nospawn"));
+
+        teleporter.Received(1).Teleport(player, Arg.Is<BlockPos>(p => p.X == 1 && p.Y == 2 && p.Z == 3));
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Warn_Only_Once_Per_Dimension_For_Missing_DimensionSpawn()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:nospawn"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSpawnBehavior(SpawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var defaultResolver = Substitute.For<ITargetPositionResolver>();
+        defaultResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(1, 2, 3, 0));
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            defaultResolver,
+            new DimensionGenerator(registry, new GeneratedColumnStore()),
+            new PlayerPositionStore(),
+            Substitute.For<IInventorySwapper>());
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+
+        svc.TeleportPlayer(player, Code("owner:nospawn"));
+        svc.TeleportPlayer(player, Code("owner:nospawn"));
+
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Restore_Previous_GameMode_When_Leaving_A_Forced_Dimension()
     {
         var (svc, registry, player, _, _, _) = NewService();

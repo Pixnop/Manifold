@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Events;
 using Manifold.Api.Server;
@@ -26,6 +27,7 @@ internal sealed class TransitService : ITransitionService
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
     private readonly IInventorySwapper _inventory;
+    private readonly HashSet<int> _warnedMissingSpawnPoint = new();
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -386,10 +388,24 @@ internal sealed class TransitService : ITransitionService
         switch (behavior)
         {
             case SpawnBehavior.DimensionSpawn:
-                var spawn = targetImpl?.SpawnPoint ?? new BlockPos(0, 64, 0, target.InternalId);
-                return TargetPositionResolvers.FixedSpawn(spawn)
-                    .Resolve(player.Entity, target, _sapi)
-                    .SetDimension(target.InternalId);
+                if (targetImpl?.SpawnPoint is { } spawn)
+                {
+                    return TargetPositionResolvers.FixedSpawn(spawn)
+                        .Resolve(player.Entity, target, _sapi)
+                        .SetDimension(target.InternalId);
+                }
+
+                // No configured spawn point: fall back to the default resolver instead of a magic
+                // position, warning once per dimension rather than on every transit.
+                if (_warnedMissingSpawnPoint.Add(target.InternalId))
+                {
+                    _sapi.Logger?.Warning(
+                        "[Manifold] Dimension '{0}' uses SpawnBehavior.DimensionSpawn but has no "
+                        + "configured spawn point (WithFixedSpawn); falling back to the default resolver.",
+                        target.Code);
+                }
+
+                return _defaultResolver.Resolve(player.Entity, target, _sapi).SetDimension(target.InternalId);
 
             case SpawnBehavior.LastVisited:
                 if (_positionStore.TryGet(player.PlayerUID, target.InternalId, out var x, out var y, out var z))
