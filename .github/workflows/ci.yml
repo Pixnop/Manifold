@@ -61,13 +61,12 @@ jobs:
         run: dotnet build Manifold.slnx -c Release
 
       - name: Test with coverage
-        # --no-build is intentionally omitted: coverlet instruments assemblies at
-        # build time via the collector, so we let dotnet test rebuild with the
-        # coverage collector active.  The extra compile is cheap vs. a missing
-        # coverage report.
+        # coverlet.collector instruments the already-built assemblies when the test run
+        # starts (it's a data collector, not a build-time step); reuse the Build step output.
         run: |
           dotnet test tests/Manifold.Pure.Tests \
             -c Release \
+            --no-build \
             --collect:"XPlat Code Coverage" \
             --settings coverlet.runsettings
 
