@@ -14,8 +14,17 @@ namespace Manifold.Internal;
 /// <remarks>Client-side. Main thread for mutations (packet handlers run there).</remarks>
 internal sealed class ClientDimensionMirror
 {
+    private readonly ILogger? _logger;
+
     private volatile ImmutableDictionary<AssetLocation, DimensionImpl> _snapshot =
         ImmutableDictionary<AssetLocation, DimensionImpl>.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="ClientDimensionMirror"/> class.</summary>
+    /// <param name="logger">Optional logger used to report a skipped metadata entry. <c>null</c> silences the report.</param>
+    public ClientDimensionMirror(ILogger? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>Raised after a dimension has been added to the mirror.</summary>
     public event Action<IDimension>? Added;
@@ -73,7 +82,7 @@ internal sealed class ClientDimensionMirror
         var builder = ImmutableDictionary.CreateBuilder<AssetLocation, DimensionImpl>();
         foreach (var desc in packet.Dimensions)
         {
-            var impl = DimensionDescriptorMapper.ToImpl(desc);
+            var impl = DimensionDescriptorMapper.ToImpl(desc, _logger);
             builder[impl.Code] = impl;
         }
 
@@ -103,7 +112,7 @@ internal sealed class ClientDimensionMirror
     public void ApplyAdded(DimensionAddedPacket packet)
     {
         ArgumentNullException.ThrowIfNull(packet);
-        var impl = DimensionDescriptorMapper.ToImpl(packet.Dimension);
+        var impl = DimensionDescriptorMapper.ToImpl(packet.Dimension, _logger);
         _snapshot = _snapshot.SetItem(impl.Code, impl);
         Added?.Invoke(impl);
     }

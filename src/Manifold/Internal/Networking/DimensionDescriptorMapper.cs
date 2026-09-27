@@ -11,6 +11,9 @@ namespace Manifold.Internal.Networking;
 /// </summary>
 internal static class DimensionDescriptorMapper
 {
+    /// <summary>Sentinel returned by <see cref="FromMetadataEntry"/> for a kind this build does not know.</summary>
+    private static readonly object UnknownKind = new();
+
     /// <summary>Server → wire.</summary>
     /// <param name="dim">Server-side dimension.</param>
     /// <returns>Wire descriptor.</returns>
@@ -27,8 +30,12 @@ internal static class DimensionDescriptorMapper
 
     /// <summary>Wire → client-side <see cref="DimensionImpl"/> (Worldgen is always null on client).</summary>
     /// <param name="d">Wire descriptor.</param>
+    /// <param name="logger">
+    /// Optional logger used to report a skipped metadata entry (one this build's <see cref="MetadataValueKind"/>
+    /// does not know, sent by a newer server). <c>null</c> silences the report; the entry is skipped either way.
+    /// </param>
     /// <returns>Client-side dimension record.</returns>
-    public static DimensionImpl ToImpl(DimensionDescriptor d) => DimensionImpl.Placeholder(
+    public static DimensionImpl ToImpl(DimensionDescriptor d, ILogger? logger = null) => DimensionImpl.Placeholder(
         new AssetLocation(d.Code),
         d.InternalId,
         d.IsBuiltIn,
@@ -36,7 +43,7 @@ internal static class DimensionDescriptorMapper
         d.OwnerModId,
         (DimensionState)d.State) with
     {
-        Metadata = FromMetadataEntries(d.Metadata),
+        Metadata = FromMetadataEntries(d.Metadata, logger),
     };
 
     /// <summary>Converts a dimension's metadata dictionary into its wire form.</summary>
@@ -156,11 +163,14 @@ internal static class DimensionDescriptorMapper
     /// <summary>
     /// Converts wire metadata entries back into an immutable dictionary for the client mirror, so the
     /// published <c>IReadOnlyDictionary</c> cannot be mutated through a downcast back to Dictionary
-    /// (same guarantee as the server's <c>DimensionBuilderImpl.BuildMetadata</c>).
+    /// (same guarantee as the server's <c>DimensionBuilderImpl.BuildMetadata</c>). Decoding is
+    /// per-entry tolerant: an entry whose <see cref="MetadataValueKind"/> this build does not know
+    /// (a newer server sent a kind added later) is skipped rather than failing the whole snapshot.
     /// </summary>
     /// <param name="entries">Wire entries.</param>
-    /// <returns>The reconstructed metadata dictionary, or the shared empty instance when there are none.</returns>
-    private static IReadOnlyDictionary<string, object?> FromMetadataEntries(IReadOnlyList<MetadataEntry> entries)
+    /// <param name="logger">Optional logger used to report a skipped entry. <c>null</c> silences the report.</param>
+    /// <returns>The reconstructed metadata dictionary, or the shared empty instance when there are none (or all were skipped).</returns>
+    private static IReadOnlyDictionary<string, object?> FromMetadataEntries(IReadOnlyList<MetadataEntry> entries, ILogger? logger)
     {
         if (entries.Count == 0)
         {
@@ -170,16 +180,25 @@ internal static class DimensionDescriptorMapper
         var builder = ImmutableDictionary.CreateBuilder<string, object?>(StringComparer.Ordinal);
         foreach (var entry in entries)
         {
-            builder[entry.Key] = FromMetadataEntry(entry);
+            var value = FromMetadataEntry(entry);
+            if (ReferenceEquals(value, UnknownKind))
+            {
+                logger?.Warning(
+                    "[Manifold] Skipped dimension metadata entry '{0}': kind '{1}' is unknown to this client build (likely sent by a newer server).",
+                    entry.Key,
+                    entry.Kind);
+                continue;
+            }
+
+            builder[entry.Key] = value;
         }
 
-        return builder.ToImmutable();
+        return builder.Count == 0 ? DimensionBuilderImpl.EmptyMetadata : builder.ToImmutable();
     }
 
     /// <summary>Converts one wire entry back into its CLR value.</summary>
     /// <param name="entry">Wire entry.</param>
-    /// <returns>The reconstructed value.</returns>
-    /// <exception cref="NotSupportedException">The entry carries a <see cref="MetadataValueKind"/> this build does not know (a newer server sent a kind added later).</exception>
+    /// <returns>The reconstructed value, or <see cref="UnknownKind"/> when <see cref="MetadataEntry.Kind"/> is not one this build knows.</returns>
     private static object? FromMetadataEntry(MetadataEntry entry) => entry.Kind switch
     {
         MetadataValueKind.Null => null,
@@ -200,19 +219,21 @@ internal static class DimensionDescriptorMapper
         MetadataValueKind.String => entry.StringValue,
         MetadataValueKind.ByteArray => entry.BytesValue ?? Array.Empty<byte>(),
         MetadataValueKind.Enum => ResolveEnumValue(entry),
-        _ => throw new NotSupportedException($"Unknown metadata value kind '{entry.Kind}'."),
+        _ => UnknownKind,
     };
 
     /// <summary>
     /// Resolves an enum metadata entry back to its original <see cref="Enum"/> value when the
-    /// owning type can be found client-side, else falls back to the raw underlying value.
+    /// owning type can be found client-side and is actually an enum, else falls back to the raw
+    /// underlying value. A resolved type that is not an enum (for example a mod replaced an enum
+    /// with a class of the same name across versions) is treated the same as an unresolved one.
     /// </summary>
     /// <param name="entry">Wire entry with <see cref="MetadataEntry.Kind"/> == <see cref="MetadataValueKind.Enum"/>.</param>
-    /// <returns>The resolved enum instance, or <see cref="MetadataEntry.IntegerValue"/> boxed as <see cref="long"/> when the type cannot be resolved.</returns>
+    /// <returns>The resolved enum instance, or <see cref="MetadataEntry.IntegerValue"/> boxed as <see cref="long"/> when the type cannot be resolved or is not an enum.</returns>
     private static object ResolveEnumValue(MetadataEntry entry)
     {
         var type = ResolveEnumType(entry.EnumTypeFullName, entry.EnumAssemblyName);
-        return type is null ? entry.IntegerValue : Enum.ToObject(type, entry.IntegerValue);
+        return type is { IsEnum: true } ? Enum.ToObject(type, entry.IntegerValue) : entry.IntegerValue;
     }
 
     /// <summary>

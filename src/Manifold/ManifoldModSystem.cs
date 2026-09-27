@@ -161,7 +161,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         // The mirror and transit handler are kept alive by the channel delegates and ClientFacade
         // below; neither needs a field.
-        var clientMirror = new ClientDimensionMirror();
+        var clientMirror = new ClientDimensionMirror(api.Logger);
         var transitHandler = new ClientTransitHandler(clientMirror, api.Logger);
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;

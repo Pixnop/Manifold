@@ -5,6 +5,7 @@ using System.IO;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Internal.Networking;
+using NSubstitute;
 using ProtoBuf;
 using Vintagestory.API.Common;
 using Xunit;
@@ -198,6 +199,62 @@ public sealed class DimensionDescriptorMapperTests
     }
 
     [Fact]
+    public void Metadata_Should_FallBackToRawValue_When_The_Resolved_Type_Is_Not_An_Enum()
+    {
+        // A type of this exact name resolves client-side, but it is not an enum (e.g. a mod
+        // replaced an enum with a class of the same name across versions): Enum.ToObject on it
+        // would throw, so it must be treated the same as an unresolved type.
+        var descriptor = new DimensionDescriptor { Code = "mod:a" };
+        var notAnEnumType = typeof(NotAnEnum);
+        descriptor.Metadata.Add(new MetadataEntry
+        {
+            Key = "was-an-enum",
+            Kind = MetadataValueKind.Enum,
+            IntegerValue = 3,
+            EnumTypeFullName = notAnEnumType.FullName,
+            EnumAssemblyName = notAnEnumType.Assembly.GetName().Name,
+        });
+
+        var impl = DimensionDescriptorMapper.ToImpl(descriptor);
+
+        Assert.Equal(3L, impl.Metadata["was-an-enum"]);
+    }
+
+    [Fact]
+    public void Metadata_Should_Skip_An_Entry_Of_Unknown_Kind_And_Still_Apply_The_Rest()
+    {
+        var descriptor = new DimensionDescriptor { Code = "mod:a" };
+        descriptor.Metadata.Add(new MetadataEntry
+        {
+            Key = "from-the-future",
+            Kind = (MetadataValueKind)999,
+        });
+        descriptor.Metadata.Add(new MetadataEntry
+        {
+            Key = "still-fine",
+            Kind = MetadataValueKind.Int32,
+            IntegerValue = 42,
+        });
+
+        var impl = DimensionDescriptorMapper.ToImpl(descriptor);
+
+        Assert.False(impl.Metadata.ContainsKey("from-the-future"));
+        Assert.Equal(42, impl.Metadata["still-fine"]);
+    }
+
+    [Fact]
+    public void Metadata_Should_Log_A_Warning_When_An_Entry_Of_Unknown_Kind_Is_Skipped()
+    {
+        var descriptor = new DimensionDescriptor { Code = "mod:a" };
+        descriptor.Metadata.Add(new MetadataEntry { Key = "from-the-future", Kind = (MetadataValueKind)999 });
+        var logger = Substitute.For<ILogger>();
+
+        DimensionDescriptorMapper.ToImpl(descriptor, logger);
+
+        logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
     public void ToImpl_Should_Return_Empty_Metadata_When_Descriptor_Carries_None()
     {
         // The shape an old server (predating replicated metadata) sends: the field is simply absent.
@@ -243,4 +300,8 @@ public sealed class DimensionDescriptorMapperTests
         Metadata: metadata.ToImmutableDictionary(),
         StreamingBudgetPerTick: null,
         SkyCapY: null);
+
+    private sealed class NotAnEnum
+    {
+    }
 }
