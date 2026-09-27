@@ -7,7 +7,7 @@
   "authors": ["Pixnop"],
   "side": "Universal",
   "dependencies": {
-    "game": "",
+    "game": "1.22.0",
     "manifold": "0.4.2"
   }
 }
