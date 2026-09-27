@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Manifold.Api;
 using Vintagestory.API.Common;
 
@@ -152,7 +153,11 @@ internal static class DimensionDescriptorMapper
         return entry;
     }
 
-    /// <summary>Converts wire metadata entries back into a dictionary for the client mirror.</summary>
+    /// <summary>
+    /// Converts wire metadata entries back into an immutable dictionary for the client mirror, so the
+    /// published <c>IReadOnlyDictionary</c> cannot be mutated through a downcast back to Dictionary
+    /// (same guarantee as the server's <c>DimensionBuilderImpl.BuildMetadata</c>).
+    /// </summary>
     /// <param name="entries">Wire entries.</param>
     /// <returns>The reconstructed metadata dictionary, or the shared empty instance when there are none.</returns>
     private static IReadOnlyDictionary<string, object?> FromMetadataEntries(IReadOnlyList<MetadataEntry> entries)
@@ -162,13 +167,13 @@ internal static class DimensionDescriptorMapper
             return DimensionBuilderImpl.EmptyMetadata;
         }
 
-        var dict = new Dictionary<string, object?>(entries.Count, StringComparer.Ordinal);
+        var builder = ImmutableDictionary.CreateBuilder<string, object?>(StringComparer.Ordinal);
         foreach (var entry in entries)
         {
-            dict[entry.Key] = FromMetadataEntry(entry);
+            builder[entry.Key] = FromMetadataEntry(entry);
         }
 
-        return dict;
+        return builder.ToImmutable();
     }
 
     /// <summary>Converts one wire entry back into its CLR value.</summary>

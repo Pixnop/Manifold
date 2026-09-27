@@ -187,6 +187,17 @@ public sealed class DimensionDescriptorMapperTests
     }
 
     [Fact]
+    public void ToImpl_Should_Return_Metadata_That_Cannot_Be_Downcast_To_A_Mutable_Dictionary()
+    {
+        var metadata = new Dictionary<string, object?> { ["k"] = 1 };
+
+        var wireOut = DimensionDescriptorMapper.ToDescriptor(MakeDimension(metadata));
+        var roundtrip = DimensionDescriptorMapper.ToImpl(wireOut);
+
+        Assert.Null(roundtrip.Metadata as Dictionary<string, object?>);
+    }
+
+    [Fact]
     public void ToImpl_Should_Return_Empty_Metadata_When_Descriptor_Carries_None()
     {
         // The shape an old server (predating replicated metadata) sends: the field is simply absent.
