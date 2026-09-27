@@ -50,9 +50,9 @@ public interface ITransitionService
     void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
-    /// The public form of <see cref="TeleportPlayer"/>: identical transit (same events, same
-    /// generation, same landing-position resolution), but reports whether the player actually moved
-    /// instead of leaving a cancelled transit indistinguishable from a completed one.
+    /// Same transit as <see cref="TeleportPlayer"/>, but returns whether the player actually moved
+    /// (same events, same generation, same landing-position resolution) instead of leaving a
+    /// cancelled transit indistinguishable from a completed one.
     /// </summary>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>

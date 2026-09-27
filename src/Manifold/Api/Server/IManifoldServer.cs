@@ -81,7 +81,7 @@ public interface IManifoldServer
     /// <summary>
     /// The online players currently inside <paramref name="dimension"/>, determined from each
     /// player's live position dimension id - the same live check <see cref="IDimensionRegistry.TryRemove"/>
-    /// uses to refuse removing an occupied dimension.
+    /// uses to refuse removing an occupied dimension. Server main thread only.
     /// </summary>
     /// <param name="dimension">Dimension code to query.</param>
     /// <returns>The occupants, in no particular order; empty if none are inside.</returns>
