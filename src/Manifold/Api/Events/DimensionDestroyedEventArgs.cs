@@ -3,7 +3,8 @@ using System;
 namespace Manifold.Api.Events;
 
 /// <summary>
-/// Raised when an ephemeral dimension is removed from the registry.
+/// Raised when a dimension is removed from the registry. Usually an Ephemeral dimension (the
+/// normal case), but the admin purge command can also remove a Persistent or Quarantined one.
 /// </summary>
 public sealed class DimensionDestroyedEventArgs : EventArgs
 {

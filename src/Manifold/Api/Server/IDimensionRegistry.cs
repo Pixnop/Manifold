@@ -16,7 +16,13 @@ public interface IDimensionRegistry
     /// <summary>Gets an event raised after a dimension becomes Active.</summary>
     event EventHandler<DimensionCreatedEventArgs> Created;
 
-    /// <summary>Gets an event raised after a dimension is removed via <see cref="TryRemove"/>.</summary>
+    /// <summary>
+    /// Gets an event raised after a dimension is removed from the registry: via
+    /// <see cref="TryRemove"/>, the auto-reap of an emptied Ephemeral dimension,
+    /// <see cref="IManifoldServer.ForceRemoveDimension"/>, shutdown cleanup of Ephemeral dimensions,
+    /// or the admin <c>/manifold purge</c> command (which can also remove Persistent and Quarantined
+    /// dimensions).
+    /// </summary>
     event EventHandler<DimensionDestroyedEventArgs> Destroyed;
 
     /// <summary>Current snapshot of registered dimensions (Active, Pending, and Quarantined).</summary>
@@ -36,6 +42,15 @@ public interface IDimensionRegistry
     /// <returns>A single-use builder.</returns>
     /// <exception cref="Manifold.Api.DimensionOwnerRequiredException">
     /// Thrown when the registry cannot determine the owning mod id (e.g. the unscoped facade).
+    /// </exception>
+    /// <exception cref="System.ArgumentNullException"><paramref name="code"/> is null.</exception>
+    /// <exception cref="System.ArgumentException">
+    /// <paramref name="code"/> is not <c>domain:path</c> with both segments matching <c>[a-z0-9_]+</c>,
+    /// or uses the reserved <c>manifold</c> domain.
+    /// </exception>
+    /// <exception cref="Manifold.Api.DimensionAlreadyRegisteredException">
+    /// <paramref name="code"/> is already registered in this boot, or is pending under a different
+    /// owner mod.
     /// </exception>
     IDimensionBuilder Define(AssetLocation code);
 
