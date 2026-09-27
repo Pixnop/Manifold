@@ -1,7 +1,6 @@
 namespace AtlasFixture;
 
 using System.Globalization;
-using System.Linq;
 using Manifold.Api;
 using Manifold.Api.Helpers;
 using Manifold.Api.Server;
@@ -16,7 +15,7 @@ using Vintagestory.API.Server;
 /// calls live here because scenario code cannot share assembly identity with the
 /// ModLoader-loaded Manifold.dll. Results are published through SaveGame data.
 /// </summary>
-public sealed class AtlasFixtureModSystem : ModSystem
+public sealed partial class AtlasFixtureModSystem : ModSystem
 {
     internal const string Domain = "atlasfixture";
 
@@ -34,12 +33,7 @@ public sealed class AtlasFixtureModSystem : ModSystem
         _sapi = api;
         _manifold = api.GetManifoldServer(this);
 
-        // No PregenerateSpawn at boot. Since Atlas 0.8.0 (rollback stage 3) loaded
-        // mini-dimension columns are simply part of the world snapshot, so boot-time
-        // pregeneration would no longer disqualify rollback; skipping it is now a
-        // snapshot-size optimization, not a requirement. Registration alone loads
-        // nothing; scenarios that need a dimension's terrain request generation on
-        // demand via /atlasfx pregen <dimpath> or trigger it through a transit.
+        // No boot pregeneration: it only grows every class's snapshot; scenarios use /atlasfx pregen or a transit.
         IDimension flat = _manifold.Registry
             .Define(new AssetLocation(Domain, "flat"))
             .Persistent()
@@ -86,7 +80,9 @@ public sealed class AtlasFixtureModSystem : ModSystem
             $"{Domain}:event:player-left:{e.SourceDimension.Code.Path}", new[] { (byte)1 });
 
         RegisterCommands(api);
-        SeedPersistenceFixtures();
+        var config = api.LoadModConfig<AtlasFixtureConfig>("atlasfixture.json") ?? new();
+        SeedPersistenceFixtures(config);
+        StartCoverageFixtures(api, config);
     }
 
     private void PublishDimensionId(string path, int internalId)
@@ -116,36 +112,44 @@ public sealed class AtlasFixtureModSystem : ModSystem
     /// and destroy exactly the state the scenarios assert on. Registration loads no chunks, so
     /// this seeding cannot degrade any rollback; classes without the config file skip it.
     /// </summary>
-    private void SeedPersistenceFixtures()
+    private void SeedPersistenceFixtures(AtlasFixtureConfig config)
     {
-        AtlasFixtureConfig? config = _sapi.LoadModConfig<AtlasFixtureConfig>("atlasfixture.json");
-        if (config is not { SeedPersistenceFixtures: true }
+        if (!config.SeedPersistenceFixtures
             || _manifold.Registry.Get(new AssetLocation(Domain, "keeper")) is not null)
         {
             return;
         }
 
         // Runtime PERSISTENT dimension: must ride the manifest through a restart (as Pending).
-        IDimension keeper = _manifold.Registry
-            .Define(new AssetLocation(Domain, "keeper"))
-            .Persistent()
-            .WithWorldgen(new GraniteSlabWorldgen())
-            .WithFixedSpawn(FixedSpawn)
-            .WithGenerationRadius(1)
-            .WithMetadata("fixture-label", "runtime-persistent")
-            .Create();
-        PublishDimensionId("keeper", keeper.InternalId);
+        CreatePersistent("keeper");
 
         // Runtime EPHEMERAL dimension: must NOT survive a restart. No spawn pregeneration here
         // (unlike /atlasfx create-ephemeral): creation must load no chunks at boot.
-        IDimension ghost = _manifold.Registry
-            .Define(new AssetLocation(Domain, "ghost"))
-            .Ephemeral()
+        IDimension ghost = DefineSlab("ghost").Ephemeral().Create();
+        PublishDimensionId("ghost", ghost.InternalId);
+    }
+
+    /// <summary>Base builder for a fixture dimension: granite-slab worldgen, the fixed spawn, generation radius 1.</summary>
+    private IDimensionBuilder DefineSlab(string path) =>
+        _manifold.Registry
+            .Define(new AssetLocation(Domain, path))
             .WithWorldgen(new GraniteSlabWorldgen())
             .WithFixedSpawn(FixedSpawn)
-            .WithGenerationRadius(1)
+            .WithGenerationRadius(1);
+
+    /// <summary>
+    /// Creates a RUNTIME persistent dimension, or re-claims it after a restart (the same
+    /// Define(...).Create() call promotes an already manifest-seeded Pending entry back to
+    /// Active while keeping its manifest id). Shared by the boot seed and OnCreatePersistent.
+    /// </summary>
+    private IDimension CreatePersistent(string path)
+    {
+        IDimension dimension = DefineSlab(path)
+            .Persistent()
+            .WithMetadata("fixture-label", "runtime-persistent")
             .Create();
-        PublishDimensionId("ghost", ghost.InternalId);
+        PublishDimensionId(path, dimension.InternalId);
+        return dimension;
     }
 
     /// <summary>
@@ -156,9 +160,7 @@ public sealed class AtlasFixtureModSystem : ModSystem
     /// DimensionGenerator.EnsureRegion, not for the move itself. The source position must be air
     /// so the move is a guaranteed no-op; a near-ceiling position at the world origin is reliably
     /// air, unlike y=1 near bedrock, and using a non-air source would actually move a real
-    /// overworld block. Invoked on demand through /atlasfx pregen, not at boot: since Atlas
-    /// 0.8.0 boot-time pregeneration would no longer disqualify rollback, it would just grow
-    /// every scenario class's snapshot (see the StartServerSide note).
+    /// overworld block. Invoked on demand through /atlasfx pregen, not at boot.
     /// </summary>
     private void PregenerateSpawn(IDimension dimension)
     {
@@ -238,7 +240,9 @@ public sealed class AtlasFixtureModSystem : ModSystem
     private static AssetLocation ResolveTargetCode(string dimPath) =>
         dimPath == "overworld"
             ? new AssetLocation("manifold", "overworld")
-            : new AssetLocation(Domain, dimPath);
+            : dimPath.Contains(':')
+                ? new AssetLocation(dimPath)
+                : new AssetLocation(Domain, dimPath);
 
     /// <summary>
     /// Landing position for transits driven by this fixture: the vanilla default spawn for the
@@ -262,9 +266,6 @@ public sealed class AtlasFixtureModSystem : ModSystem
             return TextCommandResult.Error($"No entity with id {entityId}.");
         }
 
-        // Land inside the generated area around a fixture dimension's fixed spawn (two blocks
-        // below the fixed spawn's Y, matching the granite slab's air pocket), or at the vanilla
-        // default spawn when returning to the overworld.
         var options = new TransitionOptions { OverridePosition = DefaultLanding(dimPath) };
         try
         {
@@ -283,16 +284,12 @@ public sealed class AtlasFixtureModSystem : ModSystem
         var playerName = (string)args[0];
         var dimPath = (string)args[1];
 
-        IServerPlayer? player = _sapi.World.AllOnlinePlayers
-            .OfType<IServerPlayer>()
-            .FirstOrDefault(p => p.PlayerName == playerName);
+        IServerPlayer? player = FindPlayer(playerName);
         if (player is null)
         {
             return TextCommandResult.Error($"No online player named {playerName}.");
         }
 
-        // AsBlockPos carries the EntityPos dimension through on the overworld branch; the
-        // vanilla default spawn is dimension 0.
         var options = new TransitionOptions { OverridePosition = DefaultLanding(dimPath) };
         try
         {
@@ -325,13 +322,7 @@ public sealed class AtlasFixtureModSystem : ModSystem
     private TextCommandResult OnCreateEphemeral(TextCommandCallingArgs args)
     {
         var path = (string)args[0];
-        IDimension dimension = _manifold.Registry
-            .Define(new AssetLocation(Domain, path))
-            .Ephemeral()
-            .WithWorldgen(new GraniteSlabWorldgen())
-            .WithFixedSpawn(FixedSpawn)
-            .WithGenerationRadius(1)
-            .Create();
+        IDimension dimension = DefineSlab(path).Ephemeral().Create();
         PublishDimensionId(path, dimension.InternalId);
 
         // Same pregeneration problem as boot-time dimensions: Create() only registers the
@@ -353,15 +344,7 @@ public sealed class AtlasFixtureModSystem : ModSystem
         var path = (string)args[0];
         try
         {
-            IDimension dimension = _manifold.Registry
-                .Define(new AssetLocation(Domain, path))
-                .Persistent()
-                .WithWorldgen(new GraniteSlabWorldgen())
-                .WithFixedSpawn(FixedSpawn)
-                .WithGenerationRadius(1)
-                .WithMetadata("fixture-label", "runtime-persistent")
-                .Create();
-            PublishDimensionId(path, dimension.InternalId);
+            IDimension dimension = CreatePersistent(path);
             return TextCommandResult.Success($"created {dimension.InternalId}");
         }
         catch (ManifoldException ex)
@@ -380,7 +363,7 @@ public sealed class AtlasFixtureModSystem : ModSystem
     private TextCommandResult OnState(TextCommandCallingArgs args)
     {
         var path = (string)args[0];
-        IDimension? dimension = _manifold.Registry.Get(new AssetLocation(Domain, path));
+        IDimension? dimension = _manifold.Registry.Get(ResolveTargetCode(path));
         if (dimension is null)
         {
             return TextCommandResult.Error("unregistered");
