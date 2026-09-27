@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Vintagestory.API.Common;
@@ -81,20 +82,5 @@ internal sealed class HarmonyPatcher : IDisposable
         }
     }
 
-    private int CountPatched()
-    {
-        if (_harmony is null)
-        {
-            return 0;
-        }
-
-        int n = 0;
-        foreach (var method in _harmony.GetPatchedMethods())
-        {
-            _ = method;
-            n++;
-        }
-
-        return n;
-    }
+    private int CountPatched() => _harmony?.GetPatchedMethods().Count() ?? 0;
 }
