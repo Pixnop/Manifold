@@ -13,12 +13,12 @@ void TeleportPlayer(
 
 Must be called on the **main thread**. The method:
 
-1. Raises `PlayerEntering` (cancellable, pre-generation - set `e.Cancel = true` to abort).
-2. Resolves a preliminary landing position using the dimension's spawn behavior (or the `options` override).
+1. Resolves a preliminary landing position using the dimension's spawn behavior (or the `options` override).
+2. Raises `PlayerEntering` (cancellable, pre-generation - set `e.Cancel = true` to abort).
 3. Pre-generates terrain around the landing position if needed.
 4. Resolves the final landing position now that terrain exists.
 5. Raises `PlayerArriving` (cancellable, post-generation, pre-teleport).
-6. Teleports the player and adjusts their game mode if the dimension forces one.
+6. Teleports the player, then applies the target's game-mode policy (forces its mode, or restores the saved one) and swaps separated inventory categories.
 7. Raises `PlayerLeft` (source dimension) and `PlayerEntered` (target dimension).
 
 Throws `DimensionNotFoundException` if the code is unknown, `DimensionStateException` if the dimension is not `Active`, or `ManifoldUnhealthyException` if Manifold failed to initialize.
@@ -85,7 +85,7 @@ never a lost block).
 var sel = serverPlayer.CurrentBlockSelection;
 if (sel?.Position is { } src)
 {
-    var target = new BlockPos(0, 64, 0, 0); // dimension overwritten by the service
+    var target = new BlockPos(1024, 64, 1024, 0); // dimension overwritten by the service
     bool moved = transitions.TeleportBlock(src, new AssetLocation("mymod", "vault"), target);
 }
 ```
@@ -103,7 +103,7 @@ facade (`manifold.Transitions`):
 | `PlayerEntering` | Before any work, before generation. | Yes (`Cancel = true`) | Player, source, target, preliminary position. |
 | `PlayerArriving` (0.4.0) | After region generation, before the teleport. | Yes | Player, source, target, final position. |
 | `PlayerLeft` | After the player has left the source dimension. | No | Player, source, target. |
-| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target. |
+| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target, landing position (`TargetPosition`). |
 | `EntityChangedDimension` (0.4.0) | After `TeleportEntity` re-homes a non-player entity. | No | Entity, previous and new `IDimension`, final position. |
 
 `PlayerEntering` is the right hook for veto logic (blocked players, missing prerequisites).
@@ -111,12 +111,20 @@ facade (`manifold.Transitions`):
 (place a welcome block, attach server-side state, log arrival metadata) - it can still cancel the
 transit. `PlayerLeft` / `PlayerEntered` are post-teleport; use them for cleanup and state propagation.
 
+In `PlayerEntered`, read `e.TargetPosition` rather than `e.Player.Entity.Pos`: the engine applies the
+teleport only once the destination chunks arrive, so the entity can still report its source position.
+
 ```csharp
 transitions.PlayerArriving += (_, e) =>
 {
     // Place a welcome sign one block above the landing spot.
-    var sign = sapi.World.GetBlock(new AssetLocation("game:sign-wallup-east"));
-    sapi.World.BlockAccessor.SetBlock(sign.BlockId, e.TargetPosition.UpCopy());
+    Block? sign = sapi.World.GetBlock(new AssetLocation("game", "sign-ground-north"));
+    if (sign is null)
+    {
+        return;
+    }
+
+    sapi.World.BlockAccessor.SetBlock(sign.Id, e.TargetPosition.UpCopy());
 };
 
 transitions.EntityChangedDimension += (_, e) =>
@@ -132,15 +140,16 @@ For players the engine also raises its own `IEventAPI.PlayerDimensionChanged`; M
 
 | Property | Description |
 |----------|-------------|
-| `OverridePosition` | Hard-coded landing `BlockPos` (dimension-encoded). Skips all resolver logic. |
+| `OverridePosition` | Landing `BlockPos`. Skips all resolver logic. Its dimension field is stamped with the target's internal id on a copy, so the value you pass for it is ignored and your own instance is never mutated. |
 | `Resolver` | Custom `ITargetPositionResolver` - used when `OverridePosition` is null. |
 | `SpawnBehavior` | Per-transit override of the dimension's configured spawn behavior. |
 
 ```csharp
-// Transit to a specific absolute position.
+// Transit to a specific absolute position. The dimension field (the 4th argument) is
+// overwritten with the target's internal id, so 0 here is fine.
 transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new TransitionOptions
 {
-    OverridePosition = new BlockPos(512, 70, 512, arenaInternalId)
+    OverridePosition = new BlockPos(512, 70, 512, 0)
 });
 ```
 
@@ -162,7 +171,7 @@ manifold.Registry
     .Define(new AssetLocation("mymod", "lobby"))
     .Persistent()
     .WithWorldgen(new LobbyWorldgen())
-    .WithFixedSpawn(new BlockPos(0, 64, 0, 0))    // sets DimensionSpawn implicitly
+    .WithFixedSpawn(new BlockPos(1024, 64, 1024, 0))    // sets DimensionSpawn implicitly
     .RegisterStatic();
 
 // Remember last position.
@@ -192,6 +201,10 @@ The resolver takes the source `Entity` (read its current X/Z from `entity.Pos`),
 serves both `TeleportPlayer` and `TeleportEntity`. Pass it via `TransitionOptions.Resolver`. Built-in
 resolvers are in `TargetPositionResolvers` (static factory class).
 
+`Resolve` is called twice per transit (once before generation, to center the pre-generated region on
+a preliminary position; once after, for the final landing spot), so implementations must be
+deterministic and side-effect free.
+
 ## WithForcedGameMode
 
 You can force a game mode on all players entering a dimension:
@@ -205,7 +218,11 @@ manifold.Registry
     .RegisterStatic();
 ```
 
-The player's original game mode is not automatically restored when they leave - handle that in `PlayerLeft` if needed.
+The mode the player had before entering the first forced dimension is saved in their player moddata
+(so it survives logout and restarts) and restored when they transit to a dimension that forces
+nothing. Chaining forced dimensions still returns the original mode, not the previous forced one.
+Every transit path (commands, portals, `ForceRemoveDimension` evacuation, the join rescue) goes
+through this - you do not need to handle it yourself in `PlayerLeft`.
 
 ## WithSeparateInventory
 
