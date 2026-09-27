@@ -167,7 +167,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror);
+        ClientFacade = new ManifoldClientFacade(clientMirror, api.Logger);
         ManifoldAccess.SetClientResolver(_ => ClientFacade);
     }
 
