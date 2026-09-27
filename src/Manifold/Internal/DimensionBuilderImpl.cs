@@ -104,7 +104,6 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     }
 
     /// <inheritdoc/>
-    [System.Obsolete("No effect since Manifold 0.4.2, which removed the automatic post-generation relight. Use IManifoldServer.RelightRegion to relight after placing blocks.")]
     public IDimensionBuilder WithRelightHeight(int maxY)
     {
         ThrowIfUsed();

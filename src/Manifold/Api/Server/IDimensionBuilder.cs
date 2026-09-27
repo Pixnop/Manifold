@@ -47,6 +47,7 @@ public interface IDimensionBuilder
     /// </summary>
     /// <param name="maxY">Ignored except for range validation (range 1..1024).</param>
     /// <returns>This builder.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Info Code Smell", "S1133:Deprecated code should be removed", Justification = "Kept for binary compatibility with mods built against 0.4.x; remove in the next minor release.")]
     [System.Obsolete("No effect since Manifold 0.4.2, which removed the automatic post-generation relight. Use IManifoldServer.RelightRegion to relight after placing blocks.")]
     IDimensionBuilder WithRelightHeight(int maxY);
 
