@@ -16,6 +16,9 @@ public sealed class BinaryCompatibilityTests
         // A struct only gets a .ctor() in metadata when it declares one; `new TransitionOptions { ... }`
         // in a mod built against 0.4.1 calls it.
         Assert.NotNull(typeof(TransitionOptions).GetConstructor(Type.EmptyTypes));
+
+        var options = new TransitionOptions();
+        Assert.Null(options.SpawnBehavior);
     }
 
     [Fact]
@@ -25,5 +28,10 @@ public sealed class BinaryCompatibilityTests
 
         Assert.NotNull(property?.GetMethod);
         Assert.NotNull(property?.SetMethod);
+
+#pragma warning disable CS0618 // the obsolete member is what old mods call
+        var options = new TransitionOptions { PreserveInventory = true };
+        Assert.True(options.PreserveInventory);
+#pragma warning restore CS0618
     }
 }
