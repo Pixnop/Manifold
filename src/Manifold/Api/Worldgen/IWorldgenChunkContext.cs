@@ -21,8 +21,9 @@ public interface IWorldgenChunkContext
     /// (use <c>new BlockPos(x, y, z, DimensionId)</c>). This is a bulk accessor: writes are staged
     /// and committed after <see cref="IWorldgenStrategy.GenerateColumn"/> returns, so
     /// <c>GetBlock</c>/<c>GetBlockId</c> called during generation return the pre-commit (air) value
-    /// for positions this call already wrote. Use <c>GetStagedBlockId</c> (or set
-    /// <c>ReadFromStagedByDefault</c>) to read back your own writes.
+    /// for positions this call already wrote. To read back your own writes, cast it to
+    /// <see cref="IBulkBlockAccessor"/> and use <c>GetStagedBlockId</c> (or set
+    /// <c>ReadFromStagedByDefault</c>).
     /// </summary>
     IBlockAccessor BlockAccessor { get; }
 
@@ -32,7 +33,9 @@ public interface IWorldgenChunkContext
     /// strategy get identical sequences for the same chunk coordinates. Because of how
     /// <c>LCGRandom</c>'s constructor derives its first internal state, the very first value drawn
     /// from a freshly constructed instance is also the same regardless of the seed; only draws after
-    /// the first vary with chunk coordinates and world seed.
+    /// the first vary with chunk coordinates and world seed. Call
+    /// <c>Rng.InitPositionSeed(x, z)</c> before drawing to get values that depend on the world seed
+    /// and the position from the first draw on.
     /// </summary>
     LCGRandom Rng { get; }
 }
