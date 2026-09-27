@@ -34,7 +34,13 @@ public sealed class PlayerEnteringDimensionEventArgs : EventArgs
     /// <summary>Dimension the player is entering.</summary>
     public IDimension TargetDimension { get; }
 
-    /// <summary>Target position (dimension already encoded in <c>BlockPos</c>).</summary>
+    /// <summary>
+    /// Preliminary target position (dimension already encoded in <c>BlockPos</c>), resolved before
+    /// the destination region is generated; used only to center generation. The final landing
+    /// position may differ (Y especially, if the surface scan cannot find ground yet). Read
+    /// <see cref="PlayerArrivingDimensionEventArgs.TargetPosition"/> or
+    /// <see cref="PlayerEnteredDimensionEventArgs.TargetPosition"/> for the actual landing position.
+    /// </summary>
     public BlockPos TargetPosition { get; }
 
     /// <summary>Set to <c>true</c> to cancel the transit.</summary>

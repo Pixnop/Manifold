@@ -33,7 +33,11 @@ public static class CoreServerApiExtensions
     /// <param name="sapi">Server API.</param>
     /// <param name="caller">Your mod system (its <c>Mod.Info.ModID</c> is recorded as the dimension owner).</param>
     /// <returns>An owner-scoped facade whose <c>Registry.Define</c> records the correct owner.</returns>
-    /// <exception cref="ManifoldNotInitializedException">Manifold not loaded or not started.</exception>
+    /// <exception cref="System.ArgumentNullException"><paramref name="sapi"/> or <paramref name="caller"/> is null.</exception>
+    /// <exception cref="ManifoldNotInitializedException">
+    /// Manifold is not loaded or not started, or <paramref name="caller"/> has no <c>Mod.Info</c>
+    /// (not a loader-managed <c>ModSystem</c>).
+    /// </exception>
     public static IManifoldServer GetManifoldServer(this ICoreServerAPI sapi, ModSystem caller)
     {
         ArgumentNullException.ThrowIfNull(sapi);

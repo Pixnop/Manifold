@@ -99,6 +99,10 @@ public sealed class DimensionCommandBuilder
 
     /// <summary>Register the command with VS chat commands.</summary>
     /// <param name="sapi">Server API.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sapi"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="Command"/> or <see cref="TargetDimension"/> was not set (see <see cref="Validate"/>).
+    /// </exception>
     public void Register(ICoreServerAPI sapi)
     {
         ArgumentNullException.ThrowIfNull(sapi);
