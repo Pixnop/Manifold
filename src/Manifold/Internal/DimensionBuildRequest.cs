@@ -14,7 +14,6 @@ namespace Manifold.Internal;
 /// <param name="Worldgen">The attached worldgen strategy.</param>
 /// <param name="Lifetime">The chosen lifetime.</param>
 /// <param name="OwnerModId">The owning mod id.</param>
-/// <param name="IsStaticRegistration">True if RegisterStatic was called; false for Create.</param>
 /// <param name="GenerationRadius">Generation radius in chunks around the transit target.</param>
 /// <param name="SpawnBehavior">How players land when entering this dimension.</param>
 /// <param name="SpawnPoint">Fixed spawn point for <see cref="Manifold.Api.Transitions.SpawnBehavior.DimensionSpawn"/>, or null.</param>
@@ -29,7 +28,6 @@ internal readonly record struct DimensionBuildRequest(
     IWorldgenStrategy Worldgen,
     DimensionLifetime Lifetime,
     string OwnerModId,
-    bool IsStaticRegistration,
     int GenerationRadius,
     SpawnBehavior SpawnBehavior,
     BlockPos? SpawnPoint,

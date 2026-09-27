@@ -40,7 +40,10 @@ internal sealed class ManifoldClientFacade : IManifoldClient
     public event EventHandler<DimensionDestroyedEventArgs>? Destroyed;
 
     /// <inheritdoc/>
+    // Reserved for a future release (see IManifoldClient.LocalPlayerTransited); not yet raised.
+#pragma warning disable CS0067
     public event EventHandler<PlayerEnteredDimensionEventArgs>? LocalPlayerTransited;
+#pragma warning restore CS0067
 
     /// <summary>Gets a value indicating whether Manifold loaded healthily on the server. Settable internally by ModSystem.</summary>
     public bool IsHealthy { get; internal set; } = true;
@@ -50,14 +53,6 @@ internal sealed class ManifoldClientFacade : IManifoldClient
 
     /// <inheritdoc/>
     public IDimension? Get(AssetLocation code) => _mirror.Get(code);
-
-    /// <summary>Internal: raise <see cref="LocalPlayerTransited"/>.</summary>
-    /// <param name="args">Event args.</param>
-    internal void RaiseLocalPlayerTransited(PlayerEnteredDimensionEventArgs args)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-        LocalPlayerTransited?.Invoke(this, args);
-    }
 
     private void LogSubscriberError(Exception ex) =>
         _logger?.Warning("[Manifold] A client dimension event subscriber threw and was isolated: {0}", ex);

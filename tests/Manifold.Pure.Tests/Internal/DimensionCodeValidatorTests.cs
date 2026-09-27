@@ -36,11 +36,5 @@ public sealed class DimensionCodeValidatorTests
         Assert.Throws<System.ArgumentException>(() => DimensionCodeValidator.Validate(Code(raw)));
     }
 
-    [Fact]
-    public void ValidateInternal_Should_Allow_Manifold_Domain()
-    {
-        DimensionCodeValidator.ValidateInternal(Code("manifold:overworld"));
-    }
-
     private static AssetLocation Code(string s) => new(s);
 }

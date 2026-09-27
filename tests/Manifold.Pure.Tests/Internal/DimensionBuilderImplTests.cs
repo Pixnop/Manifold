@@ -28,7 +28,6 @@ public sealed class DimensionBuilderImplTests
 
         Assert.NotNull(capturedRequest);
         Assert.Equal(DimensionLifetime.Persistent, capturedRequest.Value.Lifetime);
-        Assert.True(capturedRequest.Value.IsStaticRegistration);
         Assert.NotNull(dim);
     }
 
@@ -55,7 +54,6 @@ public sealed class DimensionBuilderImplTests
 
         Assert.NotNull(capturedRequest);
         Assert.Equal(DimensionLifetime.Persistent, capturedRequest.Value.Lifetime);
-        Assert.False(capturedRequest.Value.IsStaticRegistration);
     }
 
     [Fact]

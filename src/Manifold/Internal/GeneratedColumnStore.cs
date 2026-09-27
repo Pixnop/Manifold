@@ -26,6 +26,9 @@ internal sealed class GeneratedColumnStore
     private const int CoordBits = 21;
     private const long CoordMask = (1L << CoordBits) - 1;
 
+    /// <summary>10-bit dimension field mask (equal to <see cref="DimensionAllocator.MaxModId"/>).</summary>
+    private const long DimMask = 0x3FF;
+
     private readonly HashSet<long> _keys = new();
 
     /// <summary>Whether the set has unsaved changes since the last <see cref="ClearDirty"/>.</summary>
@@ -94,8 +97,8 @@ internal sealed class GeneratedColumnStore
     /// <param name="dim">Engine dimension id whose markers to drop.</param>
     public void RemoveDimension(int dim)
     {
-        long dimField = (long)(dim & 0x3FF) << (CoordBits * 2);
-        long dimMask = 0x3FFL << (CoordBits * 2);
+        long dimField = (dim & DimMask) << (CoordBits * 2);
+        long dimMask = DimMask << (CoordBits * 2);
         if (_keys.RemoveWhere(k => (k & dimMask) == dimField) > 0)
         {
             IsDirty = true;
@@ -103,7 +106,7 @@ internal sealed class GeneratedColumnStore
     }
 
     private static long Pack(int dim, int cx, int cz) =>
-        ((long)(dim & 0x3FF) << (CoordBits * 2))
+        ((dim & DimMask) << (CoordBits * 2))
         | ((cx & CoordMask) << CoordBits)
         | (cz & CoordMask);
 }

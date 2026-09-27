@@ -8,7 +8,7 @@ namespace Manifold.Internal;
 /// <summary>
 /// Drives streaming worldgen: on a periodic server tick, gathers online players in streaming
 /// dimensions, asks <see cref="StreamingPlanner"/> which columns to ensure (budget-capped,
-/// nearest-first), then generates/loads, force-sends, and relights them.
+/// nearest-first), then generates/loads and force-sends them (no server relight).
 /// </summary>
 /// <remarks>Server-side, main thread. Logic lives in <see cref="StreamingPlanner"/>; this is glue.</remarks>
 internal sealed class StreamingWorldgenDriver
@@ -65,10 +65,9 @@ internal sealed class StreamingWorldgenDriver
             return;
         }
 
-        // Generate (or load) each planned column and force-send it to the players streaming it. No
-        // server-side relight: the client lights received chunk columns natively, as it has in every
-        // released version. See DimensionGenerator.EnsureRegion for why the automatic relight was
-        // removed (it floods skylight and breaks client lighting).
+        // Generate (or load) each planned column and force-send it to the players streaming it.
+        // No server relight: see DimensionGenerator.EnsureRegion for why (it would flood skylight
+        // and override the client's own lighting).
         foreach (var col in planned)
         {
             _generator.EnsureColumn(_sapi, col.DimId, col.Cx, col.Cz);

@@ -44,7 +44,7 @@ internal sealed class EntityMover : IEntityMover
         // all 1.21 builds; suppress here to keep one form that compiles and runs on every 1.21.x.
 #pragma warning disable CS0618 // Type or member is obsolete
         long chunkIndex = _sapi.World.ChunkProvider.ChunkIndex3D(
-            x / ChunkMath.ChunkSize, (y / ChunkMath.ChunkSize) + (dim * ChunkMath.DimensionChunkYStride), z / ChunkMath.ChunkSize);
+            ChunkMath.ToChunk(x), ChunkMath.ToChunk(y) + (dim * ChunkMath.DimensionChunkYStride), ChunkMath.ToChunk(z));
 #pragma warning restore CS0618
         _sapi.World.UpdateEntityChunk(entity, chunkIndex);
     }

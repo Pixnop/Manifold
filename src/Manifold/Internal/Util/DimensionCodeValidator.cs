@@ -27,12 +27,6 @@ internal static partial class DimensionCodeValidator
         }
     }
 
-    /// <summary>Validates a Manifold-internal code; the reserved domain is allowed.</summary>
-    /// <param name="code">The code to validate.</param>
-    /// <exception cref="ArgumentNullException">code is null.</exception>
-    /// <exception cref="ArgumentException">code has invalid shape.</exception>
-    public static void ValidateInternal(AssetLocation code) => ValidateShape(code);
-
     [GeneratedRegex("^[a-z0-9_]+$")]
     private static partial Regex SegmentRegex();
 

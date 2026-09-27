@@ -115,7 +115,9 @@ public sealed class ManifoldModSystem : ModSystem
             Mod.Logger.Error("[Manifold] Worldgen strategy threw for dim {0}: {1}", dim, ex);
         _generator.StrategyAutoDisabled += dim =>
             Mod.Logger.Warning(
-                "[Manifold] Worldgen strategy auto-disabled for dim {0} after 4 consecutive throws.", dim);
+                "[Manifold] Worldgen strategy auto-disabled for dim {0} after {1} consecutive throws.",
+                dim,
+                DimensionGenerator.MaxConsecutiveFailures);
 
         var inventorySwapper = new InventorySwapper(api);
         var transit = new TransitService(
@@ -158,8 +160,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network = new ManifoldNetworkChannel();
 
-        // The mirror is held alive by the network-event delegates and ClientFacade below; it needs no
-        // field (OnClientPlayerTransited no longer references it - see its v1-scaffolding note).
+        // The mirror is kept alive by the channel delegates and ClientFacade below; it needs no field.
         var clientMirror = new ClientDimensionMirror();
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
@@ -284,11 +285,11 @@ public sealed class ManifoldModSystem : ModSystem
                     int cx = ChunkMath.ToChunk(pos.X);
                     int cz = ChunkMath.ToChunk(pos.Z);
 
-                    var min = new BlockPos((cx - radius) * 32, 0, (cz - radius) * 32, dimId);
+                    var min = new BlockPos((cx - radius) * ChunkMath.ChunkSize, 0, (cz - radius) * ChunkMath.ChunkSize, dimId);
                     var max = new BlockPos(
-                        ((cx + radius) * 32) + 31,
+                        ((cx + radius) * ChunkMath.ChunkSize) + (ChunkMath.ChunkSize - 1),
                         api.WorldManager.MapSizeY - 1,
-                        ((cz + radius) * 32) + 31,
+                        ((cz + radius) * ChunkMath.ChunkSize) + (ChunkMath.ChunkSize - 1),
                         dimId);
 
                     // Runtime relight of already-loaded chunks: must push to clients or the
@@ -406,19 +407,11 @@ public sealed class ManifoldModSystem : ModSystem
             return;
         }
 
-        try
+        if (OverworldRescue.TryEvacuate(transit, player, Mod.Logger))
         {
-            transit.TeleportPlayer(
-                player,
-                new AssetLocation("manifold", "overworld"),
-                new TransitionOptions { SpawnBehavior = SpawnBehavior.LastVisited });
             Mod.Logger.Notification(
                 "[Manifold] Rescued {0} to the overworld (their dimension no longer exists).",
                 player.PlayerName);
-        }
-        catch (System.Exception ex)
-        {
-            Mod.Logger.Warning("[Manifold] Failed to rescue {0} to the overworld: {1}", player.PlayerName, ex.Message);
         }
     }
 
