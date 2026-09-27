@@ -158,8 +158,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network = new ManifoldNetworkChannel();
 
-        // The mirror is held alive by the network-event delegates and ClientFacade below; it needs no
-        // field (OnClientPlayerTransited no longer references it - see its v1-scaffolding note).
+        // The mirror is kept alive by the channel delegates and ClientFacade below; it needs no field.
         var clientMirror = new ClientDimensionMirror();
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
