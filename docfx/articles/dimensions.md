@@ -169,7 +169,8 @@ if (dim.HasMetadata("category")) { /* ... */ }
 - Supported value types: primitives, `string`, `enum`, `byte[]`, and `null`. Other types throw `ArgumentException`.
 - Setting the same key twice on a builder throws.
 - `IDimension.Metadata` is an `IReadOnlyDictionary<string, object?>`; the typed `GetMetadata<T>` extension returns the default value if the key is absent or the stored value is not a `T`.
-- Server-side only in v1: metadata is not replicated to client mirrors and not persisted across server restarts. For `RegisterStatic` dimensions this is harmless (the owning mod re-declares them on every boot); for runtime `Create` dimensions, treat metadata as ephemeral.
+- Replicated to client mirrors: a connected client's `IManifoldClient.Get(code)!.Metadata` sees the same entries. An enum value is resolved back to its original type by searching the client's loaded assemblies for the owning mod's assembly; if that assembly cannot be found client-side, the value is instead the raw underlying value as a `long`.
+- Not persisted across server restarts. For `RegisterStatic` dimensions this is harmless (the owning mod re-declares them on every boot); for runtime `Create` dimensions, treat metadata as ephemeral.
 
 ## Per-Dimension Streaming Budget (0.4.0)
 

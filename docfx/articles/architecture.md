@@ -36,7 +36,7 @@ generation) and `ForceRemoveDimension` (evacuate-then-remove for an occupied Eph
 
 `GetManifoldServer(this)` (with a `ModSystem` argument) wraps the shared facade in an `OwnerScopedManifoldServer` that tags any dimension registered through it with the caller's mod id. This is how Manifold tracks dimension ownership for quarantine.
 
-`IManifoldClient` is the client-side facade returned by `capi.GetManifoldClient()`. It provides a read-only snapshot of the dimension list (replicated from the server).
+`IManifoldClient` is the client-side facade returned by `capi.GetManifoldClient()`. It provides a read-only snapshot of the dimension list (replicated from the server, metadata included), `GetDimensionOf(entity)` to locate an entity by its mirrored dimension, and `LocalPlayerChangedDimension`, raised on the main thread after the local player transits.
 
 ## Sided Split
 
