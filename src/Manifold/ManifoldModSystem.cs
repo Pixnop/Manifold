@@ -198,6 +198,43 @@ public sealed class ManifoldModSystem : ModSystem
         base.Dispose();
     }
 
+    /// <summary>
+    /// Evacuates every occupant of <paramref name="internalId"/> via <paramref name="rescue"/>
+    /// (best-effort per player - a failure is logged, not thrown) and reports how many actually left.
+    /// A player <paramref name="rescue"/> silently failed to move is still standing in the dimension
+    /// afterward, so it is counted as remaining, not evacuated - the caller must not destroy the
+    /// dimension out from under them.
+    /// </summary>
+    /// <param name="players">Online players to check (typically every connected <see cref="IServerPlayer"/>).</param>
+    /// <param name="internalId">Engine id of the dimension being evacuated.</param>
+    /// <param name="rescue">Best-effort teleport-to-overworld for one occupant.</param>
+    /// <returns>How many occupants were actually moved out, and how many are still inside.</returns>
+    internal static (int Evacuated, int Remaining) EvacuateOccupants(
+        IEnumerable<IServerPlayer> players, int internalId, Action<IServerPlayer> rescue)
+    {
+        int evacuated = 0;
+        int remaining = 0;
+        foreach (var p in players)
+        {
+            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension != internalId)
+            {
+                continue;
+            }
+
+            rescue(p);
+            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension == internalId)
+            {
+                remaining++;
+            }
+            else
+            {
+                evacuated++;
+            }
+        }
+
+        return (evacuated, remaining);
+    }
+
     private void BuildUnhealthyServerFacade(ICoreServerAPI sapi)
     {
         // Allocator + registry + transit are still created so that consumers calling GetManifoldServer()
@@ -300,25 +337,25 @@ public sealed class ManifoldModSystem : ModSystem
             return TextCommandResult.Error($"No dimension registered with code '{code}'.");
         }
 
-        // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
-        int evacuated = 0;
-        foreach (var p in api.World.AllOnlinePlayers)
+        if (dim.IsBuiltIn || dim.Lifetime == DimensionLifetime.BuiltIn)
         {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == dim.InternalId)
-            {
-                RescueToOverworld(sp);
-                evacuated++;
-            }
+            // Check before evacuating: the built-in overworld is where evacuation itself sends
+            // occupants, so evacuating "into" it is a no-op that would otherwise look like a stuck
+            // player and report the wrong error instead of this one.
+            return TextCommandResult.Error($"Dimension '{code}' is built-in and cannot be purged.");
         }
 
-        try
+        // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
+        var (evacuated, remaining) = EvacuateOccupants(
+            api.World.AllOnlinePlayers.OfType<IServerPlayer>(), dim.InternalId, RescueToOverworld);
+        if (remaining > 0)
         {
-            _registry.Purge(code);
+            return TextCommandResult.Error(
+                $"Could not purge dimension '{code}': {remaining} player(s) still inside after the evacuation attempt.");
         }
-        catch (DimensionBuiltInImmutableException ex)
-        {
-            return TextCommandResult.Error(ex.Message);
-        }
+
+        // The built-in check above already filters the only case Purge itself throws for.
+        _registry.Purge(code);
 
         string suffix = evacuated > 0 ? $", evacuated {evacuated} player(s)" : string.Empty;
         return TextCommandResult.Success(
