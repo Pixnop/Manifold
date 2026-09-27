@@ -16,6 +16,7 @@ namespace Manifold.Internal;
 internal sealed class TransitService : ITransitionService
 {
     private const string InventoryModdataKey = "manifold:inv";
+    private const string InventoryCorruptModdataKey = "manifold:inv.corrupt";
     private const string GameModeModdataKey = "manifold:gamemode-before-forced";
 
     private readonly DimensionRegistry _registry;
@@ -261,7 +262,24 @@ internal sealed class TransitService : ITransitionService
     /// </summary>
     private void ApplyInventoryPolicy(IServerPlayer player, IDimension target, DimensionImpl? targetImpl)
     {
-        var store = PlayerInventoryStore.FromBytes(player.GetModdata(InventoryModdataKey));
+        var raw = player.GetModdata(InventoryModdataKey);
+        var store = PlayerInventoryStore.TryFromBytes(raw);
+        if (store is null)
+        {
+            // Corrupt moddata: never overwrite it with an empty store (that would silently and
+            // permanently wipe every snapshot the player had stashed for other dimensions). Skip the
+            // swap entirely and leave the raw bytes in place; keep a copy under a recovery key too.
+            _sapi.Logger?.Error(
+                "[Manifold] Corrupt inventory profile for {0}; skipping inventory swap and preserving raw moddata.",
+                player.PlayerName);
+            if (raw is { Length: > 0 })
+            {
+                player.SetModdata(InventoryCorruptModdataKey, raw);
+            }
+
+            return;
+        }
+
         var plan = InventoryProfileResolver.Plan(
             targetImpl?.SeparateInventory ?? ManifoldInventory.None,
             target.Code.ToString(),

@@ -375,6 +375,47 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Skip_Swap_And_Preserve_Raw_Moddata_When_Inventory_Profile_Is_Corrupt()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:sep"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSeparateInventory(ManifoldInventory.Hotbar)
+            .RegisterStatic();
+
+        var positionResolver = Substitute.For<ITargetPositionResolver>();
+        positionResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(100, 100, 100, 10));
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            positionResolver,
+            generator,
+            new PlayerPositionStore(),
+            Substitute.For<IInventorySwapper>());
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+        var corrupt = new byte[] { 0xFF, 0x01, 0x02 };
+        player.GetModdata("manifold:inv").Returns(corrupt);
+
+        // The transit itself must still complete - a corrupt inventory profile is not a reason to
+        // abort the whole transit, only to skip the swap.
+        svc.TeleportPlayer(player, Code("owner:sep"));
+
+        teleporter.Received(1).Teleport(player, Arg.Any<BlockPos>());
+        player.DidNotReceive().SetModdata("manifold:inv", Arg.Any<byte[]>());
+        player.Received(1).SetModdata("manifold:inv.corrupt", corrupt);
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Restore_Previous_GameMode_When_Leaving_A_Forced_Dimension()
     {
         var (svc, registry, player, _, _, _) = NewService();
