@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Manifold\Manifold.csproj" />
+    <ProjectReference Include="..\..\samples\ManifoldSample\ManifoldSample.csproj" />
   </ItemGroup>
 
   <ItemGroup>
