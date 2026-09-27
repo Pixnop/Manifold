@@ -70,67 +70,8 @@ internal sealed class TransitService : ITransitionService
     public event EventHandler<EntityChangedDimensionEventArgs>? EntityChangedDimension;
 
     /// <inheritdoc/>
-    public void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
-    {
-        ArgumentNullException.ThrowIfNull(player);
-        ArgumentNullException.ThrowIfNull(targetDim);
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
-
-        int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
-        var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
-        var targetImpl = _registry.GetByInternalId(target.InternalId);
-
-        // Resolve a preliminary position to determine the generation region center.
-        // The resolver may be called again after generation (see below), so implementations
-        // must be deterministic and side-effect free.
-        var prelim = ResolveTargetPosition(player, target, targetImpl, options);
-
-        var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
-        SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
-        if (enteringArgs.Cancel)
-        {
-            return;
-        }
-
-        // Record the player's current position in the SOURCE dimension before leaving,
-        // so the LastVisited behavior can return them here later.
-        var srcPos = EntityPosAccess.Pos(player.Entity);
-        _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
-
-        // Pre-generate / load the destination region so the player lands on solid ground.
-        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
-
-        // Resolve the final landing position now that terrain exists.
-        var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
-
-        // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
-        var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
-        SafeEvent.Raise(PlayerArriving, this, arrivingArgs, LogSubscriberError);
-        if (arrivingArgs.Cancel)
-        {
-            return;
-        }
-
-        _movers.Player.Teleport(player, targetPos);
-
-        ApplyGameModePolicy(player, targetImpl);
-        ApplyInventoryPolicy(player, target, targetImpl);
-
-        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
-        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
-    }
+    public void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default) =>
+        TryTeleportPlayer(player, targetDim, options);
 
     /// <inheritdoc/>
     public bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal)
@@ -206,6 +147,90 @@ internal sealed class TransitService : ITransitionService
             this,
             new EntityChangedDimensionEventArgs(entity, source, target, finalPos),
             LogSubscriberError);
+    }
+
+    /// <summary>
+    /// Core of <see cref="TeleportPlayer"/>: identical behavior, but reports whether the player
+    /// actually moved (as opposed to a subscriber cancelling the transit). <see cref="TeleportPlayer"/>
+    /// is <c>void</c> per <see cref="ITransitionService"/> and cannot report this without a breaking
+    /// API change; <see cref="Api.Helpers.DimensionCommandBuilder"/> and <see cref="Api.Helpers.PortalBlockBase"/>
+    /// call this directly (when <c>Transitions</c> is this concrete type) so they can reply with an
+    /// error instead of reporting success on a cancelled transit.
+    /// </summary>
+    /// <param name="player">Server player to teleport.</param>
+    /// <param name="targetDim">Target dimension code.</param>
+    /// <param name="options">Optional transit settings.</param>
+    /// <returns><c>true</c> if the player was moved; <c>false</c> if a subscriber cancelled the transit.</returns>
+    internal bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        ArgumentNullException.ThrowIfNull(targetDim);
+        if (_unhealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; transit is disabled.");
+        }
+
+        var target = _registry.Get(targetDim)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
+        if (target.State != DimensionState.Active)
+        {
+            throw new DimensionStateException(
+                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
+        }
+
+        int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
+        var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
+        var targetImpl = _registry.GetByInternalId(target.InternalId);
+
+        // Resolve a preliminary position to determine the generation region center.
+        // The resolver may be called again after generation (see below), so implementations
+        // must be deterministic and side-effect free.
+        var prelim = ResolveTargetPosition(player, target, targetImpl, options);
+
+        var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
+        SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
+        if (enteringArgs.Cancel)
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled at PlayerEntering.",
+                player.PlayerName,
+                target.Code);
+            return false;
+        }
+
+        // Record the player's current position in the SOURCE dimension before leaving,
+        // so the LastVisited behavior can return them here later.
+        var srcPos = EntityPosAccess.Pos(player.Entity);
+        _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
+
+        // Pre-generate / load the destination region so the player lands on solid ground.
+        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
+
+        // Resolve the final landing position now that terrain exists.
+        var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
+
+        // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
+        var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
+        SafeEvent.Raise(PlayerArriving, this, arrivingArgs, LogSubscriberError);
+        if (arrivingArgs.Cancel)
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled at PlayerArriving: {2}",
+                player.PlayerName,
+                target.Code,
+                arrivingArgs.CancellationReason ?? "(no reason)");
+            return false;
+        }
+
+        _movers.Player.Teleport(player, targetPos);
+
+        ApplyGameModePolicy(player, targetImpl);
+        ApplyInventoryPolicy(player, target, targetImpl);
+
+        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
+        return true;
     }
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>

@@ -113,6 +113,35 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Log_CancellationReason_When_PlayerArriving_Cancels()
+    {
+        var (svc, _, player, _, _, _, sapi) = NewServiceWithApi();
+        const string reason = "vetoed by a subscriber";
+        svc.PlayerArriving += (_, e) =>
+        {
+            e.Cancel = true;
+            e.CancellationReason = reason;
+        };
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        // PlayerArrivingDimensionEventArgs.CancellationReason is documented as reported via the
+        // transit service log; nothing read it before this fix.
+        sapi.Logger.Received(1).Notification(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Log_When_PlayerEntering_Cancels()
+    {
+        var (svc, _, player, _, _, _, sapi) = NewServiceWithApi();
+        svc.PlayerEntering += (_, e) => e.Cancel = true;
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        sapi.Logger.Received(1).Notification(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Call_Teleporter_When_Not_Cancelled()
     {
         var (svc, _, player, tele, _, _) = NewService();
@@ -482,6 +511,13 @@ public sealed class TransitServiceTests
     private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover)
         NewService()
     {
+        var (svc, registry, player, teleporter, entityMover, blockMover, _) = NewServiceWithApi();
+        return (svc, registry, player, teleporter, entityMover, blockMover);
+    }
+
+    private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover, ICoreServerAPI Sapi)
+        NewServiceWithApi()
+    {
         var allocator = new DimensionAllocator();
         var registry = new DimensionRegistry(allocator);
         registry.DefineForOwner(Code("owner:target"), "owner")
@@ -511,6 +547,6 @@ public sealed class TransitServiceTests
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
 
-        return (svc, registry, player, teleporter, entityMover, blockMover);
+        return (svc, registry, player, teleporter, entityMover, blockMover, sapi);
     }
 }

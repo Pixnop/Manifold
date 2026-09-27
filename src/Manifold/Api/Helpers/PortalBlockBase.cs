@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using Manifold.Api.Server;
 using Manifold.Api.Transitions;
+using Manifold.Internal;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
@@ -17,6 +20,11 @@ namespace Manifold.Api.Helpers;
 /// </remarks>
 public abstract class PortalBlockBase : Block
 {
+    // Targets already warned about (missing/inactive, or a failed transit), so a stuck portal logs
+    // once instead of on every physics tick a player keeps touching it. Block instances are shared
+    // across every placed block of this type but only ever driven from the server's main thread.
+    private readonly HashSet<string> _warnedTargets = new();
+
     /// <summary>Dimension code to transit the player to.</summary>
     protected abstract AssetLocation TargetDimensionCode { get; }
 
@@ -50,6 +58,52 @@ public abstract class PortalBlockBase : Block
             return;
         }
 
-        manifold.Transitions.TeleportPlayer(player, TargetDimensionCode, Options);
+        TryTeleport(manifold, sapi, player);
+    }
+
+    /// <summary>
+    /// Core of the collision handler, factored out of <see cref="OnEntityCollide"/> for testability
+    /// (no engine <c>Block</c>/<c>Entity</c> plumbing needed to exercise it). A cancelled or
+    /// impossible transit must not throw out of the engine callback nor spam the log: the target's
+    /// state is checked up front instead of letting <c>TeleportPlayer</c>'s
+    /// <see cref="DimensionNotFoundException"/>/<see cref="DimensionStateException"/> escape on every
+    /// physics tick a player touches a portal to a gone dimension, and either outcome is logged at
+    /// most once per target.
+    /// </summary>
+    /// <param name="manifold">Manifold's server facade.</param>
+    /// <param name="sapi">Server API (used for logging).</param>
+    /// <param name="player">The colliding player.</param>
+    internal void TryTeleport(IManifoldServer manifold, ICoreServerAPI sapi, IServerPlayer player)
+    {
+        var target = manifold.Registry.Get(TargetDimensionCode);
+        if (target is not { State: DimensionState.Active })
+        {
+            WarnOnce(sapi, $"[Manifold] Portal to '{TargetDimensionCode}' is missing or inactive; ignoring collision.");
+            return;
+        }
+
+        try
+        {
+            if (manifold.Transitions is TransitService core)
+            {
+                core.TryTeleportPlayer(player, TargetDimensionCode, Options);
+            }
+            else
+            {
+                manifold.Transitions.TeleportPlayer(player, TargetDimensionCode, Options);
+            }
+        }
+        catch (ManifoldException ex)
+        {
+            WarnOnce(sapi, $"[Manifold] Portal to '{TargetDimensionCode}' failed: {ex.Message}");
+        }
+    }
+
+    private void WarnOnce(ICoreServerAPI sapi, string message)
+    {
+        if (_warnedTargets.Add(TargetDimensionCode.ToString()))
+        {
+            sapi.Logger.Warning(message);
+        }
     }
 }
