@@ -81,19 +81,7 @@ internal sealed class TransitService : ITransitionService
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(targetDim);
         ArgumentNullException.ThrowIfNull(targetLocal);
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
+        var target = RequireActiveTarget(targetDim);
 
         var targetPos = targetLocal.Copy();
         targetPos.dimension = target.InternalId;
@@ -110,12 +98,6 @@ internal sealed class TransitService : ITransitionService
     {
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(targetDim);
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
         if (entity is EntityPlayer)
         {
             throw new ArgumentException(
@@ -123,13 +105,7 @@ internal sealed class TransitService : ITransitionService
                 nameof(entity));
         }
 
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
+        var target = RequireActiveTarget(targetDim);
 
         // Capture source dim BEFORE the move so the post-event reports the actual previous
         // dimension. The default-to-overworld fallback mirrors TeleportPlayer's handling of
@@ -167,19 +143,7 @@ internal sealed class TransitService : ITransitionService
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(targetDim);
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
+        var target = RequireActiveTarget(targetDim);
 
         int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
@@ -237,6 +201,32 @@ internal sealed class TransitService : ITransitionService
 
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
+
+    /// <summary>
+    /// Common transit gate shared by all three Teleport* methods: refuses when Manifold is
+    /// unhealthy, and resolves <paramref name="targetDim"/> to a registered, <see cref="DimensionState.Active"/>
+    /// dimension.
+    /// </summary>
+    /// <param name="targetDim">Target dimension code.</param>
+    /// <returns>The resolved target dimension.</returns>
+    private IDimension RequireActiveTarget(AssetLocation targetDim)
+    {
+        if (_unhealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; transit is disabled.");
+        }
+
+        var target = _registry.Get(targetDim)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
+        if (target.State != DimensionState.Active)
+        {
+            throw new DimensionStateException(
+                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
+        }
+
+        return target;
+    }
 
     /// <summary>
     /// A forced game mode belongs to its dimension. The mode the player had before entering the
