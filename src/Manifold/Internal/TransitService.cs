@@ -128,7 +128,7 @@ internal sealed class TransitService : ITransitionService
         ApplyInventoryPolicy(player, target, targetImpl);
 
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
-        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
     }
 
     /// <inheritdoc/>

@@ -76,6 +76,17 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Raise_PlayerEntered_With_Landing_Position()
+    {
+        var (svc, _, player, _, _, _) = NewService();
+        PlayerEnteredDimensionEventArgs? captured = null;
+        svc.PlayerEntered += (_, e) => captured = e;
+        svc.TeleportPlayer(player, Code("owner:target"));
+        Assert.NotNull(captured);
+        Assert.Equal(new BlockPos(100, 100, 100, captured!.TargetDimension.InternalId), captured.TargetPosition);
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Raise_Entering_Then_Arriving_In_Order()
     {
         var (svc, _, player, _, _, _) = NewService();
