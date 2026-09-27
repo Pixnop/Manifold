@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Vintagestory.API.Common;
 
 namespace Manifold.Internal;
 
@@ -92,7 +93,8 @@ internal sealed class PlayerPositionStore
 
     /// <summary>Replace the store contents from a byte array produced by <see cref="ToBytes"/>. Clears the dirty flag.</summary>
     /// <param name="data">Serialised bytes, or <c>null</c>/empty for an empty store.</param>
-    public void LoadFromBytes(byte[]? data)
+    /// <param name="logger">Optional logger used to report corrupt data. <c>null</c> silences the report.</param>
+    public void LoadFromBytes(byte[]? data, ILogger? logger = null)
     {
         _positions.Clear();
         if (data is { Length: > 0 })
@@ -111,9 +113,13 @@ internal sealed class PlayerPositionStore
                     _positions[key] = (x, y, z);
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 _positions.Clear(); // corrupted - start fresh
+                logger?.Warning(
+                    "[Manifold] Player position store is corrupt ({0} bytes): {1}. Starting fresh (LastVisited memory lost).",
+                    data.Length,
+                    ex.Message);
             }
         }
 

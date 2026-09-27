@@ -7,7 +7,10 @@ namespace Manifold.Api.Transitions;
 /// </summary>
 public readonly record struct TransitionOptions
 {
-    /// <summary>If set, overrides the resolver-computed target position. Caller-supplied dim encoding mandatory.</summary>
+    /// <summary>
+    /// If set, used as the landing position instead of the resolver. Its dimension field is ignored
+    /// and replaced with the target dimension's id on a copy; the instance you pass in is never mutated.
+    /// </summary>
     public BlockPos? OverridePosition { get; init; }
 
     /// <summary>Resolver used when <see cref="OverridePosition"/> is null. Defaults to <see cref="TargetPositionResolvers.SameXZSurfaceY"/>.</summary>

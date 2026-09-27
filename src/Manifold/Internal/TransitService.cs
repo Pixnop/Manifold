@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Events;
 using Manifold.Api.Server;
@@ -16,6 +17,7 @@ namespace Manifold.Internal;
 internal sealed class TransitService : ITransitionService
 {
     private const string InventoryModdataKey = "manifold:inv";
+    private const string InventoryCorruptModdataKey = "manifold:inv.corrupt";
     private const string GameModeModdataKey = "manifold:gamemode-before-forced";
 
     private readonly DimensionRegistry _registry;
@@ -25,6 +27,7 @@ internal sealed class TransitService : ITransitionService
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
     private readonly IInventorySwapper _inventory;
+    private readonly HashSet<int> _warnedMissingSpawnPoint = new();
     private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -69,67 +72,8 @@ internal sealed class TransitService : ITransitionService
     public event EventHandler<EntityChangedDimensionEventArgs>? EntityChangedDimension;
 
     /// <inheritdoc/>
-    public void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
-    {
-        ArgumentNullException.ThrowIfNull(player);
-        ArgumentNullException.ThrowIfNull(targetDim);
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
-
-        int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
-        var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
-        var targetImpl = _registry.GetByInternalId(target.InternalId);
-
-        // Resolve a preliminary position to determine the generation region center.
-        // The resolver may be called again after generation (see below), so implementations
-        // must be deterministic and side-effect free.
-        var prelim = ResolveTargetPosition(player, target, targetImpl, options);
-
-        var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
-        SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
-        if (enteringArgs.Cancel)
-        {
-            return;
-        }
-
-        // Record the player's current position in the SOURCE dimension before leaving,
-        // so the LastVisited behavior can return them here later.
-        var srcPos = EntityPosAccess.Pos(player.Entity);
-        _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
-
-        // Pre-generate / load the destination region so the player lands on solid ground.
-        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
-
-        // Resolve the final landing position now that terrain exists.
-        var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
-
-        // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
-        var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
-        SafeEvent.Raise(PlayerArriving, this, arrivingArgs, LogSubscriberError);
-        if (arrivingArgs.Cancel)
-        {
-            return;
-        }
-
-        _movers.Player.Teleport(player, targetPos);
-
-        ApplyGameModePolicy(player, targetImpl);
-        ApplyInventoryPolicy(player, target, targetImpl);
-
-        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
-        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
-    }
+    public void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default) =>
+        TryTeleportPlayer(player, targetDim, options);
 
     /// <inheritdoc/>
     public bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal)
@@ -207,6 +151,90 @@ internal sealed class TransitService : ITransitionService
             LogSubscriberError);
     }
 
+    /// <summary>
+    /// Core of <see cref="TeleportPlayer"/>: identical behavior, but reports whether the player
+    /// actually moved (as opposed to a subscriber cancelling the transit). <see cref="TeleportPlayer"/>
+    /// is <c>void</c> per <see cref="ITransitionService"/> and cannot report this without a breaking
+    /// API change; <see cref="Api.Helpers.DimensionCommandBuilder"/> and <see cref="Api.Helpers.PortalBlockBase"/>
+    /// call this directly (when <c>Transitions</c> is this concrete type) so they can reply with an
+    /// error instead of reporting success on a cancelled transit.
+    /// </summary>
+    /// <param name="player">Server player to teleport.</param>
+    /// <param name="targetDim">Target dimension code.</param>
+    /// <param name="options">Optional transit settings.</param>
+    /// <returns><c>true</c> if the player was moved; <c>false</c> if a subscriber cancelled the transit.</returns>
+    internal bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        ArgumentNullException.ThrowIfNull(targetDim);
+        if (_unhealthy)
+        {
+            throw new ManifoldUnhealthyException(
+                "Manifold patches failed at boot; transit is disabled.");
+        }
+
+        var target = _registry.Get(targetDim)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
+        if (target.State != DimensionState.Active)
+        {
+            throw new DimensionStateException(
+                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
+        }
+
+        int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
+        var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
+        var targetImpl = _registry.GetByInternalId(target.InternalId);
+
+        // Resolve a preliminary position to determine the generation region center.
+        // The resolver may be called again after generation (see below), so implementations
+        // must be deterministic and side-effect free.
+        var prelim = ResolveTargetPosition(player, target, targetImpl, options);
+
+        var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
+        SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
+        if (enteringArgs.Cancel)
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled at PlayerEntering.",
+                player.PlayerName,
+                target.Code);
+            return false;
+        }
+
+        // Record the player's current position in the SOURCE dimension before leaving,
+        // so the LastVisited behavior can return them here later.
+        var srcPos = EntityPosAccess.Pos(player.Entity);
+        _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
+
+        // Pre-generate / load the destination region so the player lands on solid ground.
+        _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
+
+        // Resolve the final landing position now that terrain exists.
+        var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
+
+        // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
+        var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
+        SafeEvent.Raise(PlayerArriving, this, arrivingArgs, LogSubscriberError);
+        if (arrivingArgs.Cancel)
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled at PlayerArriving: {2}",
+                player.PlayerName,
+                target.Code,
+                arrivingArgs.CancellationReason ?? "(no reason)");
+            return false;
+        }
+
+        _movers.Player.Teleport(player, targetPos);
+
+        ApplyGameModePolicy(player, targetImpl);
+        ApplyInventoryPolicy(player, target, targetImpl);
+
+        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
+        return true;
+    }
+
     /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
     internal void MarkUnhealthy() => _unhealthy = true;
 
@@ -261,7 +289,24 @@ internal sealed class TransitService : ITransitionService
     /// </summary>
     private void ApplyInventoryPolicy(IServerPlayer player, IDimension target, DimensionImpl? targetImpl)
     {
-        var store = PlayerInventoryStore.FromBytes(player.GetModdata(InventoryModdataKey));
+        var raw = player.GetModdata(InventoryModdataKey);
+        var store = PlayerInventoryStore.TryFromBytes(raw);
+        if (store is null)
+        {
+            // Corrupt moddata: never overwrite it with an empty store (that would silently and
+            // permanently wipe every snapshot the player had stashed for other dimensions). Skip the
+            // swap entirely and leave the raw bytes in place; keep a copy under a recovery key too.
+            _sapi.Logger?.Error(
+                "[Manifold] Corrupt inventory profile for {0}; skipping inventory swap and preserving raw moddata.",
+                player.PlayerName);
+            if (raw is { Length: > 0 })
+            {
+                player.SetModdata(InventoryCorruptModdataKey, raw);
+            }
+
+            return;
+        }
+
         var plan = InventoryProfileResolver.Plan(
             targetImpl?.SeparateInventory ?? ManifoldInventory.None,
             target.Code.ToString(),
@@ -310,7 +355,9 @@ internal sealed class TransitService : ITransitionService
     {
         if (options.OverridePosition is { } overridePos)
         {
-            return overridePos.SetDimension(target.InternalId);
+            // Copy before stamping: SetDimension mutates in place, and overridePos is the caller's
+            // own instance (possibly reused elsewhere, e.g. a cached arena spawn).
+            return overridePos.Copy().SetDimension(target.InternalId);
         }
 
         var resolver = options.Resolver ?? _defaultResolver;
@@ -326,7 +373,9 @@ internal sealed class TransitService : ITransitionService
     {
         if (options.OverridePosition is { } overridePos)
         {
-            return overridePos.SetDimension(target.InternalId);
+            // Copy before stamping: SetDimension mutates in place, and overridePos is the caller's
+            // own instance (possibly reused elsewhere, e.g. a cached arena spawn).
+            return overridePos.Copy().SetDimension(target.InternalId);
         }
 
         if (options.Resolver is { } resolver)
@@ -339,10 +388,24 @@ internal sealed class TransitService : ITransitionService
         switch (behavior)
         {
             case SpawnBehavior.DimensionSpawn:
-                var spawn = targetImpl?.SpawnPoint ?? new BlockPos(0, 64, 0, target.InternalId);
-                return TargetPositionResolvers.FixedSpawn(spawn)
-                    .Resolve(player.Entity, target, _sapi)
-                    .SetDimension(target.InternalId);
+                if (targetImpl?.SpawnPoint is { } spawn)
+                {
+                    return TargetPositionResolvers.FixedSpawn(spawn)
+                        .Resolve(player.Entity, target, _sapi)
+                        .SetDimension(target.InternalId);
+                }
+
+                // No configured spawn point: fall back to the default resolver instead of a magic
+                // position, warning once per dimension rather than on every transit.
+                if (_warnedMissingSpawnPoint.Add(target.InternalId))
+                {
+                    _sapi.Logger?.Warning(
+                        "[Manifold] Dimension '{0}' uses SpawnBehavior.DimensionSpawn but has no "
+                        + "configured spawn point (WithFixedSpawn); falling back to the default resolver.",
+                        target.Code);
+                }
+
+                return _defaultResolver.Resolve(player.Entity, target, _sapi).SetDimension(target.InternalId);
 
             case SpawnBehavior.LastVisited:
                 if (_positionStore.TryGet(player.PlayerUID, target.InternalId, out var x, out var y, out var z))

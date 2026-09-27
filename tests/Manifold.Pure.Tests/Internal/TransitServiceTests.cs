@@ -113,6 +113,35 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Log_CancellationReason_When_PlayerArriving_Cancels()
+    {
+        var (svc, _, player, _, _, _, sapi) = NewServiceWithApi();
+        const string reason = "vetoed by a subscriber";
+        svc.PlayerArriving += (_, e) =>
+        {
+            e.Cancel = true;
+            e.CancellationReason = reason;
+        };
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        // PlayerArrivingDimensionEventArgs.CancellationReason is documented as reported via the
+        // transit service log; nothing read it before this fix.
+        sapi.Logger.Received(1).Notification(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Log_When_PlayerEntering_Cancels()
+    {
+        var (svc, _, player, _, _, _, sapi) = NewServiceWithApi();
+        svc.PlayerEntering += (_, e) => e.Cancel = true;
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        sapi.Logger.Received(1).Notification(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Call_Teleporter_When_Not_Cancelled()
     {
         var (svc, _, player, tele, _, _) = NewService();
@@ -375,6 +404,139 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Skip_Swap_And_Preserve_Raw_Moddata_When_Inventory_Profile_Is_Corrupt()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:sep"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSeparateInventory(ManifoldInventory.Hotbar)
+            .RegisterStatic();
+
+        var positionResolver = Substitute.For<ITargetPositionResolver>();
+        positionResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(100, 100, 100, 10));
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            positionResolver,
+            generator,
+            new PlayerPositionStore(),
+            Substitute.For<IInventorySwapper>());
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+        var corrupt = new byte[] { 0xFF, 0x01, 0x02 };
+        player.GetModdata("manifold:inv").Returns(corrupt);
+
+        // The transit itself must still complete - a corrupt inventory profile is not a reason to
+        // abort the whole transit, only to skip the swap.
+        svc.TeleportPlayer(player, Code("owner:sep"));
+
+        teleporter.Received(1).Teleport(player, Arg.Any<BlockPos>());
+        player.DidNotReceive().SetModdata("manifold:inv", Arg.Any<byte[]>());
+        player.Received(1).SetModdata("manifold:inv.corrupt", corrupt);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Not_Mutate_Callers_OverridePosition()
+    {
+        var (svc, _, player, _, _, _) = NewService();
+        var overridePos = new BlockPos(5, 6, 7, 0);
+
+        svc.TeleportPlayer(player, Code("owner:target"), new TransitionOptions { OverridePosition = overridePos });
+
+        Assert.Equal(0, overridePos.dimension);
+    }
+
+    [Fact]
+    public void TeleportEntity_Should_Not_Mutate_Callers_OverridePosition()
+    {
+        var (svc, _, _, _, _, _) = NewService();
+        var entity = Substitute.For<Entity>();
+        var overridePos = new BlockPos(5, 6, 7, 0);
+
+        svc.TeleportEntity(entity, Code("owner:target"), new TransitionOptions { OverridePosition = overridePos });
+
+        Assert.Equal(0, overridePos.dimension);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Fall_Back_To_Default_Resolver_When_DimensionSpawn_Has_No_Spawn_Point()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:nospawn"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSpawnBehavior(SpawnBehavior.DimensionSpawn) // no WithFixedSpawn: no configured spawn point
+            .RegisterStatic();
+
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var defaultResolver = Substitute.For<ITargetPositionResolver>();
+        defaultResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(1, 2, 3, 0));
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            defaultResolver,
+            new DimensionGenerator(registry, new GeneratedColumnStore()),
+            new PlayerPositionStore(),
+            Substitute.For<IInventorySwapper>());
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+
+        // Must not throw and must not land at the magic (0, 64, 0) - it falls back to the default
+        // resolver instead.
+        svc.TeleportPlayer(player, Code("owner:nospawn"));
+
+        teleporter.Received(1).Teleport(player, Arg.Is<BlockPos>(p => p.X == 1 && p.Y == 2 && p.Z == 3));
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Warn_Only_Once_Per_Dimension_For_Missing_DimensionSpawn()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:nospawn"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSpawnBehavior(SpawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var defaultResolver = Substitute.For<ITargetPositionResolver>();
+        defaultResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(1, 2, 3, 0));
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            defaultResolver,
+            new DimensionGenerator(registry, new GeneratedColumnStore()),
+            new PlayerPositionStore(),
+            Substitute.For<IInventorySwapper>());
+
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(Substitute.For<EntityPlayer>());
+
+        svc.TeleportPlayer(player, Code("owner:nospawn"));
+        svc.TeleportPlayer(player, Code("owner:nospawn"));
+
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Restore_Previous_GameMode_When_Leaving_A_Forced_Dimension()
     {
         var (svc, registry, player, _, _, _) = NewService();
@@ -441,6 +603,13 @@ public sealed class TransitServiceTests
     private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover)
         NewService()
     {
+        var (svc, registry, player, teleporter, entityMover, blockMover, _) = NewServiceWithApi();
+        return (svc, registry, player, teleporter, entityMover, blockMover);
+    }
+
+    private static (TransitService Service, DimensionRegistry Registry, IServerPlayer Player, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover, ICoreServerAPI Sapi)
+        NewServiceWithApi()
+    {
         var allocator = new DimensionAllocator();
         var registry = new DimensionRegistry(allocator);
         registry.DefineForOwner(Code("owner:target"), "owner")
@@ -470,6 +639,6 @@ public sealed class TransitServiceTests
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
 
-        return (svc, registry, player, teleporter, entityMover, blockMover);
+        return (svc, registry, player, teleporter, entityMover, blockMover, sapi);
     }
 }

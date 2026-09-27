@@ -21,9 +21,10 @@ public sealed class PlayerInventoryStoreTests
         store.SetSnapshot(ManifoldInventory.Backpack, "shared", new byte[] { 1, 2, 3 });
         store.SetSnapshot(ManifoldInventory.Hotbar, "mod:vault", new byte[] { 9 });
 
-        var restored = PlayerInventoryStore.FromBytes(store.ToBytes());
+        var restored = PlayerInventoryStore.TryFromBytes(store.ToBytes());
 
-        Assert.Equal("mod:vault", restored.CurrentKey(ManifoldInventory.Backpack));
+        Assert.NotNull(restored);
+        Assert.Equal("mod:vault", restored!.CurrentKey(ManifoldInventory.Backpack));
         Assert.True(restored.HasSnapshot(ManifoldInventory.Backpack, "shared"));
         Assert.Equal(new byte[] { 1, 2, 3 }, restored.GetSnapshot(ManifoldInventory.Backpack, "shared"));
         Assert.Equal(new byte[] { 9 }, restored.GetSnapshot(ManifoldInventory.Hotbar, "mod:vault"));
@@ -31,11 +32,18 @@ public sealed class PlayerInventoryStoreTests
     }
 
     [Fact]
-    public void FromBytes_Should_Handle_Null_Empty_And_Corrupt()
+    public void TryFromBytes_Should_Handle_Null_And_Empty()
     {
-        Assert.Equal(InventoryProfileResolver.SharedKey, PlayerInventoryStore.FromBytes(null).CurrentKey(ManifoldInventory.Hotbar));
-        Assert.Equal(InventoryProfileResolver.SharedKey, PlayerInventoryStore.FromBytes(System.Array.Empty<byte>()).CurrentKey(ManifoldInventory.Hotbar));
-        var corrupt = PlayerInventoryStore.FromBytes(new byte[] { 0xFF, 0x01, 0x02 });
-        Assert.False(corrupt.HasSnapshot(ManifoldInventory.Hotbar, "shared"));
+        Assert.Equal(InventoryProfileResolver.SharedKey, PlayerInventoryStore.TryFromBytes(null)!.CurrentKey(ManifoldInventory.Hotbar));
+        Assert.Equal(InventoryProfileResolver.SharedKey, PlayerInventoryStore.TryFromBytes(System.Array.Empty<byte>())!.CurrentKey(ManifoldInventory.Hotbar));
+    }
+
+    [Fact]
+    public void TryFromBytes_Should_Return_Null_On_Corrupt_Data()
+    {
+        // Corrupt moddata must be reported, not silently swapped for an empty store - the caller
+        // (TransitService.ApplyInventoryPolicy) relies on null to skip the swap and preserve the
+        // raw bytes instead of overwriting them with an empty store.
+        Assert.Null(PlayerInventoryStore.TryFromBytes(new byte[] { 0xFF, 0x01, 0x02 }));
     }
 }

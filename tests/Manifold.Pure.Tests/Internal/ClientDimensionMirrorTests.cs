@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Internal.Networking;
@@ -28,6 +29,66 @@ public sealed class ClientDimensionMirrorTests
         mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("second:a", 11) } });
         Assert.Null(mirror.Get(new AssetLocation("first:a")));
         Assert.NotNull(mirror.Get(new AssetLocation("second:a")));
+    }
+
+    [Fact]
+    public void ApplyManifest_Should_Raise_Added_For_Every_Dimension_In_The_Join_Snapshot()
+    {
+        // The join-time snapshot must not be silent: IManifoldClient.Created is documented to fire
+        // for every dimension the mirror learns about, joining included.
+        var mirror = new ClientDimensionMirror();
+        var received = new List<IDimension>();
+        mirror.Added += d => received.Add(d);
+
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10), D("c:d", 11) } });
+
+        Assert.Equal(2, received.Count);
+    }
+
+    [Fact]
+    public void ApplyManifest_Should_Raise_Removed_For_Dimensions_Dropped_By_A_Resync()
+    {
+        var mirror = new ClientDimensionMirror();
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10), D("c:d", 11) } });
+        var removed = new List<IDimension>();
+        mirror.Removed += d => removed.Add(d);
+
+        // A rollback resync's snapshot drops "c:d".
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10) } });
+
+        Assert.Single(removed);
+        Assert.Equal("c:d", removed[0].Code.ToString());
+    }
+
+    [Fact]
+    public void ApplyManifest_Should_Raise_Added_For_Dimensions_Reseeded_By_A_Resync()
+    {
+        var mirror = new ClientDimensionMirror();
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10) } });
+        var added = new List<IDimension>();
+        mirror.Added += d => added.Add(d);
+
+        // A rollback resync's snapshot reseeds "c:d" (a removal the rollback undid).
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10), D("c:d", 11) } });
+
+        Assert.Single(added);
+        Assert.Equal("c:d", added[0].Code.ToString());
+    }
+
+    [Fact]
+    public void ApplyManifest_Should_Not_Raise_Added_Or_Removed_For_Unchanged_Dimensions()
+    {
+        var mirror = new ClientDimensionMirror();
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10) } });
+        int addedCount = 0;
+        int removedCount = 0;
+        mirror.Added += _ => addedCount++;
+        mirror.Removed += _ => removedCount++;
+
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10) } });
+
+        Assert.Equal(0, addedCount);
+        Assert.Equal(0, removedCount);
     }
 
     [Fact]

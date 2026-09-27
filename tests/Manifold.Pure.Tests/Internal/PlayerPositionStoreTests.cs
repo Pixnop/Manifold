@@ -1,4 +1,6 @@
 using Manifold.Internal;
+using NSubstitute;
+using Vintagestory.API.Common;
 using Xunit;
 
 namespace Manifold.Pure.Tests.Internal;
@@ -76,6 +78,18 @@ public sealed class PlayerPositionStoreTests
 
         store.LoadFromBytes(new byte[] { 0xFF, 0x01, 0x02 }); // corrupt - must not throw
         Assert.False(store.TryGet("uid", 10, out _, out _, out _));
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Log_Warning_On_Corrupt_Data()
+    {
+        var store = new PlayerPositionStore();
+        var logger = Substitute.For<ILogger>();
+
+        // The corrupt-data recovery (start fresh) is otherwise silent; it must log.
+        store.LoadFromBytes(new byte[] { 0xFF, 0x01, 0x02 }, logger);
+
+        logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
 using NSubstitute;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Server;
 using Xunit;
 
 namespace Manifold.Pure.Tests.Internal;
@@ -129,6 +130,32 @@ public sealed class DimensionGeneratorTests
         generator.InvokeStrategyColumn(throwing, ctx, 42);
 
         Assert.Equal(callsBefore, throwing.CallCount);
+    }
+
+    [Fact]
+    public void RelightBlockBounds_Should_Return_True_On_Success()
+    {
+        var sapi = Substitute.For<ICoreServerAPI>();
+        bool ok = DimensionGenerator.RelightBlockBounds(
+            sapi, 5, new BlockPos(0, 0, 0, 0), new BlockPos(31, 64, 31, 0), sendToClients: true);
+        Assert.True(ok);
+    }
+
+    [Fact]
+    public void RelightBlockBounds_Should_Return_False_And_Log_A_Warning_When_FullRelight_Throws()
+    {
+        var sapi = Substitute.For<ICoreServerAPI>();
+        sapi.WorldManager
+            .When(w => w.FullRelight(Arg.Any<BlockPos>(), Arg.Any<BlockPos>(), Arg.Any<bool>()))
+            .Do(_ => throw new InvalidOperationException("chunk not loaded"));
+
+        // Best-effort: the caller (the /manifold relight command) must learn about the failure
+        // through the return value, not an escaping exception.
+        bool ok = DimensionGenerator.RelightBlockBounds(
+            sapi, 5, new BlockPos(0, 0, 0, 0), new BlockPos(31, 64, 31, 0), sendToClients: true);
+
+        Assert.False(ok);
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
     private static (DimensionGenerator Generator, DimensionRegistry Registry) NewGenerator()
