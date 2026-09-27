@@ -10,11 +10,6 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
-/// <summary>
-/// Server-side fixture driven by the Manifold.Scenarios suite. All Manifold API
-/// calls live here because scenario code cannot share assembly identity with the
-/// ModLoader-loaded Manifold.dll. Results are published through SaveGame data.
-/// </summary>
 /// <summary>Sample enum value for the "flat" fixture dimension's "fixture-tint" metadata entry.</summary>
 public enum FixtureTint
 {
@@ -22,6 +17,11 @@ public enum FixtureTint
     Painted = 7,
 }
 
+/// <summary>
+/// Server-side fixture driven by the Manifold.Scenarios suite. All Manifold API
+/// calls live here because scenario code cannot share assembly identity with the
+/// ModLoader-loaded Manifold.dll. Results are published through SaveGame data.
+/// </summary>
 public sealed partial class AtlasFixtureModSystem : ModSystem
 {
     internal const string Domain = "atlasfixture";
