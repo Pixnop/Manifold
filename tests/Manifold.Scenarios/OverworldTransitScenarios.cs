@@ -33,8 +33,8 @@ public class OverworldTransitScenarios : ManifoldScenarioBase
         var container = Assert.IsType<IBlockEntityContainer>(
             World.Api.World.BlockAccessor.GetBlockEntity(source), exactMatch: false);
         var sticks = new ItemStack(World.Api.World.GetItem(new AssetLocation("game", "stick")), 9);
-        container.Inventory[0].Itemstack = sticks;
-        container.Inventory[0].MarkDirty();
+        container.Inventory[0]!.Itemstack = sticks;
+        container.Inventory[0]!.MarkDirty();
         await World.Ticks(2);
 
         CommandResult result = await World.ExecuteCommand(
@@ -49,7 +49,7 @@ public class OverworldTransitScenarios : ManifoldScenarioBase
 
         var arrived = Assert.IsType<IBlockEntityContainer>(
             World.Api.World.BlockAccessor.GetBlockEntity(target), exactMatch: false);
-        ItemStack? stack = arrived.Inventory[0].Itemstack;
+        ItemStack? stack = arrived.Inventory[0]!.Itemstack;
         Assert.NotNull(stack);
         Assert.Equal(9, stack!.StackSize);
         Assert.Equal("game:stick", stack.Collectible.Code.ToString());

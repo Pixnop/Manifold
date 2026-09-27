@@ -62,8 +62,8 @@ public class BlockTransitScenarios : ManifoldScenarioBase
         var container = Assert.IsType<IBlockEntityContainer>(
             World.Api.World.BlockAccessor.GetBlockEntity(source), exactMatch: false);
         var flints = new ItemStack(World.Api.World.GetItem(new AssetLocation("game", "flint")), 7);
-        container.Inventory[0].Itemstack = flints;
-        container.Inventory[0].MarkDirty();
+        container.Inventory[0]!.Itemstack = flints;
+        container.Inventory[0]!.MarkDirty();
         await World.Ticks(2);
 
         CommandResult outbound = await World.ExecuteCommand(
@@ -89,7 +89,7 @@ public class BlockTransitScenarios : ManifoldScenarioBase
 
         var returned = Assert.IsType<IBlockEntityContainer>(
             World.Api.World.BlockAccessor.GetBlockEntity(home), exactMatch: false);
-        ItemStack? stack = returned.Inventory[0].Itemstack;
+        ItemStack? stack = returned.Inventory[0]!.Itemstack;
         Assert.NotNull(stack);
         Assert.Equal(7, stack!.StackSize);
         Assert.Equal("game:flint", stack.Collectible.Code.ToString());
