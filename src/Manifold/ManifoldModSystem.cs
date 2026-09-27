@@ -77,7 +77,7 @@ public sealed class ManifoldModSystem : ModSystem
         _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(
             _manifestStore,
-            new ModLoaderQuery(api.ModLoader),
+            api.ModLoader.IsModEnabled,
             Mod.Logger);
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(api);
