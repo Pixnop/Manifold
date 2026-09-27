@@ -23,7 +23,7 @@ internal static class DimensionGate
             ?? throw new DimensionNotFoundException($"No dimension registered with code '{code}'.");
         if (dim.State != DimensionState.Active)
         {
-            throw new DimensionStateException($"Dimension '{code}' is in state {dim.State}; transit not allowed.");
+            throw new DimensionStateException($"Dimension '{code}' is in state {dim.State}, not Active.");
         }
 
         return dim;
