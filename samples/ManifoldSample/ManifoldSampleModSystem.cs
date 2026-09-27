@@ -10,11 +10,17 @@ namespace ManifoldSample;
 /// <summary>
 /// Sample consumer mod. Registers two demo dimensions - manifoldsample:void (empty air, via
 /// <c>BasicVoidWorldgenStrategy</c>) and manifoldsample:flat (solid floor, via
-/// <c>FlatWorldgenStrategy</c>) - and exposes <c>/voiddim</c> and <c>/flatdim</c> chat commands.
+/// <c>FlatWorldgenStrategy</c>) - plus a resettable manifoldsample:mining dimension (solid rock
+/// and ore, via <c>MiningWorldgenStrategy</c>), and exposes <c>/voiddim</c>, <c>/flatdim</c> and
+/// <c>/miningdim</c>/<c>/miningreset</c> chat commands.
 /// </summary>
 public sealed class ManifoldSampleModSystem : ModSystem
 {
     private const string ModId = "manifoldsample";
+
+    // Bumped on every /miningreset so the next MiningWorldgenStrategy instance draws a different
+    // ore layout for manifoldsample:mining.
+    private int _miningDimSalt;
 
     /// <summary>Run after Manifold (0.05) so the facade is ready.</summary>
     public override double ExecuteOrder() => 0.5;
@@ -264,7 +270,63 @@ public sealed class ManifoldSampleModSystem : ModSystem
                     : TextCommandResult.Error("manifoldsample:tempdim is not currently registered.");
             });
 
+        // Resettable mining dimension (a Mod DB request): solid rock with ore to dig, wiped and
+        // regenerated on demand. It is registered Ephemeral rather than Persistent because
+        // IManifoldServer.ForceRemoveDimension refuses on a Persistent dimension (use the admin
+        // purge for those) - /miningreset needs the forced, evacuating removal that only Ephemeral
+        // allows. Ephemeral also means it is reaped automatically once its last occupant transits
+        // out and again at server shutdown, which is exactly right for a throwaway mining world:
+        // nothing lingers if players simply stop visiting it.
+        var miningCode = new AssetLocation(ModId, "mining");
+
+        api.ChatCommands.Create("miningdim")
+            .WithDescription("Create (if needed) and teleport to the resettable mining dimension.")
+            .RequiresPrivilege("chat")
+            .RequiresPlayer()
+            .HandleWith(cmdArgs =>
+            {
+                if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
+                {
+                    return TextCommandResult.Error("Players only.");
+                }
+
+                bool created = manifold.Registry.Get(miningCode) is null;
+                if (created)
+                {
+                    manifold.Registry
+                        .Define(miningCode)
+                        .Ephemeral()
+                        .WithWorldgen(new MiningWorldgenStrategy(_miningDimSalt))
+                        .WithFixedSpawn(new BlockPos(
+                            MiningWorldgenStrategy.SpawnX,
+                            MiningWorldgenStrategy.SpawnY,
+                            MiningWorldgenStrategy.SpawnZ,
+                            0))
+                        .WithGenerationRadius(3)
+                        .Create();
+                }
+
+                manifold.Transitions.TeleportPlayer(serverPlayer, miningCode);
+                return TextCommandResult.Success(created
+                    ? "Created manifoldsample:mining and sent you in."
+                    : "Sent you to manifoldsample:mining.");
+            });
+
+        api.ChatCommands.Create("miningreset")
+            .WithDescription("Wipe the mining dimension (evacuating anyone inside) so the next /miningdim regenerates it with fresh ore.")
+            .RequiresPrivilege("controlserver")
+            .HandleWith(cmdArgs =>
+            {
+                if (!manifold.ForceRemoveDimension(miningCode))
+                {
+                    return TextCommandResult.Success("Nothing to reset - manifoldsample:mining is not currently registered.");
+                }
+
+                _miningDimSalt++;
+                return TextCommandResult.Success("Reset manifoldsample:mining; run /miningdim to generate a fresh one.");
+            });
+
         Mod.Logger.Notification(
-            "[ManifoldSample] Registered void + flat + dark + stream + vault dimensions and /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim commands.");
+            "[ManifoldSample] Registered void + flat + dark + stream + vault dimensions and /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim, /miningdim, /miningreset commands.");
     }
 }
