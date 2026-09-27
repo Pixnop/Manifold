@@ -1,4 +1,6 @@
 using System;
+using Manifold.Api.Client;
+using Manifold.Api.Events;
 using Manifold.Api.Transitions;
 using Xunit;
 
@@ -33,5 +35,15 @@ public sealed class BinaryCompatibilityTests
         var options = new TransitionOptions { PreserveInventory = true };
         Assert.True(options.PreserveInventory);
 #pragma warning restore CS0618
+    }
+
+    [Fact]
+    public void IManifoldClient_Should_Keep_LocalPlayerTransited_Subscribable()
+    {
+        // Mods built against pre-0.6 Manifold reference this event by name; obsoleting it must not
+        // remove it (that would throw MissingMemberException for them at load time).
+        var eventInfo = typeof(IManifoldClient).GetEvent("LocalPlayerTransited");
+        Assert.NotNull(eventInfo);
+        Assert.Equal(typeof(EventHandler<PlayerEnteredDimensionEventArgs>), eventInfo!.EventHandlerType);
     }
 }

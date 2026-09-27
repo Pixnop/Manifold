@@ -139,6 +139,24 @@ public sealed class ClientDimensionMirrorTests
         Assert.Equal(10, received!.InternalId);
     }
 
+    [Fact]
+    public void GetByInternalId_Should_Return_The_Matching_Dimension()
+    {
+        var mirror = new ClientDimensionMirror();
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10), D("c:d", 11) } });
+
+        Assert.Equal("c:d", mirror.GetByInternalId(11)!.Code.ToString());
+    }
+
+    [Fact]
+    public void GetByInternalId_Should_Return_Null_When_Unknown()
+    {
+        var mirror = new ClientDimensionMirror();
+        mirror.ApplyManifest(new ManifestSnapshotPacket { Dimensions = { D("a:b", 10) } });
+
+        Assert.Null(mirror.GetByInternalId(99));
+    }
+
     private static DimensionDescriptor D(string code, int id) => new()
     {
         Code = code,
