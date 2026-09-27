@@ -9,7 +9,7 @@ using Vintagestory.API.Server;
 namespace Manifold.Api.Server;
 
 /// <summary>Primitive transit operations between dimensions.</summary>
-/// <remarks>Server-side. <see cref="TeleportPlayer"/> must be invoked on the main thread.</remarks>
+/// <remarks>Server-side. All members must be invoked on the main thread.</remarks>
 public interface ITransitionService
 {
     /// <summary>Raised before transit completes; set <c>Cancel = true</c> to abort.</summary>
@@ -43,6 +43,7 @@ public interface ITransitionService
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="options">Optional transit settings.</param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="player"/> or <paramref name="targetDim"/> is null.</exception>
     /// <exception cref="Manifold.Api.DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>
     /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
@@ -56,9 +57,11 @@ public interface ITransitionService
     /// <param name="entity">The non-player entity to move.</param>
     /// <param name="targetDim">Destination dimension code.</param>
     /// <param name="options">Optional position override / resolver.</param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="entity"/> or <paramref name="targetDim"/> is null.</exception>
     /// <exception cref="System.ArgumentException">The entity is a player.</exception>
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
     /// <exception cref="DimensionStateException">The destination is not active.</exception>
+    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
     void TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
@@ -74,6 +77,9 @@ public interface ITransitionService
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="targetLocal">Target position; the dimension field is rewritten to the target.</param>
     /// <returns><c>true</c> when a non-air block was moved; <c>false</c> when the source slot was air.</returns>
+    /// <exception cref="System.ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="targetDim"/>, or <paramref name="targetLocal"/> is null.
+    /// </exception>
     /// <exception cref="DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="DimensionStateException">Target is not Active.</exception>
     /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>

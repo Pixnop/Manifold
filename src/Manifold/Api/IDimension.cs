@@ -8,8 +8,10 @@ namespace Manifold.Api;
 /// </summary>
 /// <remarks>
 /// Instances are immutable from the consumer's perspective.
-/// The same <see cref="Code"/> always maps to the same <see cref="InternalId"/>
-/// within a single savegame (idempotent boot).
+/// While a dimension is registered, its <see cref="Code"/> maps to a fixed <see cref="InternalId"/>,
+/// and a <see cref="DimensionLifetime.Persistent"/> dimension keeps its id across restarts. Ids are
+/// released back to the allocator when a dimension is removed and may be reused by a different
+/// code afterwards, so never cache <see cref="InternalId"/> across a <c>Destroyed</c> event.
 /// </remarks>
 public interface IDimension
 {

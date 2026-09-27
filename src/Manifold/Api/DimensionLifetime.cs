@@ -8,7 +8,12 @@ public enum DimensionLifetime
     /// <summary>The built-in overworld (id 0). Cannot be removed.</summary>
     BuiltIn,
 
-    /// <summary>Declared at boot, survives across sessions. Chunks persist with the savegame.</summary>
+    /// <summary>
+    /// Survives across sessions; chunks persist with the savegame. Can be registered at boot
+    /// (<c>RegisterStatic</c>) or at runtime (<c>Create().Persistent()</c>). After a restart it is
+    /// <see cref="DimensionState.Pending"/> until the owning mod calls <c>Define</c> again with the
+    /// same code.
+    /// </summary>
     Persistent,
 
     /// <summary>

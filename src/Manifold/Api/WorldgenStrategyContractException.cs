@@ -2,7 +2,7 @@ using System;
 
 namespace Manifold.Api;
 
-/// <summary>Thrown when an <c>IWorldgenStrategy</c> violates its contract (malformed Passes, throws in OnInitialize, etc.).</summary>
+/// <summary>Thrown by <c>RegisterStatic</c>/<c>Create</c> when no strategy was attached via <c>WithWorldgen</c>.</summary>
 public sealed class WorldgenStrategyContractException : ManifoldException
 {
     /// <summary>Initializes a new instance of the <see cref="WorldgenStrategyContractException"/> class.</summary>
