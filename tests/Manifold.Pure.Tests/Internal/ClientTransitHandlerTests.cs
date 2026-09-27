@@ -13,57 +13,31 @@ public sealed class ClientTransitHandlerTests
     [Fact]
     public void Constructor_Should_Throw_When_Mirror_Is_Null()
     {
-        Assert.Throws<ArgumentNullException>(() => new ClientTransitHandler(null!, _ => { }));
-    }
-
-    [Fact]
-    public void Constructor_Should_Throw_When_Dispatcher_Is_Null()
-    {
-        Assert.Throws<ArgumentNullException>(() => new ClientTransitHandler(new ClientDimensionMirror(), null!));
+        Assert.Throws<ArgumentNullException>(() => new ClientTransitHandler(null!));
     }
 
     [Fact]
     public void Handle_Should_Throw_When_Packet_Is_Null()
     {
-        var handler = new ClientTransitHandler(new ClientDimensionMirror(), _ => { });
+        var handler = new ClientTransitHandler(new ClientDimensionMirror());
 
         Assert.Throws<ArgumentNullException>(() => handler.Handle(null!));
     }
 
     [Fact]
-    public void Handle_Should_Dispatch_Resolution_Through_The_Supplied_Dispatcher_Not_Inline()
+    public void Handle_Should_Resolve_And_Raise_Transited_Synchronously()
     {
         var mirror = new ClientDimensionMirror();
         Seed(mirror, "a:overworld", 0);
         Seed(mirror, "mod:nether", 10);
-        bool dispatched = false;
-        var handler = new ClientTransitHandler(mirror, action =>
-        {
-            dispatched = true;
-            action();
-        });
+        var handler = new ClientTransitHandler(mirror);
         LocalPlayerDimensionChangedEventArgs? captured = null;
         handler.Transited += e => captured = e;
 
         handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
 
-        Assert.True(dispatched);
+        // No dispatcher indirection: the event is already raised by the time Handle returns.
         Assert.NotNull(captured);
-    }
-
-    [Fact]
-    public void Handle_Should_Not_Resolve_Or_Raise_Before_The_Dispatcher_Runs_The_Action()
-    {
-        var mirror = new ClientDimensionMirror();
-        Seed(mirror, "a:overworld", 0);
-        Seed(mirror, "mod:nether", 10);
-        var handler = new ClientTransitHandler(mirror, _ => { /* never runs the action */ });
-        bool raised = false;
-        handler.Transited += _ => raised = true;
-
-        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
-
-        Assert.False(raised);
     }
 
     [Fact]
@@ -72,7 +46,7 @@ public sealed class ClientTransitHandlerTests
         var mirror = new ClientDimensionMirror();
         Seed(mirror, "a:overworld", 0);
         Seed(mirror, "mod:nether", 10);
-        var handler = new ClientTransitHandler(mirror, action => action());
+        var handler = new ClientTransitHandler(mirror);
         LocalPlayerDimensionChangedEventArgs? captured = null;
         handler.Transited += e => captured = e;
 
@@ -99,7 +73,7 @@ public sealed class ClientTransitHandlerTests
     {
         var mirror = new ClientDimensionMirror();
         Seed(mirror, "a:overworld", 0);
-        var handler = new ClientTransitHandler(mirror, action => action());
+        var handler = new ClientTransitHandler(mirror);
         bool raised = false;
         handler.Transited += _ => raised = true;
 
@@ -109,11 +83,33 @@ public sealed class ClientTransitHandlerTests
     }
 
     [Fact]
+    public void Handle_Should_Not_Raise_When_The_Source_Was_Removed_Before_The_Packet_Is_Handled()
+    {
+        // Documents the ordering hazard behind the transit-out-of-ephemeral bug: reaping the
+        // source dimension broadcasts a DimensionRemovedPacket for it, and if a client applies
+        // that before the matching PlayerTransitedPacket (the server sent them in the wrong
+        // order, or they simply arrive out of order), the source is already gone from the mirror
+        // by the time Handle resolves it. This is why ManifoldModSystem now sends the transit
+        // packet before reaping: on the correct order, ApplyRemoved runs after Handle, not before.
+        var mirror = new ClientDimensionMirror();
+        Seed(mirror, "a:overworld", 0);
+        Seed(mirror, "mod:ephemeral", 10);
+        mirror.ApplyRemoved(new DimensionRemovedPacket { Code = "mod:ephemeral", InternalId = 10 });
+        var handler = new ClientTransitHandler(mirror);
+        bool raised = false;
+        handler.Transited += _ => raised = true;
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "mod:ephemeral", TargetCode = "a:overworld" });
+
+        Assert.False(raised);
+    }
+
+    [Fact]
     public void Handle_Should_Not_Raise_When_The_Source_Code_Is_Unknown_To_The_Mirror()
     {
         var mirror = new ClientDimensionMirror();
         Seed(mirror, "mod:nether", 10);
-        var handler = new ClientTransitHandler(mirror, action => action());
+        var handler = new ClientTransitHandler(mirror);
         bool raised = false;
         handler.Transited += _ => raised = true;
 
@@ -127,7 +123,7 @@ public sealed class ClientTransitHandlerTests
     {
         var mirror = new ClientDimensionMirror();
         var logger = Substitute.For<ILogger>();
-        var handler = new ClientTransitHandler(mirror, action => action(), logger);
+        var handler = new ClientTransitHandler(mirror, logger);
 
         handler.Handle(new PlayerTransitedPacket { SourceCode = "mod:unknown", TargetCode = "mod:also-unknown" });
 

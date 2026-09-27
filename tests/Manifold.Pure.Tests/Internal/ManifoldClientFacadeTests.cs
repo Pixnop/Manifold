@@ -133,7 +133,7 @@ public sealed class ManifoldClientFacadeTests
     public void LocalPlayerChangedDimension_Should_Raise_With_The_Resolved_Args()
     {
         var mirror = new ClientDimensionMirror();
-        var handler = new ClientTransitHandler(mirror, action => action());
+        var handler = new ClientTransitHandler(mirror);
         var facade = new ManifoldClientFacade(mirror, handler);
         mirror.ApplyAdded(new DimensionAddedPacket { Dimension = new DimensionDescriptor { Code = "a:overworld", InternalId = 0, OwnerModId = "manifold" } });
         mirror.ApplyAdded(new DimensionAddedPacket { Dimension = new DimensionDescriptor { Code = "mod:nether", InternalId = 10, OwnerModId = "mod" } });
@@ -160,7 +160,7 @@ public sealed class ManifoldClientFacadeTests
         var mirror = new ClientDimensionMirror();
         mirror.ApplyAdded(new DimensionAddedPacket { Dimension = new DimensionDescriptor { Code = "a:overworld", InternalId = 0, OwnerModId = "manifold" } });
         mirror.ApplyAdded(new DimensionAddedPacket { Dimension = new DimensionDescriptor { Code = "mod:nether", InternalId = 10, OwnerModId = "mod" } });
-        var handler = new ClientTransitHandler(mirror, action => action());
+        var handler = new ClientTransitHandler(mirror);
         var facade = new ManifoldClientFacade(mirror, handler);
         bool goodRan = false;
         facade.LocalPlayerChangedDimension += (_, _) => throw new InvalidOperationException("rogue mod");
