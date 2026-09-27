@@ -277,9 +277,9 @@ internal sealed class TransitService : ITransitionService
                 // Snapshot the current contents into the source key BEFORE touching any slot.
                 store.SetSnapshot(swap.Category, swap.FromKey, _inventory.Serialize(player, swap.Category));
 
-                if (store.HasSnapshot(swap.Category, swap.ToKey))
+                if (store.GetSnapshot(swap.Category, swap.ToKey) is { } snapshot)
                 {
-                    _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
+                    _inventory.Restore(player, swap.Category, snapshot);
                 }
                 else
                 {

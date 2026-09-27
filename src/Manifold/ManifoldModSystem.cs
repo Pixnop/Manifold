@@ -59,13 +59,6 @@ public sealed class ManifoldModSystem : ModSystem
     public override double ExecuteOrder() => 0.05;
 
     /// <inheritdoc/>
-    public override void Start(ICoreAPI api)
-    {
-        // Manifold registers no block/item/entity/behaviour classes - pure dependency library.
-        base.Start(api);
-    }
-
-    /// <inheritdoc/>
     public override void StartServerSide(ICoreServerAPI api)
     {
         ArgumentNullException.ThrowIfNull(api);

@@ -25,10 +25,9 @@ public sealed class PlayerInventoryStoreTests
 
         Assert.NotNull(restored);
         Assert.Equal("mod:vault", restored!.CurrentKey(ManifoldInventory.Backpack));
-        Assert.True(restored.HasSnapshot(ManifoldInventory.Backpack, "shared"));
         Assert.Equal(new byte[] { 1, 2, 3 }, restored.GetSnapshot(ManifoldInventory.Backpack, "shared"));
         Assert.Equal(new byte[] { 9 }, restored.GetSnapshot(ManifoldInventory.Hotbar, "mod:vault"));
-        Assert.False(restored.HasSnapshot(ManifoldInventory.Character, "shared"));
+        Assert.Null(restored.GetSnapshot(ManifoldInventory.Character, "shared"));
     }
 
     [Fact]
