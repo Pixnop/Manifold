@@ -407,19 +407,11 @@ public sealed class ManifoldModSystem : ModSystem
             return;
         }
 
-        try
+        if (OverworldRescue.TryEvacuate(transit, player, Mod.Logger))
         {
-            transit.TeleportPlayer(
-                player,
-                new AssetLocation("manifold", "overworld"),
-                new TransitionOptions { SpawnBehavior = SpawnBehavior.LastVisited });
             Mod.Logger.Notification(
                 "[Manifold] Rescued {0} to the overworld (their dimension no longer exists).",
                 player.PlayerName);
-        }
-        catch (System.Exception ex)
-        {
-            Mod.Logger.Warning("[Manifold] Failed to rescue {0} to the overworld: {1}", player.PlayerName, ex.Message);
         }
     }
 

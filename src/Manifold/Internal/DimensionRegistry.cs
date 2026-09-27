@@ -19,7 +19,8 @@ namespace Manifold.Internal;
 /// </remarks>
 internal sealed class DimensionRegistry : IDimensionRegistry
 {
-    private static readonly AssetLocation OverworldCode = new("manifold", "overworld");
+    /// <summary>Code of the built-in overworld, shared with call sites that evacuate players to it.</summary>
+    internal static readonly AssetLocation OverworldCode = new("manifold", "overworld");
 
     private readonly DimensionAllocator _allocator;
     private readonly System.Func<int, bool>? _isOccupied;

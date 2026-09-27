@@ -1,7 +1,6 @@
 using System;
 using Manifold.Api;
 using Manifold.Api.Server;
-using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -96,22 +95,13 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     /// </summary>
     private void EvacuateOccupants(int internalId)
     {
+        // Best-effort per player: a failed/cancelled rescue leaves them in place and TryRemove will
+        // then refuse, so we never remove a dimension that still has someone inside.
         foreach (var p in _sapi.World.AllOnlinePlayers)
         {
             if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == internalId)
             {
-                try
-                {
-                    Transitions.TeleportPlayer(
-                        sp,
-                        new AssetLocation("manifold", "overworld"),
-                        new TransitionOptions { SpawnBehavior = SpawnBehavior.LastVisited });
-                }
-                catch
-                {
-                    // Best-effort: a teleport failure leaves the player in place and TryRemove will
-                    // then refuse, so we never remove a dimension that still has someone inside.
-                }
+                OverworldRescue.TryEvacuate(Transitions, sp, _sapi.Logger);
             }
         }
     }
