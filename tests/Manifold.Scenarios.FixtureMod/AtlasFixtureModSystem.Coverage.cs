@@ -158,7 +158,25 @@ public sealed partial class AtlasFixtureModSystem
             .BeginSubCommand("try-teleport-player")
                 .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
                 .HandleWith(OnTryTeleportPlayer)
+            .EndSubCommand()
+            .BeginSubCommand("dimension-of")
+                .WithArgs(parsers.Word("playername"))
+                .HandleWith(OnDimensionOf)
             .EndSubCommand();
+    }
+
+    /// <summary>Drives IDimensionRegistry.GetDimensionOf, reporting the dimension's code or "unregistered".</summary>
+    private TextCommandResult OnDimensionOf(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        IDimension? dimension = _manifold.Registry.GetDimensionOf(player.Entity);
+        return TextCommandResult.Success(dimension is null ? "unregistered" : dimension.Code.ToString());
     }
 
     /// <summary>Drives the public ITransitionService.TryTeleportPlayer and reports its bool result directly.</summary>

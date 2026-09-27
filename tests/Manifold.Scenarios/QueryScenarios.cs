@@ -14,6 +14,30 @@ using Xunit;
 public class QueryScenarios : ManifoldScenarioBase
 {
     [AtlasScenario]
+    public async Task GetDimensionOf_Should_ReturnOverworld_When_PlayerNeverTransited()
+    {
+        await World.JoinPlayer("atlas_qdow");
+
+        CommandResult result = await Ok("/atlasfx2 dimension-of atlas_qdow");
+
+        Assert.Equal("manifold:overworld", result.Message);
+    }
+
+    [AtlasScenario]
+    public async Task GetDimensionOf_Should_ReturnTargetDimension_After_Transit()
+    {
+        int flatId = await DimensionId("flat");
+        ITestPlayer player = await World.JoinPlayer("atlas_qdflat");
+
+        await Ok("/atlasfx teleport-player atlas_qdflat flat");
+        await LandedAt(player, flatId, 512, 512);
+
+        CommandResult result = await Ok("/atlasfx2 dimension-of atlas_qdflat");
+
+        Assert.Equal("atlasfixture:flat", result.Message);
+    }
+
+    [AtlasScenario]
     public async Task TryTeleportPlayer_Should_ReturnTrue_When_TransitSucceeds()
     {
         int flatId = await DimensionId("flat");

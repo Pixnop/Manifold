@@ -64,6 +64,10 @@ foreach (IDimension d in manifold.Registry.All)
 {
     Console.WriteLine($"{d.Code} [{d.State}] owner={d.OwnerModId}");
 }
+
+// Which registered dimension is this entity in right now? (overworld for id 0, null if the
+// entity's position points at an id nothing has registered)
+IDimension? here = manifold.Registry.GetDimensionOf(somePlayer.Entity);
 ```
 
 ### Events
