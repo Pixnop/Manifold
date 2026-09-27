@@ -48,7 +48,11 @@ internal sealed class TransitService : ITransitionService
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
-        _movers = (movers ?? throw new ArgumentNullException(nameof(movers))).Required();
+        ArgumentNullException.ThrowIfNull(movers);
+        ArgumentNullException.ThrowIfNull(movers.Player);
+        ArgumentNullException.ThrowIfNull(movers.Entity);
+        ArgumentNullException.ThrowIfNull(movers.Block);
+        _movers = movers;
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
