@@ -36,6 +36,46 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
     }
 
     [AtlasScenario]
+    public async Task Manifest_Should_IncludeDimensionMetadata_When_PlayerJoins()
+    {
+        await DimensionId("flat");
+
+        ITestPlayer player = await World.JoinPlayer("atlas_mmeta");
+        await World.Ticks(2);
+
+        ManifestSnapshotPacket snapshot = Assert.Single(player.Client.Packets<ManifestSnapshotPacket>(Channel));
+        DimensionDescriptor flat = Assert.Single(snapshot.Dimensions, d => d.Code == "atlasfixture:flat");
+
+        AssertMetadata(flat, "fixture-label", MetadataValueKind.String, stringValue: "granite-slab");
+        AssertMetadata(flat, "fixture-level", MetadataValueKind.Int32, integerValue: 3);
+        AssertMetadata(flat, "fixture-active", MetadataValueKind.Boolean, integerValue: 1);
+        AssertMetadata(flat, "fixture-signature", MetadataValueKind.ByteArray, bytesValue: new byte[] { 1, 2, 3 });
+        AssertMetadata(flat, "fixture-note", MetadataValueKind.Null);
+
+        MetadataEntry tint = Single(flat, "fixture-tint");
+        Assert.Equal(MetadataValueKind.Enum, tint.Kind);
+        Assert.Equal(7, tint.IntegerValue);
+        Assert.Equal("AtlasFixture.FixtureTint", tint.EnumTypeFullName);
+        Assert.Equal("AtlasFixture", tint.EnumAssemblyName);
+    }
+
+    [AtlasScenario]
+    public async Task Client_Should_ReceiveDimensionMetadata_When_FixtureCreatesEphemeralDimensionWithMetadata()
+    {
+        ITestPlayer player = await World.JoinPlayer("atlas_maddmeta");
+        await World.Ticks(2);
+        player.Client.Clear();
+
+        await Ok("/atlasfx create-ephemeral mirroraddmeta");
+
+        DimensionAddedPacket packet = Assert.Single(player.Client.Packets<DimensionAddedPacket>(Channel));
+        MetadataEntry tint = Single(packet.Dimension, "fixture-tint");
+        Assert.Equal(MetadataValueKind.Enum, tint.Kind);
+        Assert.Equal(7, tint.IntegerValue);
+        Assert.Equal("AtlasFixture.FixtureTint", tint.EnumTypeFullName);
+    }
+
+    [AtlasScenario]
     public async Task Client_Should_ReceiveDimensionAdded_When_FixtureCreatesEphemeralDimension()
     {
         ITestPlayer player = await World.JoinPlayer("atlas_madd");
@@ -114,5 +154,23 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         Assert.Equal(512, toFlatPacket.TargetX);
         Assert.Equal(6, toFlatPacket.TargetY);
         Assert.Equal(512, toFlatPacket.TargetZ);
+    }
+
+    private static MetadataEntry Single(DimensionDescriptor descriptor, string key) =>
+        Assert.Single(descriptor.Metadata, e => e.Key == key);
+
+    private static void AssertMetadata(
+        DimensionDescriptor descriptor,
+        string key,
+        MetadataValueKind kind,
+        long integerValue = 0,
+        string? stringValue = null,
+        byte[]? bytesValue = null)
+    {
+        MetadataEntry entry = Single(descriptor, key);
+        Assert.Equal(kind, entry.Kind);
+        Assert.Equal(integerValue, entry.IntegerValue);
+        Assert.Equal(stringValue, entry.StringValue);
+        Assert.Equal(bytesValue, entry.BytesValue);
     }
 }
