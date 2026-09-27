@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+- **`IDimensionBuilder.WithRelightHeight`** has had no effect since 0.4.2 removed the automatic post-generation relight, and is now marked `[Obsolete]`. It still validates its argument (1..1024), so existing callers keep compiling and running; use `IManifoldServer.RelightRegion` to relight after placing blocks. The internal plumbing that carried the dead value is gone, and the documentation no longer describes a relight pass after generation.
+
 ## [0.4.2] - 2026-07-04
 
 ### Changed
