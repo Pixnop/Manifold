@@ -50,6 +50,33 @@ requested through an `[AtlasDataFiles]`-staged ModConfig, because Atlas does
 not guarantee scenario order within a class; each restart scenario is
 self-sufficient in any order.
 
+## What is covered
+
+63 scenarios, one class per area:
+
+| Area | Classes |
+| --- | --- |
+| Boot, registration, per-dimension worldgen, streaming, dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
+| Lifecycle, teardown, admin commands | `DimensionLifecycleScenarios`, `EphemeralDimensionScenarios`, `TeardownScenarios`, `AdminCommandScenarios` |
+| Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
+| Transit events: order, vetoes, a throwing subscriber | `TransitEventScenarios` |
+| Travel policy, forced game mode, command builders | `TravelPolicyScenarios`, `CommandBuilderScenarios` |
+| Per-dimension inventory, concurrent players, reconnection | `PlayerInventoryScenarios`, `MultiPlayerScenarios`, `ReconnectScenarios` |
+| Metadata, id recycling | `DimensionMetadataScenarios`, `RecyclingScenarios` |
+| What the client receives (Manifold's packets) | `ClientMirrorScenarios` |
+| Persistence and quarantine across a real restart | `DimensionPersistenceScenarios`, `QuarantineScenarios` |
+
+`ClientMirrorScenarios` decodes Manifold's own network packets through
+Atlas's client observations (`player.Client.Packets<T>`), deserialized into
+the internal packet types (Manifold grants this project internals access).
+`QuarantineScenarios` stages a ModConfig that makes the fixture append, on
+every world save, a manifest entry owned by a mod that is not installed; the
+restarted server must bring it back Quarantined.
+
+Two Manifold bugs were found this way and fixed in the same release: a forced
+game mode leaking out of its dimension, and the transit packet carrying the
+position the player left instead of the landing position.
+
 ## Architecture
 
 Scenario code cannot call the Manifold API directly: the ModLoader loads its

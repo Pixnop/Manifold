@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **`PlayerEnteredDimensionEventArgs` exposes `TargetPosition`**, the landing position the player was sent to, like `PlayerEntering` and `PlayerArriving` already do. Read it instead of the entity's position, which can still report the source position when the event fires. Its constructor now takes that position.
-- The integration suite runs on Atlas 0.15.0 and, in CI, on Vintage Story 1.22.7 (was 1.22.2). It gained chest-open scenarios in and out of a custom dimension, investigating #79. Stated compatibility is now 1.22.x: 1.21 is no longer tested.
+- The integration suite runs on Atlas 0.15.0 and, in CI, on Vintage Story 1.22.7 (was 1.22.2), and grows from 14 to 63 scenarios: admin commands with real player privileges, teardown and evacuation, transit event order and vetoes, travel policies and forced game modes, command builders, the packets the client mirror receives, quarantine and persistence across a real server restart, engine id recycling, reconnection, and chest access in and out of a custom dimension (investigating #79). Stated compatibility is now 1.22.x: 1.21 is no longer tested.
+- **Manifold resyncs its registry after an Atlas world rollback.** It listens for the `atlas:rollback:restored` event and re-runs its boot hydrate against the restored SaveGame, so test suites that roll the world back between scenarios see a coherent registry. The event only fires under Atlas; in a normal game the listener never runs.
 
 ## [0.4.2] - 2026-07-04
 
