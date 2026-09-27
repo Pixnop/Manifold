@@ -3,7 +3,7 @@
   "modid": "manifoldsample",
   "name": "Manifold Sample",
   "version": "0.4.2",
-  "description": "Demo consumer mod for Manifold. Registers void + flat + streaming + vault (separate-inventory) dimensions with travel policies and the /voiddim, /flatdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim and /destroytempdim commands, plus a portal block.",
+  "description": "Demo consumer mod for Manifold. Registers void + flat + dark + streaming + vault (separate-inventory) dimensions with travel policies and the /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim and /destroytempdim commands, plus a portal block.",
   "authors": ["Pixnop"],
   "side": "Universal",
   "dependencies": {
