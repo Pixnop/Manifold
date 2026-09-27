@@ -218,13 +218,13 @@ public sealed class ManifoldModSystem : ModSystem
         int remaining = 0;
         foreach (var p in players)
         {
-            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension != internalId)
+            if (!OccupancyScan.IsIn(p, internalId))
             {
                 continue;
             }
 
             rescue(p);
-            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension == internalId)
+            if (OccupancyScan.IsIn(p, internalId))
             {
                 remaining++;
             }
@@ -426,20 +426,7 @@ public sealed class ManifoldModSystem : ModSystem
     {
         // internalId 0 is the overworld; TryRemove throws on it before reaching the occupancy check,
         // so the == 0 guard is belt-and-suspenders (and a safe default if the predicate is reused).
-        if (_sapi is null || internalId == 0)
-        {
-            return false;
-        }
-
-        foreach (var p in _sapi.World.AllOnlinePlayers)
-        {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == internalId)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return _sapi is not null && internalId != 0 && OccupancyScan.IsOccupied(_sapi, internalId);
     }
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)

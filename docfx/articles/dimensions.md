@@ -82,6 +82,9 @@ foreach (IDimension d in manifold.Registry.All)
 // Which registered dimension is this entity in right now? (overworld for id 0, null if the
 // entity's position points at an id nothing has registered)
 IDimension? here = manifold.Registry.GetDimensionOf(somePlayer.Entity);
+
+// Who is currently inside a given dimension?
+System.Collections.Generic.IReadOnlyList<IServerPlayer> occupants = manifold.GetPlayersIn(dim.Code);
 ```
 
 ### Events

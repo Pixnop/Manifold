@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api.Server;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Server;
 
 namespace Manifold.Internal;
 
@@ -48,4 +50,8 @@ internal sealed class OwnerScopedManifoldServer : IManifoldServer
     /// <inheritdoc/>
     public void GenerateRegion(AssetLocation dimension, BlockPos center) =>
         _shared.GenerateRegion(dimension, center);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<IServerPlayer> GetPlayersIn(AssetLocation dimension) =>
+        _shared.GetPlayersIn(dimension);
 }

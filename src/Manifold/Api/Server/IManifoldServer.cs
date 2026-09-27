@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -76,4 +77,15 @@ public interface IManifoldServer
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
     /// <exception cref="DimensionStateException">The dimension is not <see cref="DimensionState.Active"/>.</exception>
     void GenerateRegion(AssetLocation dimension, BlockPos center);
+
+    /// <summary>
+    /// The online players currently inside <paramref name="dimension"/>, determined from each
+    /// player's live position dimension id - the same live check <see cref="IDimensionRegistry.TryRemove"/>
+    /// uses to refuse removing an occupied dimension.
+    /// </summary>
+    /// <param name="dimension">Dimension code to query.</param>
+    /// <returns>The occupants, in no particular order; empty if none are inside.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="dimension"/> is null.</exception>
+    /// <exception cref="DimensionNotFoundException">No dimension is registered with that code.</exception>
+    IReadOnlyList<IServerPlayer> GetPlayersIn(AssetLocation dimension);
 }

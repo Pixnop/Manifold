@@ -43,6 +43,7 @@
 - **Safe teardown** - a dimension is never removed while a player stands in it; `ForceRemoveDimension` evacuates an ephemeral one first, ephemeral dimensions are reaped when their last occupant transits out, and `/manifold purge <code>` is the admin path for persistent or quarantined ones. Players whose saved dimension no longer exists are rescued to the overworld on join.
 - **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
 - **Entity location** - `IDimensionRegistry.GetDimensionOf(entity)` finds which registered dimension an entity is currently in, from its live position.
+- **Dimension occupancy** - `IManifoldServer.GetPlayersIn(dimension)` lists the online players currently inside a dimension.
 - **Client mirror** - the dimension list is replicated to connected clients via `IManifoldClient`.
 - **Zero Harmony patches** - built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
 - **Opt-in helpers** - `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy` to get started with minimal boilerplate.

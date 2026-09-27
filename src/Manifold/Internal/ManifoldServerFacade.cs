@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Server;
 using Manifold.Internal.Util;
@@ -110,6 +111,15 @@ internal sealed class ManifoldServerFacade : IManifoldServer
             _sapi, dim.InternalId, ChunkMath.ToChunk(center.X), ChunkMath.ToChunk(center.Z), player: null);
     }
 
+    /// <inheritdoc/>
+    public IReadOnlyList<IServerPlayer> GetPlayersIn(AssetLocation dimension)
+    {
+        ArgumentNullException.ThrowIfNull(dimension);
+        var dim = Registry.Get(dimension)
+            ?? throw new DimensionNotFoundException($"No dimension registered with code '{dimension}'.");
+        return new List<IServerPlayer>(OccupancyScan.PlayersIn(_sapi, dim.InternalId));
+    }
+
     /// <summary>
     /// Teleports every connected player currently inside <paramref name="internalId"/> back to the
     /// overworld (last-visited position) so the dimension can then be removed. Best-effort per player.
@@ -118,12 +128,9 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     {
         // Best-effort per player: a failed/cancelled rescue leaves them in place and TryRemove will
         // then refuse, so we never remove a dimension that still has someone inside.
-        foreach (var p in _sapi.World.AllOnlinePlayers)
+        foreach (var sp in OccupancyScan.PlayersIn(_sapi, internalId))
         {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == internalId)
-            {
-                OverworldRescue.TryEvacuate(Transitions, sp, _sapi.Logger);
-            }
+            OverworldRescue.TryEvacuate(Transitions, sp, _sapi.Logger);
         }
     }
 }

@@ -14,6 +14,25 @@ using Xunit;
 public class QueryScenarios : ManifoldScenarioBase
 {
     [AtlasScenario]
+    public async Task GetPlayersIn_Should_ReturnOnlyOccupantsOfThatDimension()
+    {
+        int vaultId = await DimensionId("vault");
+        ITestPlayer inVault = await World.JoinPlayer("atlas_qpin");
+        ITestPlayer inOverworld = await World.JoinPlayer("atlas_qpout");
+
+        await Ok("/atlasfx teleport-player atlas_qpin vault");
+        await LandedAt(inVault, vaultId, 512, 512);
+
+        CommandResult vaultResult = await Ok("/atlasfx2 players-in vault");
+        Assert.Equal("atlas_qpin", vaultResult.Message);
+
+        CommandResult overworldResult = await Ok("/atlasfx2 players-in overworld");
+        var overworldNames = overworldResult.Message.Split(',');
+        Assert.Contains("atlas_qpout", overworldNames);
+        Assert.DoesNotContain("atlas_qpin", overworldNames);
+    }
+
+    [AtlasScenario]
     public async Task GetDimensionOf_Should_ReturnOverworld_When_PlayerNeverTransited()
     {
         await World.JoinPlayer("atlas_qdow");

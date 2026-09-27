@@ -159,24 +159,14 @@ public sealed partial class AtlasFixtureModSystem
                 .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
                 .HandleWith(OnTryTeleportPlayer)
             .EndSubCommand()
+            .BeginSubCommand("players-in")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnPlayersIn)
+            .EndSubCommand()
             .BeginSubCommand("dimension-of")
                 .WithArgs(parsers.Word("playername"))
                 .HandleWith(OnDimensionOf)
             .EndSubCommand();
-    }
-
-    /// <summary>Drives IDimensionRegistry.GetDimensionOf, reporting the dimension's code or "unregistered".</summary>
-    private TextCommandResult OnDimensionOf(TextCommandCallingArgs args)
-    {
-        var playerName = (string)args[0];
-        IServerPlayer? player = FindPlayer(playerName);
-        if (player is null)
-        {
-            return TextCommandResult.Error($"No online player named {playerName}.");
-        }
-
-        IDimension? dimension = _manifold.Registry.GetDimensionOf(player.Entity);
-        return TextCommandResult.Success(dimension is null ? "unregistered" : dimension.Code.ToString());
     }
 
     /// <summary>Drives the public ITransitionService.TryTeleportPlayer and reports its bool result directly.</summary>
@@ -201,6 +191,36 @@ public sealed partial class AtlasFixtureModSystem
         {
             return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>Drives IManifoldServer.GetPlayersIn, reporting occupant names joined by comma, or "none".</summary>
+    private TextCommandResult OnPlayersIn(TextCommandCallingArgs args)
+    {
+        var dimPath = (string)args[0];
+        try
+        {
+            var players = _manifold.GetPlayersIn(ResolveTargetCode(dimPath));
+            return TextCommandResult.Success(
+                players.Count == 0 ? "none" : string.Join(",", players.Select(p => p.PlayerName)));
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Drives IDimensionRegistry.GetDimensionOf, reporting the dimension's code or "unregistered".</summary>
+    private TextCommandResult OnDimensionOf(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        IDimension? dimension = _manifold.Registry.GetDimensionOf(player.Entity);
+        return TextCommandResult.Success(dimension is null ? "unregistered" : dimension.Code.ToString());
     }
 
     private IServerPlayer? FindPlayer(string name) =>

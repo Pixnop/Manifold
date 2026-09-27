@@ -202,6 +202,41 @@ public sealed class ManifoldServerFacadeTests
         sapi.WorldManager.DidNotReceiveWithAnyArgs().ForceSendChunkColumn(default!, default, default, default);
     }
 
+    [Fact]
+    public void GetPlayersIn_Should_Throw_When_Dimension_Is_Null()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        Assert.Throws<ArgumentNullException>(() => facade.GetPlayersIn(null!));
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Throw_When_Dimension_Not_Found()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        Assert.Throws<DimensionNotFoundException>(() => facade.GetPlayersIn(new AssetLocation("nope:nope")));
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Return_Empty_When_No_One_Is_Inside()
+    {
+        var (facade, _) = NewFacade(healthy: true);
+        Assert.Empty(facade.GetPlayersIn(new AssetLocation("owner:target")));
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Return_Only_Occupants_Of_That_Dimension()
+    {
+        var (facade, sapi) = NewFacade(healthy: true);
+        var target = facade.Registry.Get(new AssetLocation("owner:target"))!;
+        var inside = PlayerAt(target.InternalId, "inside");
+        var elsewhere = PlayerAt(target.InternalId + 5, "elsewhere");
+        sapi.World.AllOnlinePlayers.Returns(new IPlayer[] { inside, elsewhere });
+
+        var players = facade.GetPlayersIn(new AssetLocation("owner:target"));
+
+        Assert.Equal(new[] { inside }, players);
+    }
+
     private static (ManifoldServerFacade Facade, ICoreServerAPI Sapi) NewFacade(bool healthy)
     {
         var registry = new DimensionRegistry(new DimensionAllocator());
