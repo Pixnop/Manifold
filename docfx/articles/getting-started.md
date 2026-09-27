@@ -4,7 +4,7 @@ This guide shows how to add Manifold as a dependency, obtain the facade, registe
 
 ## Prerequisites
 
-- Vintage Story **1.21+** with `VintagestoryAPI.dll` available on the build path via `$VINTAGE_STORY`.
+- Vintage Story **1.22.x** with `VintagestoryAPI.dll` available on the build path via `$VINTAGE_STORY`.
 - Your mod targets **.NET 10** (`<TargetFramework>net10.0</TargetFramework>`).
 - Manifold installed in the `Mods/` folder alongside your mod.
 
@@ -18,7 +18,7 @@ In your mod's `modinfo.json`, add Manifold to the `dependencies` object. The emp
   "name": "My Mod",
   "version": "1.0.0",
   "dependencies": {
-    "game": "1.21.0",
+    "game": "1.22.0",
     "manifold": ""
   }
 }

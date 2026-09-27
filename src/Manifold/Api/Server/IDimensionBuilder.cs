@@ -40,12 +40,15 @@ public interface IDimensionBuilder
     IDimensionBuilder WithGenerationRadius(int chunks);
 
     /// <summary>
-    /// Sets the upper Y bound for the post-generation relight pass (default 20). Content built
-    /// above this height is under-lit until the engine relights naturally. Higher values light
-    /// taller dimensions correctly but cost more per relight. Range 1..1024.
+    /// No effect since Manifold 0.4.2, which removed the automatic post-generation relight. Still
+    /// validates that <paramref name="maxY"/> is in range 1..1024 and throws
+    /// <see cref="System.ArgumentOutOfRangeException"/> otherwise, for binary compatibility with
+    /// existing calls.
     /// </summary>
-    /// <param name="maxY">Top of the lit band.</param>
+    /// <param name="maxY">Ignored except for range validation (range 1..1024).</param>
     /// <returns>This builder.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Info Code Smell", "S1133:Deprecated code should be removed", Justification = "Kept for binary compatibility with mods built against 0.4.x; remove in the next minor release.")]
+    [System.Obsolete("No effect since Manifold 0.4.2, which removed the automatic post-generation relight. Use IManifoldServer.RelightRegion to relight after placing blocks.")]
     IDimensionBuilder WithRelightHeight(int maxY);
 
     /// <summary>Sets how players land when entering this dimension. Default: <see cref="SpawnBehavior.SameCoordinates"/>.</summary>
@@ -95,8 +98,6 @@ public interface IDimensionBuilder
     /// <param name="ceilingY">Y of the opaque ceiling layer (range 1..1024). Place it one block above your tallest content.</param>
     /// <returns>This builder, for chaining.</returns>
     /// <remarks>
-    /// Manifold raises the relight band to <c>ceilingY + 1</c> automatically (the cap must be inside
-    /// the relit band to take effect), so you do not need to also call <see cref="WithRelightHeight"/>.
     /// Best for enclosed / underground dimensions. The outermost ring of the generated region can
     /// still leak some light from the un-generated chunks beyond it; generate a chunk of margin
     /// around the playable area if that edge is visible. Solid-filled dimensions (terrain that is

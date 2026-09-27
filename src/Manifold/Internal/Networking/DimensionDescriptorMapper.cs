@@ -37,7 +37,6 @@ internal static class DimensionDescriptorMapper
         SpawnPoint: null,
         ForcedGameMode: null,
         StreamingLoadRadius: null,
-        RelightHeight: DimensionBuilderImpl.DefaultRelightHeight,
         SeparateInventory: Manifold.Api.ManifoldInventory.None,
         Metadata: DimensionBuilderImpl.EmptyMetadata,
         StreamingBudgetPerTick: null,

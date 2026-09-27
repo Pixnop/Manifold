@@ -4,7 +4,7 @@ _layout: landing
 
 # Manifold
 
-**A Vintage Story 1.21+ library mod for declaring and managing custom dimensions.**
+**A Vintage Story 1.22 library mod for declaring and managing custom dimensions.**
 
 Manifold gives consumer mods a clean, Harmony-free public API to create persistent or ephemeral dimensions, supply procedural worldgen, and transit players between them - all without touching engine internals.
 
@@ -36,7 +36,7 @@ Add Manifold as a dependency in your `modinfo.json`, get the facade, and registe
 
 ## Compatibility
 
-- Vintage Story **1.21+**
+- Vintage Story **1.22.x** (the integration suite runs on 1.22.7)
 - **.NET 10**
 - No Harmony required (0Harmony and protobuf are provided by the game itself)
 
