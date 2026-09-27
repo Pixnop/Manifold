@@ -11,10 +11,8 @@ namespace Manifold.Internal.HarmonyPatches;
 /// </summary>
 /// <remarks>
 /// <para>
-/// As of v0 (per Phase 9 research, 2026-05-19), Manifold ships with <b>zero</b>
-/// Harmony patches. Every gap identified at design time is closeable via public
-/// VS API. <c>PatchAll</c> still runs to remain forward-compatible if a future
-/// patch is added to the assembly.
+/// The assembly currently has no <c>[HarmonyPatch]</c> classes: every gap Manifold needs to close
+/// is reachable via public VS API. <c>PatchAll</c> still runs so a future patch is applied.
 /// </para>
 /// <para>
 /// Worldgen for custom dimensions is driven actively by <see cref="DimensionGenerator"/>
