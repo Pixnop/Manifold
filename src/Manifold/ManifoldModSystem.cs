@@ -110,7 +110,7 @@ public sealed class ManifoldModSystem : ModSystem
         transit.PlayerEntered += OnTransitPlayerEntered;
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator);
-        ManifoldAccess.SetServerResolver(_ => ServerFacade);
+        ManifoldAccess.SetServerResolver(ServerFacade);
 
         RegisterManifoldCommand(api);
 
@@ -150,7 +150,7 @@ public sealed class ManifoldModSystem : ModSystem
         _network.RegisterClient(api);
 
         ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
-        ManifoldAccess.SetClientResolver(_ => ClientFacade);
+        ManifoldAccess.SetClientResolver(ClientFacade);
     }
 
     /// <inheritdoc/>
