@@ -16,6 +16,67 @@ the `VINTAGE_STORY` environment variable pointing at the folder containing
 Each scenario class boots its own embedded server (about 7 s). Scenario
 classes never run in parallel (one live server per process).
 
+## Isolation modes
+
+Most scenarios share their class host's world and isolate through disjoint
+coordinates, unique entity ids, and unique dimension paths. Scenarios with
+no joined players use `RollbackWorld = true`: the host's world is restored
+from a snapshot instead of paying a full recycle. Since Atlas 0.8.0 the
+snapshot covers mini-dimension chunk columns too, and Manifold cooperates
+through the `atlas:rollback:restored` event bus hook: after every restore,
+`ManifoldModSystem.OnAtlasRollbackRestored` re-runs the boot hydrate,
+rebuilding the registry, the id allocator, and the persisted-store mirrors
+from the restored SaveGame (the manifest, `manifold:genchunks`,
+`manifold:lastpos`). Classes that treat the rollback as a contract rather
+than an optimization add `StrictIsolation = true`, so a silent degrade to a
+full recycle fails the scenario instead of just slowing the suite down; the
+former stage 3 candidates (EntityTransit, BlockTransit, Ephemeral,
+Lifecycle) are all strict now, and EphemeralDimensionScenarios carries the
+desync-gone proof: re-creating a dimension whose first incarnation only a
+rollback removed. Boot-time mini-dimension terrain no longer disqualifies
+rollback; the fixture still generates terrain on demand only
+(`/atlasfx pregen <dimpath>` or a transit) purely to keep snapshots small.
+Classes with joined players cannot roll back yet and carry a
+`rollback-stage2-candidate` comment stating what a future rollback stage
+would need.
+
+Persistence scenarios use `RestartWorld = true` (Atlas 0.7.0): the class host
+is shut down gracefully and a replacement boots against the persisted save,
+so DimensionPersistenceScenarios asserts on what actually survives a real
+save/load round trip (the dimension manifest: static dimensions re-claimed
+under the same internal id, runtime persistent ones back as Pending, ephemeral
+ones dropped). The pre-restart state is seeded by the fixture at first boot,
+requested through an `[AtlasDataFiles]`-staged ModConfig, because Atlas does
+not guarantee scenario order within a class; each restart scenario is
+self-sufficient in any order.
+
+## What is covered
+
+63 scenarios, one class per area:
+
+| Area | Classes |
+| --- | --- |
+| Boot, registration, per-dimension worldgen, streaming, dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
+| Lifecycle, teardown, admin commands | `DimensionLifecycleScenarios`, `EphemeralDimensionScenarios`, `TeardownScenarios`, `AdminCommandScenarios` |
+| Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
+| Transit events: order, vetoes, a throwing subscriber | `TransitEventScenarios` |
+| Travel policy, forced game mode, command builders | `TravelPolicyScenarios`, `CommandBuilderScenarios` |
+| Per-dimension inventory, concurrent players, reconnection | `PlayerInventoryScenarios`, `MultiPlayerScenarios`, `ReconnectScenarios` |
+| Metadata, id recycling | `DimensionMetadataScenarios`, `RecyclingScenarios` |
+| What the client receives (Manifold's packets) | `ClientMirrorScenarios` |
+| Persistence and quarantine across a real restart | `DimensionPersistenceScenarios`, `QuarantineScenarios` |
+
+`ClientMirrorScenarios` decodes Manifold's own network packets through
+Atlas's client observations (`player.Client.Packets<T>`), deserialized into
+the internal packet types (Manifold grants this project internals access).
+`QuarantineScenarios` stages a ModConfig that makes the fixture append, on
+every world save, a manifest entry owned by a mod that is not installed; the
+restarted server must bring it back Quarantined.
+
+Two Manifold bugs were found this way and fixed in the same release: a forced
+game mode leaking out of its dimension, and the transit packet carrying the
+position the player left instead of the landing position.
+
 ## Architecture
 
 Scenario code cannot call the Manifold API directly: the ModLoader loads its

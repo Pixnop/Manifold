@@ -58,3 +58,6 @@ docfx/_site/
 docfx/api/
 docfx/obj/
 docfx-tool/
+
+# Python bytecode (docs/assets/moddb/generate.py)
+__pycache__/

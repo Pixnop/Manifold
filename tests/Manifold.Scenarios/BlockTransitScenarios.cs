@@ -2,46 +2,57 @@ namespace Manifold.Scenarios;
 
 using Atlas.Api;
 using Atlas.XUnit;
-using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Xunit;
 
+// Strict rollback (see README): nothing here joins players.
 [Trait("Category", "E2E")]
 public class BlockTransitScenarios : ManifoldScenarioBase
 {
-    [AtlasScenario]
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task Chest_Should_KeepContents_When_TeleportedAcrossDimensions()
     {
         int flatId = await DimensionId("flat");
 
         BlockPos source = World.Spawn.Offset(3, 1, 0);
-        World.SetBlock("game:chest-east", source);
-        await World.Ticks(2);
-
-        var container = Assert.IsType<IBlockEntityContainer>(
-            World.Api.World.BlockAccessor.GetBlockEntity(source), exactMatch: false);
-        var sticks = new ItemStack(World.Api.World.GetItem(new AssetLocation("game", "stick")), 5);
-        container.Inventory[0]!.Itemstack = sticks;
-        container.Inventory[0]!.MarkDirty();
-        await World.Ticks(2);
+        await PlaceChest(source, "stick", 5);
 
         CommandResult result = await World.ExecuteCommand(
             $"/atlasfx teleport-block {source.X} {source.Y} {source.Z} 0 flat 520 6 520");
 
         var target = new BlockPos(520, 6, 520, flatId);
-        await World.Until(
-            () => World.BlockAt(target).Code?.ToString() == "game:chest-east",
-            timeoutTicks: 600);
+        await BlockBecomes(target, "game:chest-east");
 
         Assert.True(result.Ok, "TeleportBlock reported failure.");
         Assert.Equal("moved", result.Message);
         Assert.Equal("game:air", World.BlockAt(source).Code.ToString());
 
-        var arrivedContainer = Assert.IsType<IBlockEntityContainer>(
-            World.Api.World.BlockAccessor.GetBlockEntity(target), exactMatch: false);
-        ItemStack? arrivedStack = arrivedContainer.Inventory[0]!.Itemstack;
-        Assert.NotNull(arrivedStack);
-        Assert.Equal(5, arrivedStack!.StackSize);
-        Assert.Equal("game:stick", arrivedStack.Collectible.Code.ToString());
+        AssertChestHolds(target, "stick", 5);
+    }
+
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
+    public async Task Chest_Should_KeepContents_When_TeleportedBackToOverworld()
+    {
+        int flatId = await DimensionId("flat");
+
+        BlockPos source = World.Spawn.Offset(5, 1, 0);
+        await PlaceChest(source, "flint", 7);
+
+        await Ok(
+            $"/atlasfx teleport-block {source.X} {source.Y} {source.Z} 0 flat 524 6 524");
+
+        var flatPos = new BlockPos(524, 6, 524, flatId);
+        await BlockBecomes(flatPos, "game:chest-east");
+
+        // Return leg: source is in the mini-dimension, destination back in dimension 0.
+        BlockPos home = World.Spawn.Offset(7, 1, 0);
+        CommandResult inbound = await Ok(
+            $"/atlasfx teleport-block 524 6 524 {flatId} overworld {home.X} {home.Y} {home.Z}");
+        Assert.Equal("moved", inbound.Message);
+
+        await BlockBecomes(home, "game:chest-east");
+        Assert.Equal("game:air", World.BlockAt(flatPos).Code.ToString());
+
+        AssertChestHolds(home, "flint", 7);
     }
 }
