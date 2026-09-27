@@ -1,3 +1,4 @@
+using System;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
@@ -12,22 +13,11 @@ public sealed class DimensionBuilderImplTests
     [Fact]
     public void RegisterStatic_Should_Default_To_Persistent_When_Lifetime_Not_Specified()
     {
-        var completion = Substitute.For<IDimension>();
-        completion.Code.Returns(Code("mod:a"));
-        completion.OwnerModId.Returns("mod");
-        completion.Lifetime.Returns(DimensionLifetime.Persistent);
-
-        DimensionBuildRequest? capturedRequest = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            capturedRequest = req;
-            return completion;
-        });
+        var (builder, request) = Capturing();
 
         var dim = builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
 
-        Assert.NotNull(capturedRequest);
-        Assert.Equal(DimensionLifetime.Persistent, capturedRequest.Value.Lifetime);
+        Assert.Equal(DimensionLifetime.Persistent, request().Lifetime);
         Assert.NotNull(dim);
     }
 
@@ -42,35 +32,21 @@ public sealed class DimensionBuilderImplTests
     [Fact]
     public void Create_Should_Pass_Through_Persistent_Choice()
     {
-        DimensionBuildRequest? capturedRequest = null;
-        var completion = Substitute.For<IDimension>();
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            capturedRequest = req;
-            return completion;
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).Persistent().Create();
 
-        Assert.NotNull(capturedRequest);
-        Assert.Equal(DimensionLifetime.Persistent, capturedRequest.Value.Lifetime);
+        Assert.Equal(DimensionLifetime.Persistent, request().Lifetime);
     }
 
     [Fact]
     public void Create_Should_Pass_Through_Ephemeral_Choice()
     {
-        DimensionBuildRequest? capturedRequest = null;
-        var completion = Substitute.For<IDimension>();
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            capturedRequest = req;
-            return completion;
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
 
-        Assert.NotNull(capturedRequest);
-        Assert.Equal(DimensionLifetime.Ephemeral, capturedRequest.Value.Lifetime);
+        Assert.Equal(DimensionLifetime.Ephemeral, request().Lifetime);
     }
 
     [Fact]
@@ -120,175 +96,115 @@ public sealed class DimensionBuilderImplTests
     [Fact]
     public void WithGenerationRadius_Should_Pass_Value_Through_To_Request()
     {
-        DimensionBuildRequest? capturedRequest = null;
-        var completion = Substitute.For<IDimension>();
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            capturedRequest = req;
-            return completion;
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).WithGenerationRadius(5).RegisterStatic();
 
-        Assert.NotNull(capturedRequest);
-        Assert.Equal(5, capturedRequest.Value.GenerationRadius);
+        Assert.Equal(5, request().GenerationRadius);
     }
 
     [Fact]
     public void WithGenerationRadius_Should_Default_To_DefaultGenerationRadius()
     {
-        DimensionBuildRequest? capturedRequest = null;
-        var completion = Substitute.For<IDimension>();
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            capturedRequest = req;
-            return completion;
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
 
-        Assert.NotNull(capturedRequest);
-        Assert.Equal(DimensionBuilderImpl.DefaultGenerationRadius, capturedRequest.Value.GenerationRadius);
+        Assert.Equal(DimensionBuilderImpl.DefaultGenerationRadius, request().GenerationRadius);
     }
 
     [Fact]
     public void WithGenerationRadius_Should_Throw_When_Out_Of_Range()
     {
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
+        var b1 = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => builder.WithGenerationRadius(-1));
+            () => b1.WithGenerationRadius(-1));
 
-        var builder2 = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
+        var b2 = new DimensionBuilderImpl(Code("mod:a"), "mod", _ => throw new InvalidOperationException());
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => builder2.WithGenerationRadius(17));
+            () => b2.WithGenerationRadius(17));
     }
 
     [Fact]
     public void WithGenerationRadius_Should_Accept_Boundary_Values()
     {
-        DimensionBuildRequest? req0 = null;
-        var b0 = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            req0 = req;
-            return Substitute.For<IDimension>();
-        });
+        var (b0, request0) = Capturing("mod:a");
         b0.WithWorldgen(new FakeWorldgenStrategy()).WithGenerationRadius(0).RegisterStatic();
-        Assert.Equal(0, req0!.Value.GenerationRadius);
+        Assert.Equal(0, request0().GenerationRadius);
 
-        DimensionBuildRequest? req16 = null;
-        var b16 = new DimensionBuilderImpl(Code("mod:b"), "mod", req =>
-        {
-            req16 = req;
-            return Substitute.For<IDimension>();
-        });
+        var (b16, request16) = Capturing("mod:b");
         b16.WithWorldgen(new FakeWorldgenStrategy()).WithGenerationRadius(16).RegisterStatic();
-        Assert.Equal(16, req16!.Value.GenerationRadius);
+        Assert.Equal(16, request16().GenerationRadius);
     }
 
     [Fact]
     public void WithSpawnBehavior_Should_Pass_Through_To_Request()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy())
             .WithSpawnBehavior(Manifold.Api.Transitions.SpawnBehavior.LastVisited)
             .RegisterStatic();
 
-        Assert.NotNull(captured);
-        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.LastVisited, captured.Value.SpawnBehavior);
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.LastVisited, request().SpawnBehavior);
     }
 
     [Fact]
     public void WithFixedSpawn_Should_Set_DimensionSpawn_And_Point()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         var spawn = new Vintagestory.API.MathTools.BlockPos(10, 64, 20, 0);
         builder.WithWorldgen(new FakeWorldgenStrategy())
             .WithFixedSpawn(spawn)
             .RegisterStatic();
 
-        Assert.NotNull(captured);
-        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.DimensionSpawn, captured.Value.SpawnBehavior);
-        Assert.Equal(spawn, captured.Value.SpawnPoint);
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.DimensionSpawn, request().SpawnBehavior);
+        Assert.Equal(spawn, request().SpawnPoint);
     }
 
     [Fact]
     public void WithForcedGameMode_Should_Pass_Through_To_Request()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy())
             .WithForcedGameMode(EnumGameMode.Creative)
             .RegisterStatic();
 
-        Assert.NotNull(captured);
-        Assert.Equal(EnumGameMode.Creative, captured.Value.ForcedGameMode);
+        Assert.Equal(EnumGameMode.Creative, request().ForcedGameMode);
     }
 
     [Fact]
     public void SpawnBehavior_Should_Default_To_SameCoordinates_And_GameMode_Null()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
 
-        Assert.NotNull(captured);
-        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.SameCoordinates, captured.Value.SpawnBehavior);
-        Assert.Null(captured.Value.SpawnPoint);
-        Assert.Null(captured.Value.ForcedGameMode);
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.SameCoordinates, request().SpawnBehavior);
+        Assert.Null(request().SpawnPoint);
+        Assert.Null(request().ForcedGameMode);
     }
 
     [Fact]
     public void Streaming_Should_Set_StreamingLoadRadius_On_Request()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).Streaming(5).RegisterStatic();
 
-        Assert.NotNull(captured);
-        Assert.Equal(5, captured.Value.StreamingLoadRadius);
+        Assert.Equal(5, request().StreamingLoadRadius);
     }
 
     [Fact]
     public void StreamingLoadRadius_Should_Default_To_Null()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
 
-        Assert.NotNull(captured);
-        Assert.Null(captured.Value.StreamingLoadRadius);
+        Assert.Null(request().StreamingLoadRadius);
     }
 
     [Fact]
@@ -313,37 +229,40 @@ public sealed class DimensionBuilderImplTests
     [Fact]
     public void WithSeparateInventory_Should_Flow_To_Request()
     {
-        DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
-        {
-            captured = req;
-            return Substitute.For<IDimension>();
-        });
+        var (builder, request) = Capturing();
 
         builder.WithWorldgen(new FakeWorldgenStrategy())
             .WithSeparateInventory(Manifold.Api.ManifoldInventory.Hotbar | Manifold.Api.ManifoldInventory.Backpack)
             .RegisterStatic();
 
-        Assert.NotNull(captured);
         Assert.Equal(
             Manifold.Api.ManifoldInventory.Hotbar | Manifold.Api.ManifoldInventory.Backpack,
-            captured.Value.SeparateInventory);
+            request().SeparateInventory);
     }
 
     [Fact]
     public void SeparateInventory_Should_Default_To_None()
     {
+        var (builder, request) = Capturing();
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.Equal(Manifold.Api.ManifoldInventory.None, request().SeparateInventory);
+    }
+
+    /// <summary>
+    /// A builder whose completion callback captures the <see cref="DimensionBuildRequest"/> it was
+    /// given, for the many tests that only check what a builder method put on the request.
+    /// </summary>
+    private static (DimensionBuilderImpl Builder, Func<DimensionBuildRequest> Request) Capturing(string code = "mod:a")
+    {
         DimensionBuildRequest? captured = null;
-        var builder = new DimensionBuilderImpl(Code("mod:a"), "mod", req =>
+        var builder = new DimensionBuilderImpl(Code(code), "mod", req =>
         {
             captured = req;
             return Substitute.For<IDimension>();
         });
-
-        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
-
-        Assert.NotNull(captured);
-        Assert.Equal(Manifold.Api.ManifoldInventory.None, captured.Value.SeparateInventory);
+        return (builder, () => captured ?? throw new InvalidOperationException("Request not captured: builder was never completed."));
     }
 
     private static AssetLocation Code(string s) => new(s);
