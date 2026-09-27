@@ -82,7 +82,8 @@ public sealed class ManifoldModSystem : ModSystem
             BuildUnhealthyServerFacade(api);
             Mod.Logger.Error(
                 "[Manifold] Disabled - Harmony patches failed at boot. "
-                + "IsHealthy=false; consumer mutations will throw.");
+                + "IsHealthy=false; dimension registration still succeeds (on a disconnected registry "
+                + "with no in-game effect), but transit and relight calls throw ManifoldUnhealthyException.");
             return;
         }
 
