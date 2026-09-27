@@ -160,16 +160,21 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network = new ManifoldNetworkChannel();
 
-        // The mirror is kept alive by the channel delegates and ClientFacade below; it needs no field.
+        // The mirror and transit handler are kept alive by the channel delegates and ClientFacade
+        // below; neither needs a field.
         var clientMirror = new ClientDimensionMirror();
+        var transitHandler = new ClientTransitHandler(
+            clientMirror,
+            action => api.Event.EnqueueMainThreadTask(action, "manifold:localplayertransit"),
+            api.Logger);
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
         _network.OnClientManifest += clientMirror.ApplyManifest;
-        _network.OnClientPlayerTransited += OnClientPlayerTransited;
+        _network.OnClientPlayerTransited += transitHandler.Handle;
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror, api.Logger);
+        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
         ManifoldAccess.SetClientResolver(_ => ClientFacade);
     }
 
@@ -740,14 +745,6 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         Dispose();
-    }
-
-    private void OnClientPlayerTransited(PlayerTransitedPacket packet)
-    {
-        // Reserved scaffolding for IManifoldClient.LocalPlayerTransited (not raised yet - the event
-        // args require an IServerPlayer the client does not have; see the event's XML doc). The packet
-        // type stays registered so v1 can light up the event without a protocol change. No per-packet
-        // work until then: consumers use ClientMirror Added/Removed + IClientPlayer events for now.
     }
 
     private int CountByState(DimensionState state)

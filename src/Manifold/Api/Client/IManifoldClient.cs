@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Manifold.Api.Events;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 
 namespace Manifold.Api.Client;
 
@@ -16,12 +18,25 @@ public interface IManifoldClient
     event EventHandler<DimensionDestroyedEventArgs> Destroyed;
 
     /// <summary>
-    /// Reserved for a future release: intended to fire when the local player transits to a new
-    /// dimension. NOT yet raised in this version (the client has no local player handle to populate
-    /// the event args) - do not depend on it. Subscribe to <see cref="Created"/>/<see cref="Destroyed"/>
-    /// for dimension state, or use the engine's own client player events for local-player hooks.
+    /// Never raised (kept for binary compatibility with mods built against earlier versions that
+    /// subscribe to it): populating its event args needs an <c>IServerPlayer</c> the client does not
+    /// have. Use <see cref="LocalPlayerChangedDimension"/> instead.
     /// </summary>
+    [SuppressMessage("Info Code Smell", "S1133:Deprecated code should be removed", Justification = "Kept for binary compatibility with mods built against pre-0.6 versions that subscribe to it; remove in the next major release.")]
+    [Obsolete("Never raised; use LocalPlayerChangedDimension.")]
     event EventHandler<PlayerEnteredDimensionEventArgs> LocalPlayerTransited;
+
+    /// <summary>
+    /// Raised on the client main thread after the local player transits to a new dimension,
+    /// resolved from the server's notification through the client dimension mirror.
+    /// </summary>
+    /// <remarks>
+    /// Not raised for a transit whose source or target dimension code is not (yet) known to the
+    /// client mirror - for example immediately after joining, before the manifest snapshot has
+    /// arrived, or during a rare resync race. Subscribe to <see cref="Created"/> as well if you
+    /// need to handle that case.
+    /// </remarks>
+    event EventHandler<LocalPlayerDimensionChangedEventArgs> LocalPlayerChangedDimension;
 
     /// <summary>All dimensions known to the client mirror.</summary>
     IReadOnlyCollection<IDimension> Dimensions { get; }
@@ -36,4 +51,13 @@ public interface IManifoldClient
     /// <param name="code">Asset code.</param>
     /// <returns>The dimension or <c>null</c>.</returns>
     IDimension? Get(AssetLocation code);
+
+    /// <summary>
+    /// Finds the mirrored dimension containing <paramref name="entity"/>, by its position's engine
+    /// dimension id (0 is always the overworld).
+    /// </summary>
+    /// <param name="entity">The entity to locate.</param>
+    /// <returns>The dimension, or <c>null</c> if its id is not (yet) known to the client mirror.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="entity"/> is null.</exception>
+    IDimension? GetDimensionOf(Entity entity);
 }

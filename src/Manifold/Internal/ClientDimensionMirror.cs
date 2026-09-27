@@ -44,6 +44,22 @@ internal sealed class ClientDimensionMirror
     public IDimension? Get(AssetLocation code) =>
         code is not null && _snapshot.TryGetValue(code, out var dim) ? dim : null;
 
+    /// <summary>Find a mirrored dimension by its engine dimension id.</summary>
+    /// <param name="internalId">Engine dimension id.</param>
+    /// <returns>The dimension, or <c>null</c> if the mirror does not know it.</returns>
+    public IDimension? GetByInternalId(int internalId)
+    {
+        foreach (var dim in _snapshot.Values)
+        {
+            if (dim.InternalId == internalId)
+            {
+                return dim;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Replace the entire mirror with the supplied snapshot, raising <see cref="Removed"/> for every
     /// dimension the new snapshot drops and <see cref="Added"/> for every one it introduces (diffed
