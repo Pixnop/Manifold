@@ -177,7 +177,7 @@ internal sealed class DimensionGenerator
     /// given dimension. The dimension field of both positions is overwritten with
     /// <paramref name="dimId"/> so callers cannot accidentally relight the overworld (which is
     /// exactly the bug this guards against - a <c>BlockPos</c> built without a dimension targets
-    /// dim 0). Best-effort: lighting failures never propagate.
+    /// dim 0). Best-effort: a lighting failure is logged and reported, never thrown.
     /// </summary>
     /// <param name="sapi">Server API.</param>
     /// <param name="dimId">Engine dimension id to relight in.</param>
@@ -191,17 +191,20 @@ internal sealed class DimensionGenerator
     /// freshly generated column is sent to the client separately (on transit / by the streaming
     /// driver).
     /// </param>
-    public static void RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
+    /// <returns><c>true</c> if the relight succeeded; <c>false</c> if it threw (logged as a warning).</returns>
+    public static bool RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
     {
         var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
         var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
         try
         {
             sapi.WorldManager.FullRelight(minPos, maxPos, sendToClients);
+            return true;
         }
-        catch
+        catch (Exception ex)
         {
-            // FullRelight is best-effort; never block on a lighting failure.
+            sapi.Logger.Warning("[Manifold] Relight of dim {0} {1}..{2} failed: {3}", dimId, minPos, maxPos, ex);
+            return false;
         }
     }
 

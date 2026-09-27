@@ -255,9 +255,11 @@ public sealed class ManifoldModSystem : ModSystem
 
                     // Runtime relight of already-loaded chunks: must push to clients or the
                     // recomputed light is invisible (server-correct, client never re-meshes).
-                    DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
-                    return TextCommandResult.Success(
-                        $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.");
+                    bool relit = DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
+                    return relit
+                        ? TextCommandResult.Success(
+                            $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.")
+                        : TextCommandResult.Error($"Relight of dim {dimId} failed; see the server log.");
                 })
             .EndSubCommand()
             .BeginSubCommand("purge")
