@@ -10,7 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 - **`IDimensionBuilder.WithRelightHeight`** has had no effect since 0.4.2 removed the automatic post-generation relight, and is now marked `[Obsolete]`. It still validates its argument (1..1024), so existing callers keep compiling and running; use `IManifoldServer.RelightRegion` to relight after placing blocks. The internal plumbing that carried the dead value is gone, and the documentation no longer describes a relight pass after generation.
 
+### Fixed
+- **A forced game mode no longer follows the player out of its dimension.** `WithForcedGameMode` set the mode on the way in and never gave the old one back, so a survival player who visited a creative dimension came home in creative. The mode a player had before entering the first forced dimension is now kept in their player moddata (it survives logout and restarts) and restored when they transit to a dimension that forces nothing; chaining forced dimensions still returns the original mode. Every transit path goes through this, including portals, commands, evacuation and the rescue on join.
+- **The client's transit packet now carries the landing position.** `PlayerTransitedPacket` was filled from the player entity's position while the engine had not applied the teleport yet (it waits for the destination chunks), so clients received the position the player left from.
+
 ### Changed
+- **`PlayerEnteredDimensionEventArgs` exposes `TargetPosition`**, the landing position the player was sent to, like `PlayerEntering` and `PlayerArriving` already do. Read it instead of the entity's position, which can still report the source position when the event fires. Its constructor now takes that position.
 - The integration suite runs on Atlas 0.15.0 and, in CI, on Vintage Story 1.22.7 (was 1.22.2). It gained chest-open scenarios in and out of a custom dimension, investigating #79. Stated compatibility is now 1.22.x: 1.21 is no longer tested.
 
 ## [0.4.2] - 2026-07-04
