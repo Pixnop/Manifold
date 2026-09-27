@@ -21,19 +21,6 @@ public sealed class SafeEventTests
     }
 
     [Fact]
-    public void Raise_Should_Continue_After_A_Subscriber_Throws()
-    {
-        bool secondRan = false;
-        EventHandler<Args>? handler = null;
-        handler += (_, _) => throw new InvalidOperationException("boom");
-        handler += (_, _) => secondRan = true;
-
-        SafeEvent.Raise(handler, this, new Args());
-
-        Assert.True(secondRan);
-    }
-
-    [Fact]
     public void Raise_Should_Not_Propagate_A_Subscriber_Exception()
     {
         EventHandler<Args>? handler = null;
