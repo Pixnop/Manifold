@@ -4,7 +4,7 @@
 
 # Manifold
 
-**A Vintage Story 1.21+ library mod for declaring and managing custom dimensions.**
+**A Vintage Story 1.22 library mod for declaring and managing custom dimensions.**
 
 [![Mod DB](https://img.shields.io/badge/Mod_DB-Manifold-1E9FE3)](https://mods.vintagestory.at/manifold)
 [![NuGet](https://img.shields.io/nuget/vpre/Pixnop.Manifold?label=nuget)](https://www.nuget.org/packages/Pixnop.Manifold)
@@ -22,14 +22,14 @@
 
 ### Companion mods
 
-- **[Chart](https://mods.vintagestory.at/chart)** (0.1.0, alpha) - dimension-aware world map. Per-dimension tile cache, vanilla-style rendering pipeline (palette + hillshade + blur), hot-swap on transit. Client-side only. Requires Manifold 0.3.1+. Source under [`companions/Chart/`](companions/Chart/).
+- **[Chart](https://mods.vintagestory.at/chart)** - dimension-aware world map. Per-dimension tile cache, vanilla-style rendering pipeline (palette + hillshade + blur), hot-swap on transit, waypoints filtered by dimension. Client-side only. Source: [Pixnop/Chart](https://github.com/Pixnop/Chart).
 
 ---
 
 ## Features
 
 - **Custom dimensions** - declare persistent or ephemeral dimensions from any mod; boot-time (`RegisterStatic`) or runtime (`Create`).
-- **Active worldgen** - two modes, both configurable per dimension. **Bounded** (default): Manifold pre-generates a fixed chunk region around the transit target before the player arrives, radius set via `WithGenerationRadius`. **Streaming** (opt-in): call `.Streaming(loadRadius)` and Manifold generates chunks on demand as players move, with no invisible walls at a region edge. The streaming radius is extended to the server view distance so generated terrain always reaches as far as the player can see. The relight band height is set per dimension via `WithRelightHeight` (default 20).
+- **Active worldgen** - two modes, both configurable per dimension. **Bounded** (default): Manifold pre-generates a fixed chunk region around the transit target before the player arrives, radius set via `WithGenerationRadius`. **Streaming** (opt-in): call `.Streaming(loadRadius)` and Manifold generates chunks on demand as players move, with no invisible walls at a region edge. The streaming radius is extended to the server view distance so generated terrain always reaches as far as the player can see.
 - **Player transit** - `ITransitionService.TeleportPlayer` moves a player between any two dimensions with a single call.
 - **Entity transit** - `ITransitionService.TeleportEntity` moves non-player entities (dropped items, mobs) between dimensions; the destination region is generated on demand before the entity is re-homed.
 - **Block transit** (0.4.0) - `ITransitionService.TeleportBlock(source, targetDim, targetLocal)` moves a single block plus its `BlockEntity` state (inventory, attributes, BE-behaviors) between dimensions. Completes the Player / Entity / Block triplet; the destination region is generated on demand and the BE state is round-tripped through `ToTreeAttributes` / `FromTreeAttributes`.
@@ -38,6 +38,9 @@
 - **Per-dimension inventory** (opt-in) - `WithSeparateInventory(ManifoldInventory.Hotbar | Backpack | Character)` gives a dimension its own player inventory for the chosen categories. Entering swaps to the dimension's set (empty on the first visit), leaving restores the previous one. Stored in player moddata so it survives logout and restarts, with no item loss.
 - **Per-dimension metadata** (0.4.0) - `.WithMetadata(key, value)` attaches typed registration-time hints to a dimension; consumers read them via `IDimension.Metadata` or the typed `GetMetadata<T>(key, defaultValue)` extension. Supports primitives, `string`, `enum`, `byte[]`, and `null`.
 - **Per-dimension streaming budget** (0.4.0) - `.WithStreamingBudget(maxColumnsPerTick)` (range 1..64) caps how many columns the streaming driver may ensure for that dimension per tick. Budgets are independent so a busy dim cannot starve a quiet one.
+- **Dark dimensions** - `WithDarkSky(ceilingY)` seals every generated column with an opaque ceiling, so an enclosed dimension stays dark and is lit only by block light. The engine has no per-dimension day/night, so open custom dimensions otherwise render fully lit.
+- **Runtime relight** - `IManifoldServer.RelightRegion(dimension, min, max)` and the `/manifold relight [radius]` admin command recalculate light in a custom dimension after a mod places blocks there (the engine's own relight is dimension-blind).
+- **Safe teardown** - a dimension is never removed while a player stands in it; `ForceRemoveDimension` evacuates an ephemeral one first, ephemeral dimensions are reaped when their last occupant transits out, and `/manifold purge <code>` is the admin path for persistent or quarantined ones. Players whose saved dimension no longer exists are rescued to the overworld on join.
 - **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
 - **Client mirror** - the dimension list is replicated to connected clients via `IManifoldClient`.
 - **Zero Harmony patches** - built entirely on the public `VintagestoryAPI`. 0Harmony and protobuf are provided by the game and not patched.
@@ -55,7 +58,7 @@
   "name": "My Mod",
   "version": "1.0.0",
   "dependencies": {
-    "game": "1.21.0",
+    "game": "1.22.0",
     "manifold": ""
   }
 }
@@ -106,7 +109,7 @@ public sealed class MyModSystem : ModSystem
 
 | Requirement | Version |
 |-------------|---------|
-| Vintage Story | 1.21+ |
+| Vintage Story | 1.22.x (integration suite runs on 1.22.7) |
 | .NET | 10 |
 | Harmony | Not required (0Harmony provided by the game) |
 | protobuf-net | Not required (bundled with the game) |
@@ -133,7 +136,8 @@ Requires a local Vintage Story install with the `VINTAGE_STORY` environment vari
 # Build all projects
 dotnet build -c Release
 
-# Run pure (non-VS-runtime) unit tests
+# Run pure (non-VS-runtime) unit tests. They need a 1.22.3 or older VintagestoryAPI.dll:
+# from 1.22.4 on, IPlayer carries an internal member NSubstitute cannot proxy.
 dotnet test tests/Manifold.Pure.Tests
 
 # Run with code coverage
