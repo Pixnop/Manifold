@@ -156,6 +156,37 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         Assert.Equal(512, toFlatPacket.TargetZ);
     }
 
+    // Regression for the transit-out-of-ephemeral bug: the last occupant leaving an ephemeral
+    // dimension both sends a PlayerTransitedPacket (for the player) and reaps the now-empty
+    // dimension, which broadcasts a DimensionRemovedPacket for the very code the transit packet
+    // names as its source. ManifoldModSystem sends the transit packet before reaping so a client
+    // applying packets in arrival order still finds the source in its mirror when it resolves the
+    // transit. IClientObservations exposes no cross-type packet sequencing, so this asserts both
+    // packets' content rather than their wire order; the ordering itself is fixed at the call site
+    // (OnTransitPlayerEntered sends before ReapEphemeralIfEmpty runs) and covered by
+    // ClientTransitHandlerTests, which documents why the order matters to a resolving client.
+    [AtlasScenario]
+    public async Task Client_Should_ReceiveTransitedAndRemoved_When_LastOccupantLeavesEphemeral()
+    {
+        await Ok("/atlasfx create-ephemeral mirrorleave");
+        int leaveId = await DimensionId("mirrorleave");
+        ITestPlayer player = await World.JoinPlayer("atlas_mleave");
+        await Ok("/atlasfx teleport-player atlas_mleave mirrorleave");
+        await LandedAt(player, leaveId, 512, 512);
+        player.Client.Clear();
+
+        await Ok("/atlasfx teleport-player atlas_mleave overworld");
+        await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
+
+        PlayerTransitedPacket transited = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
+        Assert.Equal("atlasfixture:mirrorleave", transited.SourceCode);
+        Assert.Equal("manifold:overworld", transited.TargetCode);
+
+        DimensionRemovedPacket removed = Assert.Single(player.Client.Packets<DimensionRemovedPacket>(Channel));
+        Assert.Equal("atlasfixture:mirrorleave", removed.Code);
+        Assert.Equal(leaveId, removed.InternalId);
+    }
+
     private static MetadataEntry Single(DimensionDescriptor descriptor, string key) =>
         Assert.Single(descriptor.Metadata, e => e.Key == key);
 

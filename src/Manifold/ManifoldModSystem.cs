@@ -129,7 +129,6 @@ public sealed class ManifoldModSystem : ModSystem
             _positionStore,
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
-        transit.PlayerLeft += OnTransitPlayerLeft;
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, isHealthy: true);
         ManifoldAccess.SetServerResolver(_ => ServerFacade);
@@ -431,6 +430,10 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)
     {
+        // Send the transit packet before reaping the source dimension below: the client resolves
+        // this packet's source/target codes through its dimension mirror, and reaping broadcasts a
+        // DimensionRemovedPacket that would otherwise remove the source from that mirror first,
+        // making the transit unresolvable on the client (see ReapEphemeralIfEmpty).
         _network?.SendPlayerTransited(e.Player, new PlayerTransitedPacket
         {
             SourceCode = e.SourceDimension.Code.ToString(),
@@ -439,10 +442,7 @@ public sealed class ManifoldModSystem : ModSystem
             TargetY = e.TargetPosition.Y,
             TargetZ = e.TargetPosition.Z,
         });
-    }
 
-    private void OnTransitPlayerLeft(object? sender, PlayerLeftDimensionEventArgs e)
-    {
         // When a player transits out, try to reap the dimension they left if it is an empty ephemeral
         // instance. Disconnect does NOT reap (see OnPlayerDisconnect): a logged-out player keeps their
         // dimension so they reconnect into it; it is only reaped on a deliberate leave or at shutdown.
