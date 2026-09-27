@@ -27,6 +27,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # A manual publish of an already released version must pack that release's tagged
+      # sources, not whatever the dispatching branch holds today. Checked out beside the
+      # workspace so this workflow's own local actions stay available.
+      - name: Check out the release tag
+        if: inputs.version != ''
+        uses: actions/checkout@v7
+        with:
+          ref: v${{ inputs.version }}
+          path: release
+
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
@@ -49,8 +59,12 @@ jobs:
           else
             VERSION="0.0.0-dev.$GITHUB_RUN_NUMBER"
           fi
-          echo "Packing version $VERSION"
-          dotnet pack src/Manifold/Manifold.csproj -c Release -p:Version="$VERSION" -o nupkgs
+          SRC=.
+          if [ "$GITHUB_REF_TYPE" != "tag" ] && [ -n "$INPUT_VERSION" ]; then
+            SRC=release
+          fi
+          echo "Packing version $VERSION from $SRC"
+          dotnet pack "$SRC/src/Manifold/Manifold.csproj" -c Release -p:Version="$VERSION" -o nupkgs
           ls -la nupkgs
 
       - name: NuGet login (Trusted Publishing)
