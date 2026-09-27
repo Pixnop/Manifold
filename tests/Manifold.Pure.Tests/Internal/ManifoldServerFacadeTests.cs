@@ -196,9 +196,11 @@ public sealed class ManifoldServerFacadeTests
         var (facade, sapi) = NewFacade(healthy: true);
         var target = facade.Registry.Get(new AssetLocation("owner:target"))!;
 
-        facade.GenerateRegion(new AssetLocation("owner:target"), new BlockPos(0, 8, 0, 0));
+        facade.GenerateRegion(new AssetLocation("owner:target"), new BlockPos(64, 8, 160, 0));
 
-        sapi.WorldManager.Received(1).CreateChunkColumnForDimension(0, 0, target.InternalId);
+        // Distinct, non-zero chunk X and Z catch an X/Z swap: chunk (2, 5), never (5, 2).
+        sapi.WorldManager.Received(1).CreateChunkColumnForDimension(2, 5, target.InternalId);
+        sapi.WorldManager.DidNotReceive().CreateChunkColumnForDimension(5, 2, target.InternalId);
         sapi.WorldManager.DidNotReceiveWithAnyArgs().ForceSendChunkColumn(default!, default, default, default);
     }
 
