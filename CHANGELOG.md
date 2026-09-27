@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-27
+
+A note on the NuGet package: `Pixnop.Manifold` 0.4.2 on nuget.org was packed after the release, from a later commit than the `v0.4.2` tag, so it already contains three API changes listed below (`PlayerEnteredDimensionEventArgs.TargetPosition` and its constructor, and `[Obsolete]` on `WithRelightHeight`) that the 0.4.2 mod zip does not. 0.5.0 brings the package and the mod back in line; build against it.
+
 ### Deprecated
 - **`IDimensionBuilder.WithRelightHeight`** has had no effect since 0.4.2 removed the automatic post-generation relight, and is now marked `[Obsolete]`. It still validates its argument (1..1024), so existing callers keep compiling and running; use `IManifoldServer.RelightRegion` to relight after placing blocks. The internal plumbing that carried the dead value is gone, and the documentation no longer describes a relight pass after generation.
 
@@ -23,11 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`TransitionOptions.OverridePosition` no longer mutates the caller's `BlockPos`.** Every transit that used it re-pointed the caller's own position instance to the target dimension in place; a `BlockPos` the caller kept around (a cached arena spawn, a position also used for block writes) silently ended up encoded for the wrong dimension. The dimension is now stamped on a copy.
 - **A cancelled transit is now logged instead of vanishing silently.** A `PlayerEntering`/`PlayerArriving` subscriber that cancels a transit is logged (with the subscriber's `CancellationReason` for `PlayerArriving`), matching what the event's own documentation already claimed.
 - **`/manifold purge` no longer destroys a dimension while someone is still stuck inside it.** Occupant evacuation is best-effort, and the command counted every evacuation *attempt* as a success; a player a failed teleport left behind was destroyed along with their dimension. It now counts only occupants actually evacuated and reports an error naming how many remain instead of proceeding.
+- **A rescue to the overworld that a subscriber cancels is no longer reported as done.** The rescue on join logged "Rescued" even when a `PlayerEntering`/`PlayerArriving` subscriber had vetoed the transit, and the evacuation before `ForceRemoveDimension` swallowed a failed rescue without a trace. Both now check that the player actually left and log a warning when they did not.
+- **Moving a non-player entity to negative coordinates re-homed it in the wrong chunk.** `TeleportEntity` computed the entity's chunk with truncating division, one chunk off for negative X, Y or Z; it now uses the same floor division as every other transit path.
 
 ### Changed
 - **`PlayerEnteredDimensionEventArgs` exposes `TargetPosition`**, the landing position the player was sent to, like `PlayerEntering` and `PlayerArriving` already do. Read it instead of the entity's position, which can still report the source position when the event fires. **Breaking:** the public constructor now requires the landing position (`new PlayerEnteredDimensionEventArgs(player, source, target, targetPosition)`); the previous 3-argument overload is gone.
 - The integration suite runs on Atlas 0.15.0 and, in CI, on Vintage Story 1.22.7 (was 1.22.2), and grows from 12 to 63 scenarios: admin commands with real player privileges, teardown and evacuation, transit event order and vetoes, travel policies and forced game modes, command builders, the packets the client mirror receives, quarantine and persistence across a real server restart, engine id recycling, reconnection, and chest access in and out of a custom dimension (investigating #79). Stated compatibility is now 1.22.x: 1.21 is no longer tested.
 - **Manifold resyncs its registry after an Atlas world rollback.** It listens for the `atlas:rollback:restored` event and re-runs its boot hydrate against the restored SaveGame, so test suites that roll the world back between scenarios see a coherent registry. The event only fires under Atlas; in a normal game the listener never runs.
+- **The API reference and the articles now describe what the code does.** Among the corrections: `IManifoldClient.IsHealthy` is always `true` on the client (server health is not replicated); `IWorldgenChunkContext.Rng` documents its actual seed, which does not depend on the dimension, and why a strategy should call `InitPositionSeed` before drawing; `IWorldgenStrategy` documents the lazy, retried `OnInitialize` and the auto-disable after 4 consecutive failures; missing `<exception>` tags are filled in. Every C# snippet in the articles now compiles against the real API.
 
 ## [0.4.2] - 2026-07-04
 
