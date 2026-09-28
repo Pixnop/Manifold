@@ -97,9 +97,25 @@ jobs:
             --logger "trx;LogFileName=scenarios.trx" \
             --results-directory TestResults
 
+      # Cross-version compatibility (0.5.1 release <-> this dev build, both directions):
+      # loads the two committed savegame fixtures under tests/Manifold.Scenarios.Compat/fixtures
+      # (see that project's README; Manifold.Scenarios.CompatFixtures, which built them, is a
+      # one-time local generator and does not run here). dotnet test, not a plain `atlas run`:
+      # see the README for why a plain `atlas run` here is unsafe (one process cannot load two
+      # different builds of the same-identity Manifold.dll), which dotnet test's own test host
+      # does not hit.
+      - name: E2E compat scenarios (0.5.1 <-> dev)
+        run: |
+          dotnet test tests/Manifold.Scenarios.Compat \
+            -c Release \
+            --logger "trx;LogFileName=compat.trx" \
+            --results-directory TestResults
+
       - name: Upload E2E results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: scenarios-trx
-          path: TestResults/scenarios.trx
+          path: |
+            TestResults/scenarios.trx
+            TestResults/compat.trx
