@@ -75,6 +75,66 @@ public sealed class GeneratedColumnStoreTests
     }
 
     [Fact]
+    public void ToBytes_Should_Match_The_0_5_1_Released_Format()
+    {
+        // Golden bytes: the wire format is 8 bytes per key, little-endian, packed as
+        // (dim << 42) | (cx << 21) | cz (see the class remarks) - pinned independently of ToBytes
+        // itself so a format change here is caught even if the writer and this assertion drifted
+        // together. Unchanged since v0.5.1 (git show v0.5.1:src/Manifold/Internal/GeneratedColumnStore.cs).
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(10, 5, 7);
+
+        long expectedKey = (10L << 42) | (5L << 21) | 7L;
+        Assert.Equal(System.BitConverter.GetBytes(expectedKey), store.ToBytes());
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Read_A_Blob_With_No_Sidecar_Entry_As_Version_1()
+    {
+        var store = new GeneratedColumnStore();
+        store.LoadFromBytes(new GeneratedColumnStore().ToBytes()); // version defaults to 1
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Refuse_A_Schema_Version_Newer_Than_Supported()
+    {
+        var seed = new GeneratedColumnStore();
+        seed.MarkGenerated(10, 5, 7);
+
+        var store = new GeneratedColumnStore();
+        store.LoadFromBytes(seed.ToBytes(), version: 99);
+
+        Assert.True(store.IsVersionRefused);
+        Assert.False(store.IsDirty);
+    }
+
+    [Fact]
+    public void IsGenerated_Should_Fail_Closed_When_The_Version_Is_Refused()
+    {
+        // A refused load has no reliable record of which columns were generated: every column
+        // must read as already generated (loaded from disk, never regenerated) so nothing
+        // regenerates over player modifications made under the newer version.
+        var store = new GeneratedColumnStore();
+        store.LoadFromBytes(null, version: 99);
+
+        Assert.True(store.IsGenerated(1, 2, 3));
+        Assert.True(store.IsGenerated(999, -1, -1));
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Clear_IsVersionRefused_On_A_Later_Accepted_Load()
+    {
+        var store = new GeneratedColumnStore();
+        store.LoadFromBytes(null, version: 99);
+        Assert.True(store.IsVersionRefused);
+
+        store.LoadFromBytes(null);
+
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
     public void RemoveDimension_Should_Drop_Only_That_Dimensions_Columns()
     {
         var store = new GeneratedColumnStore();

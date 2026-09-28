@@ -23,6 +23,9 @@ namespace Manifold.Internal;
 /// </remarks>
 internal sealed class GeneratedColumnStore
 {
+    /// <summary>Current schema version this build writes and reads via <see cref="ToBytes"/>/<see cref="LoadFromBytes"/>.</summary>
+    public const int SchemaVersion = 1;
+
     private const int CoordBits = 21;
     private const long CoordMask = (1L << CoordBits) - 1;
 
@@ -34,12 +37,27 @@ internal sealed class GeneratedColumnStore
     /// <summary>Whether the set has unsaved changes since the last <see cref="ClearDirty"/>.</summary>
     public bool IsDirty { get; private set; }
 
-    /// <summary>Returns <c>true</c> if the column has already been generated and persisted.</summary>
+    /// <summary>
+    /// Whether the last <see cref="LoadFromBytes"/> refused a schema version newer than this build
+    /// supports. Latched until the next call to <see cref="LoadFromBytes"/>. While <c>true</c>, the
+    /// caller must not persist this store's key (the newer blob is preserved elsewhere), and
+    /// <see cref="IsGenerated"/> fails closed so nothing regenerates over player modifications made
+    /// under the newer version.
+    /// </summary>
+    public bool IsVersionRefused { get; private set; }
+
+    /// <summary>
+    /// Returns <c>true</c> if the column has already been generated and persisted, or if
+    /// <see cref="IsVersionRefused"/> is set - a refused load has no reliable record of which
+    /// columns were generated, so every column is treated as already generated (loaded from disk,
+    /// never regenerated) rather than risk overwriting player modifications made under the newer
+    /// version.
+    /// </summary>
     /// <param name="dim">Engine dimension id.</param>
     /// <param name="cx">Chunk X.</param>
     /// <param name="cz">Chunk Z.</param>
-    /// <returns><c>true</c> if previously generated.</returns>
-    public bool IsGenerated(int dim, int cx, int cz) => _keys.Contains(Pack(dim, cx, cz));
+    /// <returns><c>true</c> if previously generated, or the store is in the refused state.</returns>
+    public bool IsGenerated(int dim, int cx, int cz) => IsVersionRefused || _keys.Contains(Pack(dim, cx, cz));
 
     /// <summary>Records that a column has been generated. Sets <see cref="IsDirty"/> if newly added.</summary>
     /// <param name="dim">Engine dimension id.</param>
@@ -68,12 +86,19 @@ internal sealed class GeneratedColumnStore
         return buffer;
     }
 
-    /// <summary>Replaces the set from a byte array produced by <see cref="ToBytes"/>. Clears the dirty flag.</summary>
+    /// <summary>
+    /// Replaces the set from a byte array produced by <see cref="ToBytes"/>. Clears the dirty
+    /// flag. The blob format itself never changed by versioning: a <paramref name="version"/>
+    /// newer than <see cref="SchemaVersion"/> is refused - the data is not parsed, and
+    /// <see cref="IsVersionRefused"/> is set (see its remarks) instead of misreading it.
+    /// </summary>
     /// <param name="data">Serialised bytes, or <c>null</c>/empty for an empty set.</param>
-    public void LoadFromBytes(byte[]? data)
+    /// <param name="version">The schema version recorded for this blob (from the sidecar; 1 if it has none).</param>
+    public void LoadFromBytes(byte[]? data, int version = SchemaVersion)
     {
         _keys.Clear();
-        if (data is not null && data.Length >= sizeof(long))
+        IsVersionRefused = version > SchemaVersion;
+        if (!IsVersionRefused && data is not null && data.Length >= sizeof(long))
         {
             int count = data.Length / sizeof(long);
             for (int i = 0; i < count; i++)
