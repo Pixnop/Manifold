@@ -67,7 +67,7 @@ question is asking.
       --out tests/Manifold.Scenarios.Compat/fixtures/downgrade-from-dev.vcdbs --force
 
 (`atlas` is the `Pixnop.Atlas.Cli` dotnet tool; `dotnet tool install -g Pixnop.Atlas.Cli
---version 0.15.0` if not already installed, matching `Pixnop.Atlas.XUnit`'s version - an
+--version 0.15.0` if not already installed, matching `Pixnop.Atlas.XUnit`'s version, since an
 older CLI reports version skew and exits 2 instead of harvesting.) Re-run both any time
 `CompatFixtureModSystem` or a builder scenario's world-building steps change; commit the
 resulting files alongside that change.

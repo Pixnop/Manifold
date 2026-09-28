@@ -48,7 +48,7 @@ test`/`atlas run --parallel`, ten-for-ten green), not a flaky scenario: do not "
 
 Everything the brief asked for is covered by real, restartable, engine-backed assertions;
 nothing was impossible. The one accommodation: `atlas fixture` (Atlas 0.15.0), not
-`[AtlasScenario(RestartWorld = true)]`, is what actually produces the two fixture saves - see
+`[AtlasScenario(RestartWorld = true)]`, is what actually produces the two fixture saves; see
 `Manifold.Scenarios.CompatFixtures/README.md`'s "Why a separate project" section for why
 `RestartWorld` alone cannot (it restarts the class host BEFORE the scenario body that would
 need to seed the world runs, and scenario order within a class is not guaranteed, so two
