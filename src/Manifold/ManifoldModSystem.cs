@@ -521,8 +521,26 @@ public sealed class ManifoldModSystem : ModSystem
             manifest[entry.Code] = entry;
         }
 
+        int dropped = DropStaleRegistrations(manifest);
+        int reseeded = ReseedMissingManifestEntries(manifest);
+
+        // Restore the persisted set of generated columns so revisits LOAD (preserving player
+        // modifications) instead of regenerating over them, and the per-player last positions.
+        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
+        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey), Mod.Logger);
+
+        return (dropped, reseeded);
+    }
+
+    /// <summary>
+    /// Drops every non-built-in registration <paramref name="manifest"/> does not describe with the
+    /// same (code, id, lifetime, owner), via the purge path so ids are released, Destroyed fires, and
+    /// the per-dimension cleanup runs. Part of <see cref="ResyncFromSaveGame"/>'s first pass.
+    /// </summary>
+    private int DropStaleRegistrations(Dictionary<AssetLocation, ManifestEntry> manifest)
+    {
         int dropped = 0;
-        foreach (var dim in _registry.All)
+        foreach (var dim in _registry!.All)
         {
             if (dim.IsBuiltIn || dim.Lifetime == DimensionLifetime.BuiltIn)
             {
@@ -543,19 +561,28 @@ public sealed class ManifoldModSystem : ModSystem
             }
         }
 
-        // A corrupt/tampered entry (out-of-range id, bad code) must not abort the whole seed loop
-        // and break the hydrate - log and skip it, matching LoadOrEmpty's drop-silently policy.
+        return dropped;
+    }
+
+    /// <summary>
+    /// Re-seeds <paramref name="manifest"/> entries memory lacks (a removal undone by the rollback),
+    /// Pending or Quarantined exactly as at boot. A corrupt/tampered entry (out-of-range id, bad code)
+    /// must not abort the loop - it is logged and skipped, matching LoadOrEmpty's drop-silently policy.
+    /// Part of <see cref="ResyncFromSaveGame"/>'s second pass.
+    /// </summary>
+    private int ReseedMissingManifestEntries(Dictionary<AssetLocation, ManifestEntry> manifest)
+    {
         int reseeded = 0;
         foreach (var entry in manifest.Values)
         {
-            if (_registry.Get(entry.Code) is not null)
+            if (_registry!.Get(entry.Code) is not null)
             {
                 continue;
             }
 
             try
             {
-                var state = _persistence.Classify(entry);
+                var state = _persistence!.Classify(entry);
                 _registry.SeedFromManifest(entry, state);
                 reseeded++;
             }
@@ -565,12 +592,7 @@ public sealed class ManifoldModSystem : ModSystem
             }
         }
 
-        // Restore the persisted set of generated columns so revisits LOAD (preserving player
-        // modifications) instead of regenerating over them, and the per-player last positions.
-        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
-        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey), Mod.Logger);
-
-        return (dropped, reseeded);
+        return reseeded;
     }
 
     /// <summary>Builds the full manifest snapshot (the join-time packet, and the rollback-resync broadcast).</summary>
