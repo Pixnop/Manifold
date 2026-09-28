@@ -383,7 +383,16 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         try
         {
             bool moved = _manifold.Transitions.TeleportBlock(source, ResolveTargetCode((string)args[4]), targetLocal);
-            return TextCommandResult.Success(moved ? "moved" : "no-op");
+            if (moved)
+            {
+                return TextCommandResult.Success("moved");
+            }
+
+            // Tells apart the two ways TeleportBlock can no-op: source was air, or source is part of
+            // a multi-position structure (multiblock/door/bed) and was refused. Also exercises
+            // IsMultiPositionBlock as the pre-check callers are meant to use.
+            bool refused = _manifold.Transitions.IsMultiPositionBlock(source);
+            return TextCommandResult.Success(refused ? "refused" : "no-op");
         }
         catch (ManifoldException ex)
         {
