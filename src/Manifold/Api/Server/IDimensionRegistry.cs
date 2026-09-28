@@ -27,7 +27,7 @@ public interface IDimensionRegistry
     event EventHandler<DimensionDestroyedEventArgs> Destroyed;
 
     /// <summary>
-    /// Raised immediately after Manifold generates a brand-new chunk column for a dimension - never
+    /// Raised immediately after Manifold generates a brand-new chunk column for a dimension; never
     /// for a column it only <em>loaded</em> from disk (a restart, or a re-visit of an already
     /// generated column). Use it to decorate or post-process the terrain a worldgen strategy just
     /// produced (a structure, a marker, loot) without changing the strategy itself. Raised on the

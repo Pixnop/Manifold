@@ -98,7 +98,7 @@ manifold.Registry.Destroyed += (_, e) =>
 
 manifold.Registry.ColumnGenerated += (_, e) =>
 {
-    // Fires only for a brand-new column, never one loaded from disk - see Worldgen.md for using
+    // Fires only for a brand-new column, never one loaded from disk: see Worldgen.md for using
     // e.BlockAccessor to decorate it (a structure, a marker) right after generation.
     Mod.Logger.Notification($"Column ({e.ChunkX}, {e.ChunkZ}) generated in {e.Dimension.Code}");
 };
@@ -135,8 +135,8 @@ strategy and policies, or it stays `Pending` forever and every transit into it t
 Promotion also keeps the Pending entry's **lifetime**, ignoring `Persistent()`/`Ephemeral()` on the
 builder that completes it: a Pending entry is always `Persistent` (only `Persistent` dimensions are
 written to the manifest), so it stays `Persistent` even if you build it with `Ephemeral()` this time.
-This is deliberate - a Pending entry already has occupants and saved chunks riding on its original
-lifetime - but building it with `Ephemeral()` is usually a bug (the wrong builder call, or a code
+This is deliberate: a Pending entry already has occupants and saved chunks riding on its original
+lifetime. Building it with `Ephemeral()` is usually a bug (the wrong builder call, or a code
 reused for a different dimension), so Manifold logs a warning naming the code, the requested
 lifetime, and the one actually kept.
 

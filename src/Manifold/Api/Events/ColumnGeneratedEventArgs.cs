@@ -4,7 +4,7 @@ using Vintagestory.API.Common;
 namespace Manifold.Api.Events;
 
 /// <summary>
-/// Raised after Manifold generates a brand-new chunk column - never for a column it only loaded
+/// Raised after Manifold generates a brand-new chunk column; never for a column it only loaded
 /// from disk. See <see cref="Server.IDimensionRegistry.ColumnGenerated"/>.
 /// </summary>
 public sealed class ColumnGeneratedEventArgs : EventArgs
@@ -39,12 +39,12 @@ public sealed class ColumnGeneratedEventArgs : EventArgs
     /// <summary>
     /// Gets the accessor to use for decorating the generated column (placing a structure, a marker,
     /// loot). This is a plain, non-bulk accessor: writes apply immediately, no <c>Commit</c> call is
-    /// needed. It is built with <c>synchronize:false, relight:false</c> - the same semantics as
-    /// worldgen itself - so a write here does not queue a server relight task or a
+    /// needed. It is built with <c>synchronize:false, relight:false</c> (the same semantics as
+    /// worldgen itself), so a write here does not queue a server relight task or a
     /// neighbour-update/resync entry the way a live player edit would; use
     /// <see cref="Server.IManifoldServer.RelightRegion"/> if the decoration needs lighting. The
-    /// column has not been sent to any client yet when this event fires - sending always happens
-    /// afterwards - so a block set here reaches clients as part of the column's normal first send,
+    /// column has not been sent to any client yet when this event fires (sending always happens
+    /// afterwards), so a block set here reaches clients as part of the column's normal first send,
     /// with no extra resync required. Only this event's column (<see cref="ChunkX"/>,
     /// <see cref="ChunkZ"/>) is guaranteed loaded: a write that lands in a neighbour column not
     /// generated yet is silently dropped, so a structure spanning multiple columns must be split

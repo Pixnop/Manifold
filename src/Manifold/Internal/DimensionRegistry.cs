@@ -247,7 +247,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
             // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is
             // new. A builder that requested a different lifetime than the entry it is promoting is
             // most likely a bug (a code that used to be Persistent now built with Ephemeral(), or
-            // vice versa) - the kept lifetime wins silently, but we warn so it does not go unnoticed.
+            // vice versa): the kept lifetime wins silently, but we warn so it does not go unnoticed.
             if (template.Lifetime != existing.Lifetime)
             {
                 _logger?.Warning(
