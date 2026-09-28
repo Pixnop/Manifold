@@ -997,18 +997,22 @@ body[data-layout='landing'] article > :not(.mf-drift-zone) { position: relative;
    at rest (no observer runs).
    -------------------------------------------------------------------------- */
 .mf-build-heading {
-  margin-bottom: 0;
+  margin-bottom: 0.75rem;
 }
 .mf-build-heading__blocks {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   justify-content: center;
-  margin: 0.5rem 0 0;
+  margin: 0.65rem 0 0;
 }
 .mf-build-heading__blocks span {
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
   background: var(--mf-green);
+  /* a thin top-left highlight and bottom-right shade, so a 16px square reads as a small
+     isometric cube instead of a flat colour swatch */
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.25), inset -2px -2px 0 rgba(0, 0, 0, 0.25);
   opacity: 0;
   transform: translateY(6px) scale(0.6);
   transition: opacity 260ms ease, transform 260ms ease;
