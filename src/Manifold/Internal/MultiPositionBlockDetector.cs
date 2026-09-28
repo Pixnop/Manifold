@@ -21,7 +21,7 @@ namespace Manifold.Internal;
 /// interface. The engine's <c>BlockMultiblock</c> (<c>Vintagestory.GameContent</c>, VSEssentials) is
 /// the only implementation today, and it is what fills every non-origin cell of a
 /// <c>BlockBehaviorMultiblock</c> structure and every door cell beyond its first (width or height
-/// greater than one, including wide gates) - so this one check also covers ordinary doors, which are
+/// greater than one, including wide gates): this one check also covers ordinary doors, which are
 /// two cells tall. A vanilla trapdoor is a single cell and is not covered by, or affected by, this
 /// check.
 /// </item>
@@ -46,7 +46,7 @@ namespace Manifold.Internal;
 /// facing, not through <see cref="IMultiblockOffset"/>, so they need their own check by runtime type
 /// name: the bed (<c>Vintagestory.GameContent.BlockBed</c>, VSSurvivalMod), the large trough
 /// (<c>Vintagestory.GameContent.BlockTroughDoubleBlock</c>, VSSurvivalMod, head/feet halves), and the
-/// legacy door (<c>Vintagestory.GameContent.BlockDoor</c>, VSSurvivalMod, up/down halves - worlds
+/// legacy door (<c>Vintagestory.GameContent.BlockDoor</c>, VSSurvivalMod, up/down halves; worlds
 /// predating the current door behavior may still contain these).
 /// </item>
 /// </list>
@@ -117,8 +117,8 @@ internal static class MultiPositionBlockDetector
     }
 
     /// <summary>
-    /// True when the block at <paramref name="pos"/> is a satellite - either an
-    /// <see cref="IMultiblockOffset"/> implementer or a large gear filler - and reports a
+    /// True when the block at <paramref name="pos"/> is a satellite (either an
+    /// <see cref="IMultiblockOffset"/> implementer or a large gear filler) and reports a
     /// controller position.
     /// </summary>
     private static bool TryGetSatelliteControlPos(IBlockAccessor accessor, Block block, BlockPos pos, out BlockPos? controlPos)

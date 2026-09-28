@@ -127,20 +127,20 @@ A door, a bed, or any structure built on the engine's multiblock mechanism occup
 grid position for one logical object. `TeleportBlock` only ever copies a single position plus its
 `BlockEntity`, so moving one cell of such a structure would leave the rest of it behind, broken, at
 the source, and drop an incomplete fragment of it at the target. Instead, `TeleportBlock` detects
-this before writing anything and refuses the move - neither side is touched:
+this before writing anything and refuses the move: neither side is touched.
 
 - A multiblock satellite or controller (the engine's `BlockMultiblock`, and anything built on
-  `BlockBehaviorMultiblock`) - this also covers ordinary doors, including wide gates, which fill
+  `BlockBehaviorMultiblock`): this also covers ordinary doors, including wide gates, which fill
   every cell beyond their first with the same satellite mechanism (a plain 1-wide door is already
   two cells tall). A vanilla trapdoor is a single cell; it is not covered by this check and is moved
   normally.
 - A large gear's fillers (`BlockMPMultiblockGear`) or its centre (`BlockLargeGear3m`).
 - A bed's head or feet half.
 - A large trough's head or feet half (`BlockTroughDoubleBlock`).
-- A legacy door's up or down half (`BlockDoor`) - worlds predating the current door behavior may
+- A legacy door's up or down half (`BlockDoor`): worlds predating the current door behavior may
   still contain these.
 
-The refusal returns `false` - the same value as the existing air no-op - and is logged as a
+The refusal returns `false` (the same value as the existing air no-op) and is logged as a
 warning with the reason. Call `IsMultiPositionBlock` first to tell the two apart, or to give a
 player a clearer message than a silent no-op:
 

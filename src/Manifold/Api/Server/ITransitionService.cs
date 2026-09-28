@@ -98,7 +98,7 @@ public interface ITransitionService
     /// Refuses (returns <c>false</c>, without touching either position) when the source is one part
     /// of a structure spanning several grid positions: a multiblock satellite or controller (this
     /// also covers ordinary doors, including wide gates, which fill their extra cells with the same
-    /// satellite mechanism - a vanilla trapdoor is a single cell and is not covered by this), a large
+    /// satellite mechanism; a vanilla trapdoor is a single cell and is not covered by this), a large
     /// gear's fillers, or one half of a bed, large trough, or legacy door. Moving only one such
     /// position with this method's plain block-plus-<c>BlockEntity</c> copy would leave the structure
     /// broken both at the source and at the target. The refusal is logged as a warning with the
@@ -121,8 +121,8 @@ public interface ITransitionService
 
     /// <summary>
     /// True when the block at <paramref name="pos"/> is one part of a structure spanning several
-    /// grid positions - a multiblock satellite or controller (including a door cell beyond its
-    /// first, or a large gear filler), or one half of a bed, large trough, or legacy door - and
+    /// grid positions (a multiblock satellite or controller, including a door cell beyond its
+    /// first, or a large gear filler, or one half of a bed, large trough, or legacy door), and
     /// would therefore be refused by <see cref="TeleportBlock"/> rather than moved. A vanilla
     /// trapdoor is a single cell and is unaffected. Safe to call ahead of time; reads world state
     /// only and does not require <c>pos.dimension</c> to be a registered, active dimension.

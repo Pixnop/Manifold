@@ -61,7 +61,7 @@ public class BlockTransitScenarios : ManifoldScenarioBase
     public async Task TeleportBlock_Should_Refuse_And_Leave_A_Bed_Intact()
     {
         // A bed is two independently placed blocks (head/feet) linked by code and facing, not by the
-        // engine's multiblock mechanism - the one vanilla case MultiPositionBlockDetector matches by
+        // engine's multiblock mechanism: the one vanilla case MultiPositionBlockDetector matches by
         // block class name instead. North's normal is (0, 0, -1); head sits one block north of feet.
         BlockPos feet = World.Spawn.Offset(9, 1, 0);
         BlockPos head = feet.AddCopy(0, 0, -1);
@@ -83,8 +83,8 @@ public class BlockTransitScenarios : ManifoldScenarioBase
     [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task TeleportBlock_Should_Refuse_And_Leave_A_Large_Trough_Half_Intact()
     {
-        // Like the bed, the large trough links its head/feet halves purely by block class - matched
-        // by runtime type name, not by the engine's multiblock mechanism - so a single half is enough
+        // Like the bed, the large trough links its head/feet halves purely by block class: matched
+        // by runtime type name, not by the engine's multiblock mechanism, so a single half is enough
         // to exercise the check.
         BlockPos head = World.Spawn.Offset(9, 1, 3);
         BlockPos target = World.Spawn.Offset(-9, 1, -3);
@@ -104,8 +104,8 @@ public class BlockTransitScenarios : ManifoldScenarioBase
     public async Task TeleportBlock_Should_Refuse_And_Leave_A_Legacy_Door_Half_Intact()
     {
         // The legacy door (pre-BlockBehaviorDoor worlds) links its up/down halves purely by block
-        // class, the same way the bed does - matched by runtime type name, not the engine's
-        // multiblock mechanism - so a single half is enough to exercise the check.
+        // class, the same way the bed does: matched by runtime type name, not the engine's
+        // multiblock mechanism, so a single half is enough to exercise the check.
         BlockPos down = World.Spawn.Offset(9, 1, -3);
         BlockPos target = World.Spawn.Offset(-9, 1, 3);
         World.SetBlock("game:door-plank-north-down-closed-left", down);
