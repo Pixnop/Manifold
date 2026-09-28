@@ -52,6 +52,93 @@ public sealed class MultiPositionBlockDetectorTests
     }
 
     [Fact]
+    public void IsMultiPosition_Should_Detect_A_Bed_Subclass_By_Base_Type()
+    {
+        var accessor = Substitute.For<IBlockAccessor>();
+        var pos = new BlockPos(10, 60, 10, 0);
+        accessor.GetBlock(pos).Returns(new ModdedBed { Code = new AssetLocation("mymod:moddedbed-head-north") });
+
+        bool result = MultiPositionBlockDetector.IsMultiPosition(accessor, pos, out var reason);
+
+        Assert.True(result);
+        Assert.Contains("bed", reason);
+    }
+
+    [Fact]
+    public void IsMultiPosition_Should_Detect_A_Large_Trough_Half_By_Type_Name()
+    {
+        var accessor = Substitute.For<IBlockAccessor>();
+        var pos = new BlockPos(10, 60, 10, 0);
+        accessor.GetBlock(pos).Returns(new Vintagestory.GameContent.BlockTroughDoubleBlock { Code = new AssetLocation("game:trough-large-wood-large-head-north") });
+
+        bool result = MultiPositionBlockDetector.IsMultiPosition(accessor, pos, out var reason);
+
+        Assert.True(result);
+        Assert.Contains("trough", reason);
+    }
+
+    [Fact]
+    public void IsMultiPosition_Should_Detect_A_Legacy_Door_Half_By_Type_Name()
+    {
+        var accessor = Substitute.For<IBlockAccessor>();
+        var pos = new BlockPos(10, 60, 10, 0);
+        accessor.GetBlock(pos).Returns(new Vintagestory.GameContent.BlockDoor { Code = new AssetLocation("game:door-plank-north-down-closed-left") });
+
+        bool result = MultiPositionBlockDetector.IsMultiPosition(accessor, pos, out var reason);
+
+        Assert.True(result);
+        Assert.Contains("door", reason);
+    }
+
+    [Fact]
+    public void IsMultiPosition_Should_Detect_A_Large_Gear_Filler_Via_Its_Block_Entity_Principal()
+    {
+        var accessor = Substitute.For<IBlockAccessor>();
+        var pos = new BlockPos(10, 60, 10, 0);
+        var centre = new BlockPos(11, 60, 10, 0);
+        accessor.GetBlock(pos).Returns(new Vintagestory.GameContent.Mechanics.BlockMPMultiblockGear { Code = new AssetLocation("game:mpmultiblockwood") });
+        accessor.GetBlockEntity(pos).Returns(new Vintagestory.GameContent.Mechanics.BEMPMultiblock { Principal = centre });
+
+        bool result = MultiPositionBlockDetector.IsMultiPosition(accessor, pos, out var reason);
+
+        Assert.True(result);
+        Assert.Contains("satellite", reason);
+        Assert.Contains(centre.ToString(), reason);
+    }
+
+    [Fact]
+    public void IsMultiPosition_Should_Not_Flag_A_Large_Gear_Filler_With_No_Principal_Yet()
+    {
+        var accessor = Substitute.For<IBlockAccessor>();
+        var pos = new BlockPos(10, 60, 10, 0);
+        accessor.GetBlock(pos).Returns(new Vintagestory.GameContent.Mechanics.BlockMPMultiblockGear { Code = new AssetLocation("game:mpmultiblockwood") });
+        accessor.GetBlockEntity(pos).Returns(new Vintagestory.GameContent.Mechanics.BEMPMultiblock { Principal = null });
+
+        bool result = MultiPositionBlockDetector.IsMultiPosition(accessor, pos, out var reason);
+
+        Assert.False(result);
+        Assert.Null(reason);
+    }
+
+    [Fact]
+    public void IsMultiPosition_Should_Detect_A_Large_Gear_Centre_Via_A_Neighbouring_Filler()
+    {
+        var accessor = Substitute.For<IBlockAccessor>();
+        var centre = new BlockPos(10, 60, 10, 0);
+        var fillerPos = new BlockPos(11, 60, 10, 0); // dx = 1, within radius.
+        accessor.GetBlock(centre).Returns(new FakeOrdinaryBlock { Code = new AssetLocation("game:largegear3m") });
+        accessor.GetBlock(Arg.Is<BlockPos>(p => Same(p, fillerPos)))
+            .Returns(new Vintagestory.GameContent.Mechanics.BlockMPMultiblockGear { Code = new AssetLocation("game:mpmultiblockwood") });
+        accessor.GetBlockEntity(Arg.Is<BlockPos>(p => Same(p, fillerPos)))
+            .Returns(new Vintagestory.GameContent.Mechanics.BEMPMultiblock { Principal = centre });
+
+        bool result = MultiPositionBlockDetector.IsMultiPosition(accessor, centre, out var reason);
+
+        Assert.True(result);
+        Assert.Contains("controls a multiblock structure", reason);
+    }
+
+    [Fact]
     public void IsMultiPosition_Should_Detect_A_Controller_Via_A_Neighbouring_Satellite()
     {
         var accessor = Substitute.For<IBlockAccessor>();

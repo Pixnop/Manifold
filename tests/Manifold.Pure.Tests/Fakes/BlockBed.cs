@@ -7,6 +7,6 @@ namespace Vintagestory.GameContent;
 using Vintagestory.API.Common;
 
 /// <summary>Test double sharing the vanilla bed block's full type name; otherwise a plain block.</summary>
-internal sealed class BlockBed : Block
+internal class BlockBed : Block
 {
 }
