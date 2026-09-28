@@ -728,7 +728,10 @@ footer.border-top {
   50% { opacity: 1; transform: scale(1.05); }
 }
 .mf-portal-glow {
-  background: radial-gradient(circle, rgba(226, 143, 112, 0.55), rgba(226, 143, 112, 0.08) 55%, transparent 75%);
+  /* closest-side, not circle: circle would stretch to the box's diagonal, so on a tall narrow
+     box (the hero portal link) the gradient is still visibly alpha at the box's left/right edges
+     - a lit rectangular column with a hard edge behind the portal instead of a soft round glow. */
+  background: radial-gradient(closest-side, rgba(226, 143, 112, 0.55), rgba(226, 143, 112, 0.08) 55%, transparent 100%);
   animation: mf-portal-pulse 4s ease-in-out infinite;
   pointer-events: none;
 }
@@ -896,7 +899,17 @@ footer.border-top {
   border-radius: 50%;
   outline-offset: 6px;
 }
-.mf-hero__portal-glow { position: absolute; inset: -30%; z-index: -1; }
+/* Square, not inset:-30% of the (tall, narrow) portal link box: a non-square glow box showed as
+   a lit rectangular column with hard vertical edges behind the portal. */
+.mf-hero__portal-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  z-index: -1;
+}
 @media (prefers-reduced-motion: reduce), (hover: none) {
   .mf-hero__layer { transform: none !important; }
 }
