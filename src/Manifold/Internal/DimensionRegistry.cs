@@ -225,7 +225,14 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         if (_snapshot.TryGetValue(template.Code, out var existing) &&
             existing.State == DimensionState.Pending)
         {
-            var promoted = template with { InternalId = existing.InternalId, Lifetime = existing.Lifetime };
+            // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is new.
+            var promoted = template with
+            {
+                InternalId = existing.InternalId,
+                IsBuiltIn = existing.IsBuiltIn,
+                Lifetime = existing.Lifetime,
+                OwnerModId = existing.OwnerModId,
+            };
             _snapshot = _snapshot.SetItem(template.Code, promoted);
             SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(promoted), LogSubscriberError);
             return promoted;
