@@ -216,6 +216,57 @@ public sealed class ManifoldModSystem : ModSystem
     }
 
     /// <summary>
+    /// Persists the manifest and whichever savegame-level stores changed, then the sidecar itself.
+    /// Pulled out of <see cref="OnGameWorldSave"/>, taking every dependency as a parameter instead
+    /// of reading instance fields, so the refusal guards below are unit-testable without a real
+    /// <see cref="ICoreServerAPI"/>.
+    /// </summary>
+    /// <param name="manifestStore">Savegame byte store.</param>
+    /// <param name="persistence">Dimension manifest reader/writer.</param>
+    /// <param name="entries">Current in-memory manifest entries to persist.</param>
+    /// <param name="generatedColumns">Generated-columns store to persist if dirty.</param>
+    /// <param name="positionStore">Per-player last-position store to persist if dirty.</param>
+    /// <param name="sidecar">Schema sidecar to update and persist.</param>
+    internal static void SaveWorldState(
+        IManifestStore manifestStore,
+        DimensionPersistence persistence,
+        IEnumerable<ManifestEntry> entries,
+        GeneratedColumnStore generatedColumns,
+        PlayerPositionStore positionStore,
+        SchemaSidecar sidecar)
+    {
+        persistence.Save(entries);
+        if (!persistence.IsVersionRefused)
+        {
+            sidecar.SetVersion(DimensionPersistence.ManifestKey, DimensionPersistence.SchemaVersion);
+        }
+
+        // Persist the generated-columns set so revisits after restart load instead of regenerate.
+        // Skipped while IsVersionRefused: a newer, unrecognized-version blob is on disk (preserved
+        // under its own ".unrecognized" key), and this session's set is not a reliable replacement
+        // for it (its sidecar entry is left exactly as loaded too, never downgraded).
+        if (generatedColumns is { IsDirty: true, IsVersionRefused: false })
+        {
+            manifestStore.Write(GeneratedColumnsKey, generatedColumns.ToBytes());
+            generatedColumns.ClearDirty();
+            sidecar.SetVersion(GeneratedColumnsKey, GeneratedColumnStore.SchemaVersion);
+        }
+
+        // Persist per-player last positions for the LastVisited spawn behavior. Same refusal skip.
+        if (positionStore is { IsDirty: true, IsVersionRefused: false })
+        {
+            manifestStore.Write(PlayerPositionsKey, positionStore.ToBytes());
+            positionStore.ClearDirty();
+            sidecar.SetVersion(PlayerPositionsKey, PlayerPositionStore.SchemaVersion);
+        }
+
+        // Written whenever any of the blobs above is (re-)written, so the sidecar always matches
+        // what is actually on disk for each key it names; also keeps a refused key's entry exactly
+        // as loaded, since only the branches above ever advance it.
+        manifestStore.Write(SchemaSidecar.Key, sidecar.ToBytes());
+    }
+
+    /// <summary>
     /// Registers the <c>/manifold</c> admin command. Currently one subcommand:
     /// <c>/manifold relight [radius]</c> relights the chunk columns around the caller in the
     /// dimension they are standing in, over the full world height. Exists because the engine's
@@ -666,7 +717,8 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnGameWorldSave()
     {
-        if (_persistence is null || _registry is null)
+        if (_persistence is null || _registry is null || _manifestStore is null
+            || _generatedColumns is null || _positionStore is null || _schemaSidecar is null)
         {
             return;
         }
@@ -675,38 +727,7 @@ public sealed class ManifoldModSystem : ModSystem
             .Select(dim => new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId))
             .ToList();
 
-        _persistence.Save(entries);
-        if (!_persistence.IsVersionRefused)
-        {
-            _schemaSidecar?.SetVersion(DimensionPersistence.ManifestKey, DimensionPersistence.SchemaVersion);
-        }
-
-        // Persist the generated-columns set so revisits after restart load instead of regenerate.
-        // Skipped while IsVersionRefused: a newer, unrecognized-version blob is on disk (preserved
-        // under its own ".unrecognized" key), and this session's set is not a reliable replacement
-        // for it - its sidecar entry is left exactly as loaded too (never downgraded).
-        if (_generatedColumns is { IsDirty: true, IsVersionRefused: false } && _manifestStore is not null)
-        {
-            _manifestStore.Write(GeneratedColumnsKey, _generatedColumns.ToBytes());
-            _generatedColumns.ClearDirty();
-            _schemaSidecar?.SetVersion(GeneratedColumnsKey, GeneratedColumnStore.SchemaVersion);
-        }
-
-        // Persist per-player last positions for the LastVisited spawn behavior. Same refusal skip.
-        if (_positionStore is { IsDirty: true, IsVersionRefused: false } && _manifestStore is not null)
-        {
-            _manifestStore.Write(PlayerPositionsKey, _positionStore.ToBytes());
-            _positionStore.ClearDirty();
-            _schemaSidecar?.SetVersion(PlayerPositionsKey, PlayerPositionStore.SchemaVersion);
-        }
-
-        // Written whenever any of the blobs above is (re-)written, so the sidecar always matches
-        // what is actually on disk for each key it names; also keeps a refused key's entry exactly
-        // as loaded, since only the branches above ever advance it.
-        if (_schemaSidecar is not null && _manifestStore is not null)
-        {
-            _manifestStore.Write(SchemaSidecar.Key, _schemaSidecar.ToBytes());
-        }
+        SaveWorldState(_manifestStore, _persistence, entries, _generatedColumns, _positionStore, _schemaSidecar);
     }
 
     private void OnPlayerJoin(IServerPlayer player, ICoreServerAPI sapi)
