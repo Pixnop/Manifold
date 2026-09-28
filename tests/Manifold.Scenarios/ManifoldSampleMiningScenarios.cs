@@ -23,9 +23,10 @@ using Xunit;
 /// parameterized <c>/atlasfx create-ephemeral &lt;path&gt;</c>), and Atlas does not guarantee
 /// scenario order within a class, so the full create/reuse/reset/recreate/reset-again narrative
 /// lives in one scenario rather than being split across several that would silently depend on
-/// running in a particular order. Only the privilege refusal below is genuinely
-/// order-independent (the command is rejected before it ever touches the registry), so it is
-/// safe to keep separate.
+/// running in a particular order. The privilege refusal below also touches the shared
+/// dimension (it needs a real occupant to prove the reset was actually refused, not just that
+/// the call returned an error), so it restores manifoldsample:mining to unregistered itself
+/// before returning, keeping it order-independent alongside the lifecycle scenario.
 /// </remarks>
 [Trait("Category", "E2E")]
 public class ManifoldSampleMiningScenarios : ManifoldScenarioBase
@@ -100,12 +101,31 @@ public class ManifoldSampleMiningScenarios : ManifoldScenarioBase
     [AtlasScenario]
     public async Task MiningReset_Should_BeRefused_When_PlayerLacksControlserver()
     {
+        // A privileged player creates and stays inside the dimension, so a refusal that merely
+        // dropped the privilege check (the handler would then succeed either way) is caught: the
+        // dimension and its occupant must still be there afterwards, not just the Ok flag.
+        ITestPlayer owner = await JoinSurvivalPlayer("minerowner");
+        CommandResult created = await owner.ExecuteCommand("/miningdim");
+        Assert.True(created.Ok, created.Message);
+        int dimId = await MiningDimensionId();
+        await LandedAt(owner, dimId, SpawnX, SpawnZ);
+
         ITestPlayer player = await JoinSurvivalPlayer("minerplain");
         World.Api.Permissions.DenyPrivilege(player.Player.PlayerUID, "controlserver");
         Assert.False(player.Player.HasPrivilege("controlserver"), "test setup: player should not be privileged here");
 
         CommandResult result = await player.ExecuteCommand("/miningreset");
         Assert.False(result.Ok, "An unprivileged player was allowed to reset the mining dimension.");
+
+        CommandResult state = await World.ExecuteCommand("/atlasfx state " + MiningPath);
+        Assert.True(state.Ok, "manifoldsample:mining was torn down by a refused /miningreset.");
+        Assert.StartsWith("Active:", state.Message);
+        Assert.Equal(dimId, owner.Position.dimension);
+
+        // Restore the shared manifoldsample:mining code to unregistered: the lifecycle scenario
+        // above assumes a fresh dimension on its first /miningdim, and Atlas does not guarantee
+        // scenario order within a class.
+        await owner.ExecuteCommand("/miningreset");
     }
 
     /// <summary>Reads manifoldsample:mining's internal id from the fixture's state command.</summary>
@@ -130,8 +150,13 @@ public class ManifoldSampleMiningScenarios : ManifoldScenarioBase
                 && World.BlockAt(airHead).Code.ToString() == "game:air",
             timeoutTicks: 1200);
 
-        var lightPos = new BlockPos(SpawnX, SpawnY, SpawnZ, dimId);
-        Assert.Equal("game:torch-basic-lit-up", World.BlockAt(lightPos).Code.ToString());
+        // The player's actual landing cell: feet on the light block's own position (non-solid,
+        // walkable), head one block up. Neither is the off-centre probe above.
+        var feetPos = new BlockPos(SpawnX, SpawnY, SpawnZ, dimId);
+        Assert.Equal("game:torch-basic-lit-up", World.BlockAt(feetPos).Code.ToString());
+
+        var headPos = new BlockPos(SpawnX, SpawnY + 1, SpawnZ, dimId);
+        Assert.Equal("game:air", World.BlockAt(headPos).Code.ToString());
 
         // Generation readiness probe a few blocks out from the room, same pattern as the other
         // worldgen scenarios (DarkSkyScenarios, EphemeralDimensionScenarios): wait for the real
