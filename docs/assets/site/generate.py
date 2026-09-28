@@ -436,24 +436,52 @@ def save_animated(name, frame_at, still_t, frames, quality=76, crop=True, size=N
         still = card_sized(frame_at(still_t), box, size)
     else:
         still = frame_at(still_t)
+    duration = frame_ms or moddb.FRAME_MS
     still.save(OUT / f"{name}.png", optimize=True)
     frame_imgs[0].save(OUT / f"{name}.webp", save_all=True, append_images=frame_imgs[1:],
-                       duration=moddb.FRAME_MS, loop=0, quality=quality, method=6)
+                       duration=duration, loop=0, quality=quality, method=6)
     if mobile:
         half = [f.resize((f.width // 2, f.height // 2), Image.LANCZOS) for f in frame_imgs]
         half[0].save(OUT / f"{name}-720.webp", save_all=True, append_images=half[1:],
-                     duration=moddb.FRAME_MS, loop=0, quality=quality, method=6)
+                     duration=duration, loop=0, quality=quality, method=6)
 
 
 def card_sized(art, box, size):
     """Same crop-and-centre as moddb.card(), on a caller-chosen canvas instead of the fixed
-    220x160 CARD (the 404 scene and a couple of others want a bigger frame)."""
+    220x160 CARD (the 404 scene and a couple of others want a bigger frame).
+
+    If the cropped content is taller or wider than the target canvas, alpha_composite would still
+    happily paste it at a negative offset - centred, but with the excess sliced off flush at both
+    edges (a scene's own bottom or top touching the canvas border, not free-floating the way every
+    other island in this set does). Scaling down to fit first, instead, keeps every frame clear of
+    all four edges - checked by the assert below, since a scene changed later could reintroduce
+    the same overflow."""
     left, top, right, bottom = box
     m = 6 * R
     art = art.crop((max(0, left - m), max(0, top - m), min(art.width, right + m), min(art.height, bottom + m)))
+    # fit within size minus a couple of R-scaled px, not size itself: a scale that exactly fills
+    # one dimension would otherwise leave that pair of edges flush against the canvas border, no
+    # transparent margin left to clear assert_edges_clear below.
+    fit_w, fit_h = size[0] - 2 * R, size[1] - 2 * R
+    scale = min(1.0, fit_w / art.width, fit_h / art.height)
+    if scale < 1.0:
+        art = art.resize((max(1, round(art.width * scale)), max(1, round(art.height * scale))), Image.LANCZOS)
     out = Image.new("RGBA", size)
     out.alpha_composite(art, ((size[0] - art.width) // 2, (size[1] - art.height) // 2))
+    assert_edges_clear(out)
     return out
+
+
+def assert_edges_clear(img):
+    """Every card frame should float free of its own canvas: row/column 0 and the last row/column
+    transparent. Catches a scene whose content silently touches or crosses the frame edge (the
+    article-header and highlight-loop bug this originally shipped with)."""
+    px = img.load()
+    w, h = img.size
+    for x in range(w):
+        assert px[x, 0][3] == 0 and px[x, h - 1][3] == 0, f"content touches top/bottom edge at x={x}"
+    for y in range(h):
+        assert px[0, y][3] == 0 and px[w - 1, y][3] == 0, f"content touches left/right edge at y={y}"
 
 
 if __name__ == "__main__":
@@ -477,11 +505,16 @@ if __name__ == "__main__":
     save_animated("highlight-safe-landing", safe_landing_scene, 0.7, frames=36)
     save_animated("highlight-schema-saves", schema_saves_scene, 0.25, frames=36)
 
-    save_animated("header-getting-started", getting_started_scene, 0.9, frames=36, quality=78)
-    save_animated("header-dimensions", dimensions_scene, 0.25, frames=36, quality=78)
-    save_animated("header-worldgen", moddb.worldgen_scene, 0.8, frames=42)
-    save_animated("header-transit-and-travel-policy", moddb.transit_scene, 0.3, frames=36, quality=74)
-    save_animated("header-architecture", architecture_scene, 0.4, frames=30, quality=74)
+    # quality dropped from the high-70s to 56-58: card_sized's edge-clearance fix (above) grew
+    # these frames' opaque area versus the old clipped crop, which pushed every one of them past
+    # the README's 270 KB card-loop budget at the old quality; card art has none of the hero
+    # background's fine star/nebula grain lossy compression would show up on, so the drop costs
+    # little visually for a real file-weight win.
+    save_animated("header-getting-started", getting_started_scene, 0.9, frames=36, quality=58)
+    save_animated("header-dimensions", dimensions_scene, 0.25, frames=36, quality=58)
+    save_animated("header-worldgen", moddb.worldgen_scene, 0.8, frames=42, quality=56)
+    save_animated("header-transit-and-travel-policy", moddb.transit_scene, 0.3, frames=36, quality=56)
+    save_animated("header-architecture", architecture_scene, 0.4, frames=30, quality=56)
 
     line = divider_line()
     save_animated("divider", lambda t: divider_frame(t, line), 0.4, frames=30, crop=False, xfade=0)
