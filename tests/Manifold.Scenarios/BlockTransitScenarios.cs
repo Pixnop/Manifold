@@ -81,6 +81,46 @@ public class BlockTransitScenarios : ManifoldScenarioBase
 
     // Rollback-eligible: dimension-0 block writes only, no joined players.
     [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
+    public async Task TeleportBlock_Should_Refuse_And_Leave_A_Large_Trough_Half_Intact()
+    {
+        // Like the bed, the large trough links its head/feet halves purely by block class - matched
+        // by runtime type name, not by the engine's multiblock mechanism - so a single half is enough
+        // to exercise the check.
+        BlockPos head = World.Spawn.Offset(9, 1, 3);
+        BlockPos target = World.Spawn.Offset(-9, 1, -3);
+        World.SetBlock("game:trough-genericwood-large-head-north", head);
+        await World.Ticks(2);
+
+        CommandResult result = await Ok(
+            $"/atlasfx teleport-block {head.X} {head.Y} {head.Z} 0 overworld {target.X} {target.Y} {target.Z}");
+
+        Assert.Equal("refused", result.Message);
+        Assert.Equal("game:trough-genericwood-large-head-north", World.BlockAt(head).Code.ToString());
+        Assert.Equal("game:air", World.BlockAt(target).Code.ToString());
+    }
+
+    // Rollback-eligible: dimension-0 block writes only, no joined players.
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
+    public async Task TeleportBlock_Should_Refuse_And_Leave_A_Legacy_Door_Half_Intact()
+    {
+        // The legacy door (pre-BlockBehaviorDoor worlds) links its up/down halves purely by block
+        // class, the same way the bed does - matched by runtime type name, not the engine's
+        // multiblock mechanism - so a single half is enough to exercise the check.
+        BlockPos down = World.Spawn.Offset(9, 1, -3);
+        BlockPos target = World.Spawn.Offset(-9, 1, 3);
+        World.SetBlock("game:door-plank-north-down-closed-left", down);
+        await World.Ticks(2);
+
+        CommandResult result = await Ok(
+            $"/atlasfx teleport-block {down.X} {down.Y} {down.Z} 0 overworld {target.X} {target.Y} {target.Z}");
+
+        Assert.Equal("refused", result.Message);
+        Assert.Equal("game:door-plank-north-down-closed-left", World.BlockAt(down).Code.ToString());
+        Assert.Equal("game:air", World.BlockAt(target).Code.ToString());
+    }
+
+    // Rollback-eligible: dimension-0 block writes only, no joined players.
+    [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
     public async Task TeleportBlock_Should_Refuse_And_Leave_A_Door_Intact()
     {
         // A door's main cell is the engine's BlockGeneric+BlockBehaviorDoor controller; height 2
