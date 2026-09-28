@@ -15,6 +15,8 @@ namespace Manifold.Pure.Tests.Internal;
 
 public sealed class ManifoldServerFacadeTests
 {
+    private static readonly string[] TeleportThenDestroyed = { "teleport", "destroyed" };
+
     [Fact]
     public void RelightRegion_Should_Throw_When_Dimension_Is_Null()
     {
@@ -112,7 +114,7 @@ public sealed class ManifoldServerFacadeTests
             occupant,
             Arg.Is<AssetLocation>(c => c.Equals(new AssetLocation("manifold:overworld"))),
             Arg.Is<TransitionOptions>(o => o.SpawnBehavior == SpawnBehavior.LastVisited));
-        Assert.Equal(new[] { "teleport", "destroyed" }, order);
+        Assert.Equal(TeleportThenDestroyed, order);
         Assert.Null(facade.Registry.Get(new AssetLocation("owner:ephemeral")));
     }
 
