@@ -105,6 +105,20 @@ public abstract class ManifoldScenarioBase : AtlasScenarioBase
                 && Math.Abs(player.Position.Z - z) <= 1,
             timeoutTicks: 600);
 
+    /// <summary>
+    /// Waits until the player stands within a block of the given X/Z in the given dimension AND
+    /// at exactly the given Y (the landing Y a resolver picks is never offset, so this is an
+    /// exact match, not a tolerance). Use this over <see cref="LandedAt"/> when the resolved Y
+    /// itself is under test, not just the destination dimension.
+    /// </summary>
+    protected Task LandedExactlyAt(ITestPlayer player, int dimension, int x, int y, int z) =>
+        World.Until(
+            () => player.Position.dimension == dimension
+                && Math.Abs(player.Position.X - x) <= 1
+                && player.Position.Y == y
+                && Math.Abs(player.Position.Z - z) <= 1,
+            timeoutTicks: 600);
+
     protected static int HotbarCount(ITestPlayer player, string code)
     {
         IInventory hotbar = player.Player.InventoryManager.GetHotbarInventory();
