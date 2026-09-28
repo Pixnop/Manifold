@@ -199,6 +199,63 @@ public sealed class DimensionGeneratorTests
         sapi.WorldManager.Received(1).CreateChunkColumnForDimension(0, 0, dim.InternalId);
     }
 
+    /// <summary>
+    /// <see cref="Manifold.Api.Server.IDimensionRegistry.ColumnGenerated"/> fires the first time a
+    /// column is generated.
+    /// </summary>
+    [Fact]
+    public void EnsureColumn_Should_Fire_ColumnGenerated_On_First_Generation()
+    {
+        var registry = new DimensionRegistry(new DimensionAllocator());
+        var dim = registry.DefineForOwner(Code("owner:colgen"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var sapi = Substitute.For<ICoreServerAPI>();
+
+        int fired = 0;
+        Manifold.Api.Events.ColumnGeneratedEventArgs? args = null;
+        registry.ColumnGenerated += (_, e) =>
+        {
+            fired++;
+            args = e;
+        };
+
+        bool generated = generator.EnsureColumn(sapi, dim.InternalId, 3, 4);
+
+        Assert.True(generated);
+        Assert.Equal(1, fired);
+        Assert.NotNull(args);
+        Assert.Equal(dim.InternalId, args!.Dimension.InternalId);
+        Assert.Equal(3, args.ChunkX);
+        Assert.Equal(4, args.ChunkZ);
+    }
+
+    /// <summary>
+    /// Re-visiting an already generated column loads it and must not raise
+    /// <see cref="Manifold.Api.Server.IDimensionRegistry.ColumnGenerated"/> again.
+    /// </summary>
+    [Fact]
+    public void EnsureColumn_Should_Not_Fire_ColumnGenerated_On_Load()
+    {
+        var registry = new DimensionRegistry(new DimensionAllocator());
+        var dim = registry.DefineForOwner(Code("owner:colgen2"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var sapi = Substitute.For<ICoreServerAPI>();
+
+        Assert.True(generator.EnsureColumn(sapi, dim.InternalId, 0, 0));
+
+        int fired = 0;
+        registry.ColumnGenerated += (_, _) => fired++;
+
+        bool generatedAgain = generator.EnsureColumn(sapi, dim.InternalId, 0, 0);
+
+        Assert.False(generatedAgain);
+        Assert.Equal(0, fired);
+    }
+
     [Fact]
     public void RelightBlockBounds_Should_Return_True_On_Success()
     {

@@ -95,6 +95,13 @@ manifold.Registry.Created += (_, e) =>
 
 manifold.Registry.Destroyed += (_, e) =>
     Mod.Logger.Notification($"Dimension removed: {e.Dimension.Code}");
+
+manifold.Registry.ColumnGenerated += (_, e) =>
+{
+    // Fires only for a brand-new column, never one loaded from disk - see Worldgen.md for using
+    // e.BlockAccessor to decorate it (a structure, a marker) right after generation.
+    Mod.Logger.Notification($"Column ({e.ChunkX}, {e.ChunkZ}) generated in {e.Dimension.Code}");
+};
 ```
 
 ## Dimension Codes (AssetLocation)

@@ -315,6 +315,15 @@ internal sealed class DimensionGenerator
         PlaceSkyCapIfConfigured(sapi, dimId, cx, cz, accessor);
         accessor.Commit();
         _generatedColumns.MarkGenerated(dimId, cx, cz);
+
+        // Raised after the commit above, before the caller sends the column to any client (both
+        // FillRegionColumns and the streaming driver send afterwards), so a handler's own writes to
+        // this same column reach clients as part of its normal first send.
+        if (_registry.GetByInternalId(dimId) is { } dim)
+        {
+            _registry.RaiseColumnGenerated(dim, cx, cz, sapi.World.BlockAccessor);
+        }
+
         return true;
     }
 

@@ -64,6 +64,9 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     public event EventHandler<DimensionDestroyedEventArgs>? Destroyed;
 
     /// <inheritdoc/>
+    public event EventHandler<ColumnGeneratedEventArgs>? ColumnGenerated;
+
+    /// <inheritdoc/>
     public IReadOnlyCollection<IDimension> All => _snapshot.Values.Cast<IDimension>().ToList().AsReadOnly();
 
     /// <inheritdoc/>
@@ -214,6 +217,22 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     /// <returns>The dimension if found; <c>null</c> otherwise.</returns>
     internal DimensionImpl? GetByInternalId(int internalId) =>
         _snapshot.Values.FirstOrDefault(d => d.InternalId == internalId);
+
+    /// <summary>
+    /// Raises <see cref="ColumnGenerated"/> for a newly generated column. Called by
+    /// <see cref="DimensionGenerator"/> right after the column's blocks are committed, before it is
+    /// sent to any client.
+    /// </summary>
+    /// <param name="dimension">The dimension the column belongs to.</param>
+    /// <param name="chunkX">Chunk-grid X of the generated column.</param>
+    /// <param name="chunkZ">Chunk-grid Z of the generated column.</param>
+    /// <param name="blockAccessor">Accessor handed to subscribers for decorating the column.</param>
+    internal void RaiseColumnGenerated(IDimension dimension, int chunkX, int chunkZ, IBlockAccessor blockAccessor) =>
+        SafeEvent.Raise(
+            ColumnGenerated,
+            this,
+            new ColumnGeneratedEventArgs(dimension, chunkX, chunkZ, blockAccessor),
+            LogSubscriberError);
 
     /// <summary>
     /// Completes a builder's template: promotes a matching Pending entry in place (keeping its

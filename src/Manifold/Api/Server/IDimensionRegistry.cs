@@ -26,6 +26,20 @@ public interface IDimensionRegistry
     /// </summary>
     event EventHandler<DimensionDestroyedEventArgs> Destroyed;
 
+    /// <summary>
+    /// Raised immediately after Manifold generates a brand-new chunk column for a dimension - never
+    /// for a column it only <em>loaded</em> from disk (a restart, or a re-visit of an already
+    /// generated column). Use it to decorate or post-process the terrain a worldgen strategy just
+    /// produced (a structure, a marker, loot) without changing the strategy itself. Raised on the
+    /// server main thread, after the column's blocks are committed, for every generation path: a
+    /// player transit, the streaming driver, and <see cref="IManifoldServer.GenerateRegion"/>.
+    /// Subscribers are isolated with the same per-subscriber try/catch as <see cref="Created"/> and
+    /// <see cref="Destroyed"/>: one throwing subscriber is reported and does not stop the others or
+    /// the caller. See <see cref="ColumnGeneratedEventArgs.BlockAccessor"/> for whether writes
+    /// need a commit and whether the column has already reached any client.
+    /// </summary>
+    event EventHandler<ColumnGeneratedEventArgs> ColumnGenerated;
+
     /// <summary>Current snapshot of registered dimensions (Active, Pending, and Quarantined).</summary>
     IReadOnlyCollection<IDimension> All { get; }
 
