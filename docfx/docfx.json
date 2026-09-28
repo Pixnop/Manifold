@@ -29,13 +29,11 @@
       },
       {
         "files": ["assets/moddb/**"],
-        "exclude": ["assets/moddb/generate.py", "assets/moddb/README.md"],
-        "src": "../docs"
+        "exclude": ["assets/moddb/generate.py", "assets/moddb/README.md"]
       },
       {
         "files": ["assets/site/**"],
-        "exclude": ["assets/site/generate.py", "assets/site/README.md"],
-        "src": "../docs"
+        "exclude": ["assets/site/generate.py", "assets/site/README.md"]
       }
     ],
     "output": "_site",
