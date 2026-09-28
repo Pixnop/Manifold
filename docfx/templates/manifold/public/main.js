@@ -66,6 +66,12 @@ function initThemeSwirl() {
       const item = event.target.closest && event.target.closest('.dropdown-item');
       if (!item || !item.querySelector('i.bi-sun, i.bi-moon, i.bi-circle-half')) return;
 
+      const toggle = item.closest('.dropdown')?.querySelector('.dropdown-toggle');
+      const rect = (toggle || item).getBoundingClientRect();
+      const root = document.documentElement;
+      root.style.setProperty('--mf-swirl-x', `${(((rect.left + rect.right) / 2) / window.innerWidth * 100).toFixed(1)}%`);
+      root.style.setProperty('--mf-swirl-y', `${(((rect.top + rect.bottom) / 2) / window.innerHeight * 100).toFixed(1)}%`);
+
       document.startViewTransition(
         () =>
           new Promise((resolve) => {
@@ -94,15 +100,15 @@ const touchDevice = () => window.matchMedia('(hover: none)').matches;
 // pointer offset (within the hero) and scroll progress (as the hero moves
 // through the viewport); each .mf-hero__layer multiplies that by its own
 // --mf-depth in main.css, so the layers drift at different rates. Off under
-// reduced motion and on touch devices — the still <picture> fallback is the
+// reduced motion and on touch devices: the still <picture> fallback is the
 // whole experience there.
 // --------------------------------------------------------------------------
 function initHeroParallax() {
   const stage = document.querySelector('.mf-hero__stage');
   if (!stage || reducedMotion() || touchDevice()) return;
 
-  const POINTER_PX = 14;
-  const SCROLL_PX = 36;
+  const POINTER_PX = 22;
+  const SCROLL_PX = 70;
   let px = 0;
   let py = 0;
   let sy = 0;
@@ -148,7 +154,7 @@ function initHeroParallax() {
 }
 
 // --------------------------------------------------------------------------
-// Hero spark trail — a tiny voxel-spark canvas that only draws while the
+// Hero spark trail: a tiny voxel-spark canvas that only draws while the
 // pointer is over the hero. Bounded particle count, and the rAF loop stops
 // itself once the trail has fully faded and the pointer has left. Off under
 // reduced motion and on touch devices.
@@ -223,7 +229,40 @@ function initHeroSparks() {
 }
 
 // --------------------------------------------------------------------------
-// Section headings build themselves — appends a row of blocks after every
+// Drifting islands between sections: a handful of small islands (see
+// .mf-drift-zone in index.md) parallax at their own slow rate as the page
+// scrolls past them, each rate read from data-drift-speed so the landing can
+// vary it per island without touching this file. rAF-throttled, one scroll
+// listener for every island on the page. Off under reduced motion: the
+// islands stay at their resting position (no observer, no listener).
+// --------------------------------------------------------------------------
+function initSectionDrift() {
+  const items = Array.from(document.querySelectorAll('.mf-drift')).map((el) => ({
+    el,
+    speed: parseFloat(el.dataset.driftSpeed || '0.08'),
+  }));
+  if (!items.length || reducedMotion()) return;
+
+  let pending = null;
+  function apply() {
+    pending = null;
+    const vh = window.innerHeight || 1;
+    items.forEach(({ el, speed }) => {
+      const rect = el.getBoundingClientRect();
+      const fromCenter = rect.top + rect.height / 2 - vh / 2;
+      el.style.setProperty('--mf-drift-y', `${(-fromCenter * speed).toFixed(1)}px`);
+    });
+  }
+  function schedule() {
+    if (!pending) pending = requestAnimationFrame(apply);
+  }
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule, { passive: true });
+  schedule();
+}
+
+// --------------------------------------------------------------------------
+// Section headings build themselves: appends a row of blocks after every
 // .mf-build-heading and reveals them, staggered, the first time the
 // heading scrolls into view. The blocks are appended unconditionally (they
 // read as a static underline); only the reveal animation is gated on
@@ -258,7 +297,7 @@ function initBuildHeadings() {
 }
 
 // --------------------------------------------------------------------------
-// Portal travel — clicking the hero gate plays a short expanding-circle
+// Portal travel: clicking the hero gate plays a short expanding-circle
 // swirl centred on the gate, then navigates. A plain link underneath, so a
 // middle-click, a modifier-click, or a browser with JS disabled just
 // navigates immediately. Skipped under reduced motion (instant navigation).
@@ -283,7 +322,7 @@ function initPortalTravel() {
 }
 
 // --------------------------------------------------------------------------
-// Hidden portal — typing "manifold" anywhere, or the Konami code, opens a
+// Hidden portal: typing "manifold" anywhere, or the Konami code, opens a
 // small overlay with a secret line. Ignored while typing in a form field.
 // --------------------------------------------------------------------------
 function initHiddenPortal() {
@@ -294,15 +333,17 @@ function initHiddenPortal() {
 
   function openPortal() {
     if (document.getElementById('mf-secret-portal')) return;
-    const overlay = document.createElement('div');
+    // A native <dialog> gives Tab-trapping, Escape-to-close and a backdrop for free; only
+    // returning focus to whatever was focused before opening is left to us.
+    const opener = document.activeElement;
+    const overlay = document.createElement('dialog');
     overlay.id = 'mf-secret-portal';
     overlay.className = 'mf-secret-portal';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'A hidden portal');
     overlay.innerHTML =
       '<div class="mf-secret-portal__panel">' +
       '<span class="mf-portal-glow mf-secret-portal__glow" aria-hidden="true"></span>' +
+      '<span class="mf-secret-portal__vortex" aria-hidden="true"></span>' +
       '<p class="mf-secret-portal__line">Every chart you have opened is still stitched into the atlas somewhere.</p>' +
       '<button type="button" class="mf-btn mf-btn--ghost">Close</button>' +
       '</div>';
@@ -310,16 +351,15 @@ function initHiddenPortal() {
 
     const closeBtn = overlay.querySelector('button');
     function close() {
+      overlay.close();
+    }
+    overlay.addEventListener('close', () => {
       overlay.remove();
-      document.removeEventListener('keydown', onKey);
-    }
-    function onKey(event) {
-      if (event.key === 'Escape') close();
-    }
-    closeBtn.addEventListener('click', close);
+      if (opener && typeof opener.focus === 'function') opener.focus();
+    });
     overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
-    document.addEventListener('keydown', onKey);
-    closeBtn.focus();
+    closeBtn.addEventListener('click', close);
+    overlay.showModal();
   }
 
   document.addEventListener('keydown', (event) => {
@@ -343,22 +383,19 @@ function initHiddenPortal() {
   });
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    initTilt();
-    initThemeSwirl();
-    initHeroParallax();
-    initHeroSparks();
-    initBuildHeadings();
-    initPortalTravel();
-    initHiddenPortal();
-  });
-} else {
+function initAll() {
   initTilt();
   initThemeSwirl();
   initHeroParallax();
   initHeroSparks();
+  initSectionDrift();
   initBuildHeadings();
   initPortalTravel();
   initHiddenPortal();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAll);
+} else {
+  initAll();
 }
