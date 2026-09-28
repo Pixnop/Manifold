@@ -70,9 +70,7 @@ public static class TargetPositionResolvers
                     // sealed cave under the seabed instead of at the water, so the scan stops here:
                     // the liquid's surface (with clearance) is the only candidate left, or the
                     // column-empty fallback if it has none.
-                    if (y + 2 <= top
-                        && IsPassable(BlockAt(api, x, y + 1, z, dim))
-                        && IsPassable(BlockAt(api, x, y + 2, z, dim)))
+                    if (HasHeadroom(api, x, y, z, dim, top))
                     {
                         liquidSurfaceY = y;
                     }
@@ -87,9 +85,7 @@ public static class TargetPositionResolvers
                     continue;
                 }
 
-                if (y + 2 <= top
-                    && IsPassable(BlockAt(api, x, y + 1, z, dim))
-                    && IsPassable(BlockAt(api, x, y + 2, z, dim)))
+                if (HasHeadroom(api, x, y, z, dim, top))
                 {
                     return new BlockPos(x, y + 1, z, dim);
                 }
@@ -105,12 +101,18 @@ public static class TargetPositionResolvers
                 : new BlockPos(x, current.Y, z, dim);
         }
 
+        /// <summary>Whether the two blocks above <paramref name="y"/> (feet, then head) are passable and inside the world.</summary>
+        private static bool HasHeadroom(ICoreServerAPI api, int x, int y, int z, int dim, int top) =>
+            y + 2 <= top
+            && IsPassable(BlockAt(api, x, y + 1, z, dim))
+            && IsPassable(BlockAt(api, x, y + 2, z, dim));
+
         /// <summary>A block is passable (can occupy feet or head space) if it is air or has no floor to stand on.</summary>
         private static bool IsPassable(Block? block) =>
             block is null || block.Id == 0 || (!block.IsLiquid() && !HasFloor(block));
 
         /// <summary>
-        /// A block counts as ground only if something would actually stop a player standing on it -
+        /// A block counts as ground only if something would actually stop a player standing on it:
         /// a real collision box, or a flagged solid top face. Decorations with no collision (tall
         /// grass, vines, torches, reeds) do not.
         /// </summary>
