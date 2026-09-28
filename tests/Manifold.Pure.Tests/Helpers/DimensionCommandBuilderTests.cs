@@ -124,7 +124,8 @@ public sealed class DimensionCommandBuilderTests
             positionResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
-            Substitute.For<IInventorySwapper>());
+            Substitute.For<IInventorySwapper>(),
+            Substitute.For<IPlayerDismounter>());
         transit.PlayerEntering += (_, e) => e.Cancel = true;
 
         var manifold = Substitute.For<IManifoldServer>();

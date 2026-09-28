@@ -27,6 +27,7 @@ internal sealed class TransitService : ITransitionService
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
     private readonly IInventorySwapper _inventory;
+    private readonly IPlayerDismounter _dismounter;
     private readonly HashSet<int> _warnedMissingSpawnPoint = new();
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -37,6 +38,7 @@ internal sealed class TransitService : ITransitionService
     /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
     /// <param name="positionStore">Per-player per-dimension last-position memory (for LastVisited behavior).</param>
     /// <param name="inventory">Inventory swapper for per-dimension inventory separation.</param>
+    /// <param name="dismounter">Dismounts a player from a mount before a player transit.</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
@@ -44,7 +46,8 @@ internal sealed class TransitService : ITransitionService
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
         PlayerPositionStore positionStore,
-        IInventorySwapper inventory)
+        IInventorySwapper inventory,
+        IPlayerDismounter dismounter)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
@@ -57,6 +60,7 @@ internal sealed class TransitService : ITransitionService
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+        _dismounter = dismounter ?? throw new ArgumentNullException(nameof(dismounter));
     }
 
     /// <inheritdoc/>
@@ -181,6 +185,10 @@ internal sealed class TransitService : ITransitionService
             return false;
         }
 
+        // Dismount before moving the player: a cross-dimension teleport rehomes only the player's
+        // own entity, so a rider left mounted would end up flagged as mounted on an entity that
+        // never left the source dimension. The mount itself stays put.
+        _dismounter.Dismount(player);
         _movers.Player.Teleport(player, targetPos);
 
         ApplyGameModePolicy(player, targetImpl);

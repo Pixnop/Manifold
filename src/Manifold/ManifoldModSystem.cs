@@ -106,7 +106,8 @@ public sealed class ManifoldModSystem : ModSystem
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore,
-            inventorySwapper);
+            inventorySwapper,
+            new PlayerDismounter(api));
         transit.PlayerEntered += OnTransitPlayerEntered;
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator);

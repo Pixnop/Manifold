@@ -39,6 +39,10 @@ public interface ITransitionService
     /// Teleport a player to the dimension identified by <paramref name="targetDim"/>.
     /// Raises <see cref="PlayerEntering"/> (cancellable, pre-generation), then <see cref="PlayerArriving"/>
     /// (cancellable, post-generation), then <see cref="PlayerLeft"/> and <see cref="PlayerEntered"/>.
+    /// If the player is riding a mount (a boat, a saddled creature, any <c>IMountableSeat</c>), they
+    /// are cleanly dismounted right before the move: the mount is left behind in the source
+    /// dimension, never dragged along and never left desynced with a rider that changed dimension
+    /// out from under it.
     /// </summary>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
@@ -50,8 +54,8 @@ public interface ITransitionService
 
     /// <summary>
     /// Same transit as <see cref="TeleportPlayer"/>, but returns whether the player actually moved
-    /// (same events, same generation, same landing-position resolution) instead of leaving a
-    /// cancelled transit indistinguishable from a completed one.
+    /// (same events, same generation, same landing-position resolution, same mount handling) instead
+    /// of leaving a cancelled transit indistinguishable from a completed one.
     /// </summary>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>

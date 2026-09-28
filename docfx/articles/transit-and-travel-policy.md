@@ -23,6 +23,12 @@ Must be called on the **main thread**. The method:
 
 Throws `DimensionNotFoundException` if the code is unknown, or `DimensionStateException` if the dimension is not `Active`.
 
+If the player is riding a mount (a boat, a saddled creature, any `IMountableSeat`), they are cleanly
+dismounted right before the move. The mount is left behind in the source dimension - it is never
+dragged along, and the player is never left flagged as mounted on an entity that never changed
+dimension with them. A transit a subscriber cancels at `PlayerEntering`/`PlayerArriving` leaves the
+player mounted, exactly as they were.
+
 ```csharp
 var transitions = manifold.Transitions;
 
