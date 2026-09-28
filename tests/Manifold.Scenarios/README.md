@@ -64,8 +64,6 @@ self-sufficient in any order.
 
 102 scenarios, one class per area:
 
-80 scenarios, one class per area:
-
 | Area | Classes |
 | --- | --- |
 | Boot, registration, per-dimension worldgen, streaming, dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
@@ -79,7 +77,6 @@ self-sufficient in any order.
 | Persistence and quarantine across a real restart | `DimensionPersistenceScenarios`, `QuarantineScenarios` |
 | Landing position on real terrain (`TargetPositionResolvers.SameXZSurfaceY`) | `RealTerrainLandingScenarios` |
 | The sample consumer mod (`samples/ManifoldSample`), staged as a real Atlas mod | `ManifoldSampleMiningScenarios`, `ManifoldSampleSmokeScenarios` |
-
 | Cross-version save compatibility (0.5.1 <-> dev) | `UpgradeVerifyScenarios` (project `Manifold.Scenarios.Compat`), `DowngradeVerifyScenarios` (project `Manifold.Scenarios.CompatDowngrade`) |
 
 `ClientMirrorScenarios` decodes Manifold's own network packets through
