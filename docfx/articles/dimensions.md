@@ -1,9 +1,9 @@
-# Dimensions
-
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-dimensions.png">
 <img class="mf-article-header" src="../assets/site/header-dimensions.webp" width="220" height="160" alt="Two settled islands and a third, ephemeral one fading in and out" loading="lazy" decoding="async">
 </picture>
+
+# Dimensions
 
 A **dimension** in Manifold is a named, isolated world region with its own terrain, player positions, and travel policy. Each dimension is identified by an `AssetLocation` code (e.g., `mymod:nether`) and mapped to a VS engine dimension id (an integer 0-1023).
 

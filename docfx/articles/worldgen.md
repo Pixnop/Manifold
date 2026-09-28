@@ -1,9 +1,9 @@
-# Worldgen
-
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-worldgen.png">
 <img class="mf-article-header" src="../assets/site/header-worldgen.webp" width="220" height="160" alt="A chunk of terrain building itself, block by block" loading="lazy" decoding="async">
 </picture>
+
+# Worldgen
 
 Manifold uses an **active, bounded-region generation model**. Rather than waiting for the chunk streaming engine to request columns on demand, Manifold pre-generates a square region of chunks around the transit target before the player arrives. This guarantees the player always lands on solid (or at least well-defined) terrain.
 
