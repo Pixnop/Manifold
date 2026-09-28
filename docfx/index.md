@@ -86,7 +86,7 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 <img src="assets/moddb/feature-worldgen.webp" width="220" height="160" alt="A dimension's terrain rising into place, chunk by chunk" loading="lazy">
 </picture>
 <h3 class="no-anchor">Active worldgen</h3>
-<p>Manifold pre-generates a bounded region around the transit target before the player arrives, so nobody lands in a void at the world's negative edge.</p>
+<p>Manifold pre-generates a bounded region around the transit target before the player arrives, so they land on terrain, not in an ungenerated void (the world's negative corner excepted).</p>
 </a>
 <a class="mf-card mf-card--island mf-tilt mf-feature-card" href="articles/transit-and-travel-policy.md">
 <picture>
