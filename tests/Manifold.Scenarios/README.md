@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-91 scenarios, one class per area:
+68 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
@@ -96,19 +96,22 @@ needs the fuller create/reuse/reset/reset-again/recreate narrative (a
 single global dimension code, so the whole lifecycle lives in one
 scenario rather than several whose order Atlas does not guarantee); every
 other command gets one smoke scenario each in the sibling class. Two
-things the sample's checklist covers by hand are not reachable through
-Atlas: `/sendtestblock`'s success path needs the caller to be looking at a
-block (`IServerPlayer.CurrentBlockSelection`, populated by the client's
-aim/raycast), and the void portal block's `OnEntityCollide` needs the
-engine's physics-step collision resolution, which only runs from real
-entity movement; `ITestPlayer` exposes only `TeleportTo`, a direct
-position set with no velocity, so neither the aim nor a walked-in
-collision can be driven from a headless test player. Both scenarios cover
-what they can instead: `/sendtestblock`'s "nothing targeted" refusal, and
-the portal block's own asset staging (the `StageAtlasFolderMods` target
-had to learn to copy `samples/ManifoldSample/assets/` too, since neither
-the fixture nor Manifold itself ships assets, so nothing had exercised
-that path before).
+items on the sample's checklist looked at first like they needed a real
+client to drive (aim/raycast for `/sendtestblock`, walking into the void
+portal block), but both are reachable through `ITestPlayer.Entity`, the
+documented escape hatch onto the live `EntityPlayer`:
+`IServerPlayer.CurrentBlockSelection` is just `Entity.BlockSelection`, a
+public field, so a scenario sets the caller's aim directly instead of
+raycasting for it; and the portal's `OnEntityCollide` fires from the
+engine's own server-side collision resolution
+(`IRemotePhysics.OnReceivedClientPos`, the same handler a real client's
+position packet drives, reachable via `Entity.SidedProperties.Behaviors`),
+so replaying it with a moved entity position is a real collision. The
+boot scenario also asserts the portal block itself resolves
+(`World.GetBlock(manifoldsample:voidportal)`), proving the portal's own
+asset staging (the `StageAtlasFolderMods` target had to learn to copy
+`samples/ManifoldSample/assets/` too, since neither the fixture nor
+Manifold itself ships assets).
 
 Two Manifold bugs were found this way and fixed in the same release: a forced
 game mode leaking out of its dimension, and the transit packet carrying the
@@ -124,11 +127,10 @@ registers deterministic test dimensions and exposes `/atlasfx` server
 commands. Command outcomes are asserted directly on the `CommandResult`
 returned by `ExecuteCommand`; boot-published state (dimension ids) and
 transit event observations still flow through `SaveGame` data. The sample
-mod is the one exception to "scenario code cannot call the Manifold API
-directly": it is exercised only through its own chat commands and the
-fixture's generic `/atlasfx state <domain:path>` (which accepts any fully
-qualified dimension code, not just the fixture's own), never through a
-direct reference.
+mod follows the same rule: it is exercised only through its own chat
+commands and the fixture's generic `/atlasfx state <domain:path>` (which
+accepts any fully qualified dimension code, not just the fixture's own),
+never through a direct reference.
 
 Player-dependent paths (player transit, per-dimension inventory swap,
 concurrent players across dimensions) run against headless test players
