@@ -14,23 +14,27 @@ internal sealed class PlayerDismounter : IPlayerDismounter
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
 
     /// <inheritdoc/>
-    public void Dismount(IServerPlayer player)
+    public bool Dismount(IServerPlayer player)
     {
         ArgumentNullException.ThrowIfNull(player);
         if (player.Entity.MountedOn is null)
         {
-            return;
+            return true;
         }
 
-        // TryUnmount can refuse (IMountableSeat.CanUnmount returning false - a seat with its own
-        // release rule). The transit has already started and must not get stuck waiting on a mount,
-        // so a refusal is logged and the transit proceeds anyway: rare, and still better than
-        // blocking the whole transit on a mount's say-so.
-        if (!player.Entity.TryUnmount())
+        // TryUnmount can refuse (IMountableSeat.CanUnmount returning false, a seat with its own
+        // release rule, e.g. a moving elevator). Nothing has moved yet at this point in a transit,
+        // so the caller aborts instead of proceeding: the engine's own TeleportToDouble moves a
+        // still-mounted player's mount to the target coordinates in the SOURCE dimension while only
+        // the player's own dimension flips, desyncing the mount from its rider.
+        if (player.Entity.TryUnmount())
         {
-            _sapi.Logger?.Warning(
-                "[Manifold] {0} could not be cleanly dismounted before transit (the mount refused to release them); continuing anyway.",
-                player.PlayerName);
+            return true;
         }
+
+        _sapi.Logger?.Warning(
+            "[Manifold] {0} could not be dismounted before transit (the mount refused to release them); transit aborted.",
+            player.PlayerName);
+        return false;
     }
 }

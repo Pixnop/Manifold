@@ -42,7 +42,8 @@ public interface ITransitionService
     /// If the player is riding a mount (a boat, a saddled creature, any <c>IMountableSeat</c>), they
     /// are cleanly dismounted right before the move: the mount is left behind in the source
     /// dimension, never dragged along and never left desynced with a rider that changed dimension
-    /// out from under it.
+    /// out from under it. If the mount's seat refuses to release them, the whole transit is
+    /// silently aborted (see <see cref="TryTeleportPlayer"/> to detect this).
     /// </summary>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
@@ -60,7 +61,11 @@ public interface ITransitionService
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="options">Optional transit settings.</param>
-    /// <returns><c>true</c> if the player was moved; <c>false</c> if a <see cref="PlayerEntering"/> or <see cref="PlayerArriving"/> subscriber cancelled the transit.</returns>
+    /// <returns>
+    /// <c>true</c> if the player was moved; <c>false</c> if a <see cref="PlayerEntering"/> or
+    /// <see cref="PlayerArriving"/> subscriber cancelled the transit, or if the player was riding a
+    /// mount whose seat refused to release them (nothing moves in that case either).
+    /// </returns>
     /// <exception cref="System.ArgumentNullException"><paramref name="player"/> or <paramref name="targetDim"/> is null.</exception>
     /// <exception cref="Manifold.Api.DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>

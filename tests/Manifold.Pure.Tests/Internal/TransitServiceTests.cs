@@ -428,7 +428,7 @@ public sealed class TransitServiceTests
             generator,
             new PlayerPositionStore(),
             swapper,
-            Substitute.For<IPlayerDismounter>());
+            NewDismounter());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -466,7 +466,7 @@ public sealed class TransitServiceTests
             generator,
             new PlayerPositionStore(),
             Substitute.For<IInventorySwapper>(),
-            Substitute.For<IPlayerDismounter>());
+            NewDismounter());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -538,6 +538,22 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TryTeleportPlayer_Should_Abort_And_Return_False_When_The_Mount_Refuses_To_Release_The_Player()
+    {
+        var (svc, _, teleporter, _, _, dismounter) = NewServiceWithDismounter();
+        var player = NewPlayer();
+        dismounter.Dismount(player).Returns(false);
+
+        bool moved = svc.TryTeleportPlayer(player, Code("owner:target"));
+
+        // Nothing has moved yet at the dismount step, so a refusal must abort the whole transit,
+        // exactly like a PlayerArriving cancellation: not teleport the player and drag their mount
+        // to the target dimension's coordinates in the source dimension underneath them.
+        Assert.False(moved);
+        teleporter.DidNotReceive().Teleport(Arg.Any<IServerPlayer>(), Arg.Any<BlockPos>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Fall_Back_To_Default_Resolver_When_DimensionSpawn_Has_No_Spawn_Point()
     {
         var allocator = new DimensionAllocator();
@@ -561,7 +577,7 @@ public sealed class TransitServiceTests
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
             Substitute.For<IInventorySwapper>(),
-            Substitute.For<IPlayerDismounter>());
+            NewDismounter());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -597,7 +613,7 @@ public sealed class TransitServiceTests
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
             Substitute.For<IInventorySwapper>(),
-            Substitute.For<IPlayerDismounter>());
+            NewDismounter());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -727,9 +743,17 @@ public sealed class TransitServiceTests
             generator,
             new PlayerPositionStore(),
             new InventorySwapper(sapi),
-            Substitute.For<IPlayerDismounter>());
+            NewDismounter());
 
         return (svc, registry, teleporter, entityMover, blockMover, sapi);
+    }
+
+    /// <summary>A dismounter substitute that releases the player by default, like the real one for an unmounted player.</summary>
+    private static IPlayerDismounter NewDismounter()
+    {
+        var dismounter = Substitute.For<IPlayerDismounter>();
+        dismounter.Dismount(Arg.Any<IServerPlayer>()).Returns(true);
+        return dismounter;
     }
 
     private static (TransitService Service, DimensionRegistry Registry, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover, IPlayerDismounter Dismounter)
@@ -751,7 +775,7 @@ public sealed class TransitServiceTests
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
         var entityMover = Substitute.For<IEntityMover>();
         var blockMover = Substitute.For<IBlockMover>();
-        var dismounter = Substitute.For<IPlayerDismounter>();
+        var dismounter = NewDismounter();
         var svc = new TransitService(
             registry,
             sapi,

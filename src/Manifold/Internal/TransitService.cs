@@ -187,8 +187,19 @@ internal sealed class TransitService : ITransitionService
 
         // Dismount before moving the player: a cross-dimension teleport rehomes only the player's
         // own entity, so a rider left mounted would end up flagged as mounted on an entity that
-        // never left the source dimension. The mount itself stays put.
-        _dismounter.Dismount(player);
+        // never left the source dimension. The mount itself stays put. A refused dismount is
+        // treated like a PlayerArriving cancellation: nothing has moved yet, so it is safe to
+        // abort here instead of teleporting a player the engine would then drag their mount along
+        // with (in the source dimension) for.
+        if (!_dismounter.Dismount(player))
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled: could not dismount them.",
+                player.PlayerName,
+                target.Code);
+            return false;
+        }
+
         _movers.Player.Teleport(player, targetPos);
 
         ApplyGameModePolicy(player, targetImpl);
