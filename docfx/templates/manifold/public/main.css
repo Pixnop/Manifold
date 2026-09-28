@@ -1050,7 +1050,9 @@ body[data-layout='landing'] article > :not(.mf-drift-zone) { position: relative;
   font-size: 0.92rem;
   background: var(--mf-void-2);
   color: var(--mf-green-light);
-  border: 1px solid var(--bs-border-color);
+  /* a fixed slate border, not --bs-border-color: this is a picture of the game's own dark UI, so
+     its border stays pinned dark instead of picking up light mode's pale grey. */
+  border: 1px solid var(--mf-slate);
   border-left: 3px solid var(--mf-green);
   border-radius: var(--mf-radius);
   padding: 0.6rem 1rem;
