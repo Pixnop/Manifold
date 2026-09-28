@@ -166,27 +166,27 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 <p class="mf-section-sub">Consumer mods already shipping on Manifold's dimension API.</p>
 <div class="mf-grid">
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/ppd">
-<img src="https://moddbcdn.vintagestory.at/PageIcon_08d3978723446881640b30e4d2cb6569.png" width="44" height="44" alt="" loading="lazy">
+<img src="assets/site/mod-icons/pocket-dimension.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Personal Pocket Dimension</h3><p>A private dimension of your own, reachable from anywhere.</p></div>
 </a>
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/vsbackrooms">
-<img src="https://moddbcdn.vintagestory.at/PageIcon_e1e18780f2ae218ab2b48522e7c08be9.png" width="44" height="44" alt="" loading="lazy">
+<img src="assets/site/mod-icons/backrooms.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">VS Backrooms</h3><p>An endless, unsettling liminal dimension to get lost in.</p></div>
 </a>
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/show/mod/56037">
-<img src="https://moddbcdn.vintagestory.at/11111_6c0404dad260424dbe3bd60a0c8a7367.jpg" width="44" height="44" alt="" loading="lazy">
+<img src="assets/site/mod-icons/secure-shelter.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Spaturno and Trini's Secure Shelter</h3><p>A safehouse dimension, sealed off from the world outside.</p></div>
 </a>
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/show/mod/35893">
-<img src="https://moddbcdn.vintagestory.at/sixth-history-logo_36e5b4ecbeabcdbd7f70526bd5c0e170.png" width="44" height="44" alt="" loading="lazy">
+<img src="assets/site/mod-icons/esoterica.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Esoterica</h3><p>Occult dimensions and rituals built on Manifold's transit API.</p></div>
 </a>
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/chart">
-<img src="https://moddbcdn.vintagestory.at/chart-logo-480_aa3568eef569b63088ec5d5b7784bea0.png" width="44" height="44" alt="" loading="lazy">
+<img src="assets/site/mod-icons/chart.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Chart</h3><p>A dimension-aware world map: per-dimension tiles, hot-swapped on transit.</p></div>
 </a>
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/manifoldsample">
-<img src="https://moddbcdn.vintagestory.at/manifoldsample-logo-_3d1415ffa12c25e9ccbdf51f26681eda.png" width="44" height="44" alt="" loading="lazy">
+<img src="assets/site/mod-icons/manifold-sample.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Manifold Sample</h3><p>The working demo mod this documentation's own examples are trimmed from.</p></div>
 </a>
 </div>
