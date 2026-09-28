@@ -61,3 +61,6 @@ docfx-tool/
 
 # Python bytecode (docs/assets/moddb/generate.py)
 __pycache__/
+
+# Generated before each run (see tests/Manifold.Scenarios.CompatFixtures/README.md)
+tests/Manifold.Scenarios.CompatDowngrade/fixtures/downgrade-from-dev.vcdbs

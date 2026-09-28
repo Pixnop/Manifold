@@ -5,9 +5,8 @@ projects, not one" below), the savegame fixture `tests/Manifold.Scenarios.Compat
 loads. The matching upgrade-direction fixture, `fixtures/upgrade-from-0.5.1.vcdbs` (played
 entirely with the published Manifold 0.5.1 release), is built by the sibling project
 `Manifold.Scenarios.CompatFixturesUpgrade` and loaded by `Manifold.Scenarios.Compat`. Neither
-project is a test suite that runs in CI: both are one-time, re-runnable generators. Both
-fixtures are committed (about 2 MB each), so an ordinary contributor never needs to run either
-project at all.
+project is a test suite: both are re-runnable generators. Only the upgrade fixture is committed
+(about 4.5 MB); the downgrade fixture is generated, see below.
 
 ## Two projects, not one
 
@@ -49,30 +48,16 @@ This is the officially documented way to build an Atlas fixture, so it is what t
 uses; the version-crossing part (staging the 0.5.1 zip for one builder, the dev build for the
 other) is the only piece specific to this task.
 
-Both output files are committed (about 2 MB each), so an ordinary contributor never needs to
-run either project just to get a working `Manifold.Scenarios.Compat` / `...CompatDowngrade`
-checkout. That commit is not, by itself, a staleness guard: it is the opposite, a committed
-file is a frozen snapshot, and a snapshot goes stale the moment what it is a snapshot OF
-changes underneath it. `upgrade-from-0.5.1.vcdbs` cannot go stale, because 0.5.1 is a frozen,
-published release that will never change; a committed snapshot of it is exactly as fresh five
-years from now as it is today. `downgrade-from-dev.vcdbs` has no such guarantee: it is a
-snapshot of whatever this repo's dev persistence code (the manifest format, the sidecar, the
-player position/inventory blobs) happened to write on the day someone last regenerated it. Any
-later change to that code before 0.6.0 ships leaves `DowngradeVerifyScenarios` boot against, and
-pass against, an OLD dev save, not what the release will actually write, and nothing forces a
-contributor to notice and regenerate it; a stale-but-passing scenario is worse than no scenario,
-since it looks like coverage that is not actually there.
+`upgrade-from-0.5.1.vcdbs` is committed: 0.5.1 is a frozen, published release, so a snapshot
+of a world it wrote never goes stale.
 
-So the e2e job (see `.github/workflows/ci.yml`) generates `downgrade-from-dev.vcdbs` fresh on
-every run, right before the `Manifold.Scenarios.CompatDowngrade` step, overwriting the checked-
-out copy in the runner's own workspace (never committed back): CI's build-then-harvest step
-costs a few seconds and removes the staleness risk entirely for the direction that actually has
-one. The committed copy still ships in the repo purely for local convenience (a `dotnet test`
-right after cloning, no extra tool install), and still needs a manual re-run (see "Running it"
-below) whenever `CompatFixtureModSystem` or `DowngradeFixtureBuilderScenarios` changes, so a
-local run without network access to rebuild it still has something recent to work from.
-`upgrade-from-0.5.1.vcdbs` stays purely committed, generated in CI, never: nothing about it can
-go stale, so regenerating it on every run would only cost time for no benefit.
+`downgrade-from-dev.vcdbs` is not committed. It is a snapshot of whatever this repo's dev
+persistence code writes (the manifest, the schema sidecar, the player blobs), so a committed copy
+would go stale silently the day that code changes, and the downgrade scenario would keep passing
+against an old save. The e2e job (`.github/workflows/ci.yml`) generates it fresh on every run,
+right before the `Manifold.Scenarios.CompatDowngrade` step. Locally, run the second command of
+"Running it" below before `dotnet test tests/Manifold.Scenarios.CompatDowngrade`; the file is
+git-ignored.
 
 ## The fixture mod
 

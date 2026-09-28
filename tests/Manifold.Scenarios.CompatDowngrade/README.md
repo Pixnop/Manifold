@@ -8,8 +8,8 @@ published Manifold 0.5.1 release: the **downgrade** direction (`DowngradeVerifyS
 classes (short version: a process can only bind one physical build of Manifold's frozen-identity
 dll, so each direction needs its own process, and `dotnet test` gives one process per project).
 
-Loads the committed savegame fixture under `fixtures/` (built by
-`tests/Manifold.Scenarios.CompatFixtures`; see that project's README for how and why) and
+Loads the savegame fixture under `fixtures/`, generated before each run by
+`tests/Manifold.Scenarios.CompatFixtures` (see that project's README for how and why) and
 asserts everything the brief named survives: the same persistent dimension and internal id, its
 generated terrain intact including a block a player placed, the player's last-visited position,
 their separate-inventory profile, and their saved pre-forced game mode. This direction

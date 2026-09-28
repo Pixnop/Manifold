@@ -111,12 +111,8 @@ jobs:
             --logger "trx;LogFileName=compat-upgrade.trx" \
             --results-directory TestResults
 
-      # downgrade-from-dev.vcdbs (unlike upgrade-from-0.5.1.vcdbs, which is a snapshot of a
-      # frozen, published release and can never go stale) is a snapshot of THIS repo's own dev
-      # persistence code; see Manifold.Scenarios.CompatFixtures/README.md's "Committing the two
-      # output files" for why that specific snapshot is regenerated here instead of trusted from
-      # the checkout. Overwrites the committed copy in this runner's own workspace only; the
-      # committed file in the repo is untouched and still exists for local convenience.
+      # downgrade-from-dev.vcdbs is a snapshot of this repo's own dev persistence code, so it is
+      # not committed but generated here on every run (see Manifold.Scenarios.CompatFixtures/README.md).
       - name: Regenerate downgrade-from-dev.vcdbs
         run: |
           dotnet tool install --global Pixnop.Atlas.Cli --version 0.15.0
