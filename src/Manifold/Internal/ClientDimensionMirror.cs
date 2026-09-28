@@ -79,20 +79,14 @@ internal sealed class ClientDimensionMirror
         var updated = builder.ToImmutable();
         _snapshot = updated;
 
-        foreach (var kvp in previous)
+        foreach (var kvp in previous.Where(kvp => !updated.ContainsKey(kvp.Key)))
         {
-            if (!updated.ContainsKey(kvp.Key))
-            {
-                Removed?.Invoke(kvp.Value);
-            }
+            Removed?.Invoke(kvp.Value);
         }
 
-        foreach (var kvp in updated)
+        foreach (var kvp in updated.Where(kvp => !previous.ContainsKey(kvp.Key)))
         {
-            if (!previous.ContainsKey(kvp.Key))
-            {
-                Added?.Invoke(kvp.Value);
-            }
+            Added?.Invoke(kvp.Value);
         }
     }
 

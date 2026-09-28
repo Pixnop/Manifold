@@ -161,35 +161,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .WithDescription("Spawn a stick item entity and send it to the sample flat dimension.")
             .RequiresPrivilege("chat")
             .RequiresPlayer()
-            .HandleWith(cmdArgs =>
-            {
-                if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
-                {
-                    return TextCommandResult.Error("Players only.");
-                }
-
-                var item = api.World.GetItem(new AssetLocation("game:stick"));
-                if (item is null)
-                {
-                    return TextCommandResult.Error("Test item not found.");
-                }
-
-                var stack = new ItemStack(item);
-
-                // SidedPos is a property in every 1.21.x and 1.22.x API; reading Entity.Pos directly
-                // would emit ldfld (against the 1.21 shape) or callvirt get_Pos (against 1.22), which
-                // mismatches one of the two at runtime. SidedPos is marked obsolete in 1.22 only.
-#pragma warning disable CS0618 // Type or member is obsolete
-                var spawned = api.World.SpawnItemEntity(stack, serverPlayer.Entity.SidedPos.XYZ);
-#pragma warning restore CS0618
-                if (spawned is null)
-                {
-                    return TextCommandResult.Error("Failed to spawn the test item entity.");
-                }
-
-                manifold.Transitions.TeleportEntity(spawned, new AssetLocation(ModId, "flat"));
-                return TextCommandResult.Success("Sent a stick to the flat dimension; use /flatdim to find it near your X/Z.");
-            });
+            .HandleWith(cmdArgs => HandleSendTestItem(api, manifold, cmdArgs));
 
         // Demonstrates TeleportBlock (#36): teleports the block the caller is looking at - with its
         // BlockEntity contents (e.g. a chest's inventory) - to the flat dimension. Place a chest,
@@ -198,32 +170,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .WithDescription("Teleport the block you are looking at (with its contents) to the flat dimension.")
             .RequiresPrivilege("chat")
             .RequiresPlayer()
-            .HandleWith(cmdArgs =>
-            {
-                if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
-                {
-                    return TextCommandResult.Error("Players only.");
-                }
-
-                if (serverPlayer.CurrentBlockSelection?.Position is not { } src)
-                {
-                    return TextCommandResult.Error("Look at a block first, then run /sendtestblock.");
-                }
-
-#pragma warning disable CS0618 // SidedPos is obsolete in 1.22 only; used for 1.21/1.22 binary compat.
-                var ppos = serverPlayer.Entity.SidedPos;
-#pragma warning restore CS0618
-                var targetLocal = new BlockPos((int)ppos.X, 64, (int)ppos.Z, 0);
-
-                bool moved = manifold.Transitions.TeleportBlock(
-                    src, new AssetLocation(ModId, "flat"), targetLocal);
-
-                return moved
-                    ? TextCommandResult.Success(
-                        $"Teleported the block to flat dim at ({targetLocal.X}, 64, {targetLocal.Z}). " +
-                        "Use /flatdim and go to that X/Z to verify it (and its contents) arrived; the source slot is now air.")
-                    : TextCommandResult.Error("Nothing moved - the targeted block was air.");
-            });
+            .HandleWith(cmdArgs => HandleSendTestBlock(manifold, cmdArgs));
 
         // Demonstrates the ephemeral-dim lifecycle (Define.Ephemeral.Create). An ephemeral dimension
         // is reaped automatically when its last occupant transits out, so just leaving it via
@@ -233,43 +180,12 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .WithDescription("Create the ephemeral manifoldsample:tempdim and teleport into it.")
             .RequiresPrivilege("chat")
             .RequiresPlayer()
-            .HandleWith(cmdArgs =>
-            {
-                if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
-                {
-                    return TextCommandResult.Error("Players only.");
-                }
-
-                var tempCode = new AssetLocation(ModId, "tempdim");
-                if (manifold.Registry.Get(tempCode) is null)
-                {
-                    manifold.Registry
-                        .Define(tempCode)
-                        .Ephemeral()
-                        .WithWorldgen(new FlatWorldgenStrategy())
-                        .Create();
-                }
-
-                manifold.Transitions.TeleportPlayer(serverPlayer, tempCode);
-                return TextCommandResult.Success(
-                    "Inside " + tempCode + ". Walk around to generate Chart tiles. Leave (/overworlddim) "
-                    + "and it auto-reaps when empty, or /destroytempdim to force it now.");
-            });
+            .HandleWith(cmdArgs => HandleCreateTempDim(manifold, cmdArgs));
 
         api.ChatCommands.Create("destroytempdim")
             .WithDescription("Force-destroy manifoldsample:tempdim (evacuates you out first). Demo for companion dim-lifecycle cleanup (e.g. Chart cache).")
             .RequiresPrivilege("chat")
-            .HandleWith(cmdArgs =>
-            {
-                // Force teardown: ForceRemoveDimension evacuates any occupants to the overworld, then
-                // removes the dim. The plain Registry.TryRemove would refuse while you are inside.
-                bool removed = manifold.ForceRemoveDimension(new AssetLocation(ModId, "tempdim"));
-                return removed
-                    ? TextCommandResult.Success(
-                        "Destroyed manifoldsample:tempdim (you were evacuated to the overworld if inside). "
-                        + "Chart should now drop its .bin cache and clear rendered components.")
-                    : TextCommandResult.Error("manifoldsample:tempdim is not currently registered.");
-            });
+            .HandleWith(_ => HandleDestroyTempDim(manifold));
 
         // Resettable mining dimension (a Mod DB request): solid rock with ore to dig, wiped and
         // regenerated on demand. It is registered Ephemeral rather than Persistent because
@@ -297,20 +213,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
         api.ChatCommands.Create("miningreset")
             .WithDescription("Wipe the mining dimension (evacuating anyone inside) so the next /miningdim regenerates it with fresh ore.")
             .RequiresPrivilege("controlserver")
-            .HandleWith(cmdArgs =>
-            {
-                if (manifold.Registry.Get(miningCode) is null)
-                {
-                    return TextCommandResult.Success("Nothing to reset - manifoldsample:mining is not currently registered.");
-                }
-
-                if (!manifold.ForceRemoveDimension(miningCode))
-                {
-                    return TextCommandResult.Error("Could not evacuate everyone from manifoldsample:mining; it is still in use.");
-                }
-
-                return TextCommandResult.Success("Reset manifoldsample:mining; run /miningdim to generate a fresh one.");
-            });
+            .HandleWith(_ => HandleMiningReset(manifold, miningCode));
 
         Mod.Logger.Notification(
             "[ManifoldSample] Registered void + flat + dark + stream + vault dimensions and /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim, /miningdim, /miningreset commands.");
@@ -345,5 +248,125 @@ public sealed class ManifoldSampleModSystem : ModSystem
         return TextCommandResult.Success(created
             ? "Created manifoldsample:mining and sent you in."
             : "Sent you to manifoldsample:mining.");
+    }
+
+    /// <summary>
+    /// Handles <c>/sendtestitem</c>: spawns a stick item entity at the caller and sends it to the
+    /// sample flat dimension via <see cref="ITransitionService.TeleportEntity"/>.
+    /// </summary>
+    internal static TextCommandResult HandleSendTestItem(ICoreServerAPI api, IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
+    {
+        if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
+        {
+            return TextCommandResult.Error("Players only.");
+        }
+
+        var item = api.World.GetItem(new AssetLocation("game:stick"));
+        if (item is null)
+        {
+            return TextCommandResult.Error("Test item not found.");
+        }
+
+        var stack = new ItemStack(item);
+
+        // SidedPos is a property in every 1.21.x and 1.22.x API; reading Entity.Pos directly
+        // would emit ldfld (against the 1.21 shape) or callvirt get_Pos (against 1.22), which
+        // mismatches one of the two at runtime. SidedPos is marked obsolete in 1.22 only.
+#pragma warning disable CS0618 // Type or member is obsolete
+        var spawned = api.World.SpawnItemEntity(stack, serverPlayer.Entity.SidedPos.XYZ);
+#pragma warning restore CS0618
+        if (spawned is null)
+        {
+            return TextCommandResult.Error("Failed to spawn the test item entity.");
+        }
+
+        manifold.Transitions.TeleportEntity(spawned, new AssetLocation(ModId, "flat"));
+        return TextCommandResult.Success("Sent a stick to the flat dimension; use /flatdim to find it near your X/Z.");
+    }
+
+    /// <summary>
+    /// Handles <c>/sendtestblock</c>: teleports the block the caller is looking at - with its
+    /// BlockEntity contents (e.g. a chest's inventory) - to the flat dimension.
+    /// </summary>
+    internal static TextCommandResult HandleSendTestBlock(IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
+    {
+        if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
+        {
+            return TextCommandResult.Error("Players only.");
+        }
+
+        if (serverPlayer.CurrentBlockSelection?.Position is not { } src)
+        {
+            return TextCommandResult.Error("Look at a block first, then run /sendtestblock.");
+        }
+
+#pragma warning disable CS0618 // SidedPos is obsolete in 1.22 only; used for 1.21/1.22 binary compat.
+        var ppos = serverPlayer.Entity.SidedPos;
+#pragma warning restore CS0618
+        var targetLocal = new BlockPos((int)ppos.X, 64, (int)ppos.Z, 0);
+
+        bool moved = manifold.Transitions.TeleportBlock(src, new AssetLocation(ModId, "flat"), targetLocal);
+
+        return moved
+            ? TextCommandResult.Success(
+                $"Teleported the block to flat dim at ({targetLocal.X}, 64, {targetLocal.Z}). " +
+                "Use /flatdim and go to that X/Z to verify it (and its contents) arrived; the source slot is now air.")
+            : TextCommandResult.Error("Nothing moved - the targeted block was air.");
+    }
+
+    /// <summary>
+    /// Handles <c>/createtempdim</c>: creates the ephemeral manifoldsample:tempdim (if not already
+    /// registered) and teleports the caller into it.
+    /// </summary>
+    internal static TextCommandResult HandleCreateTempDim(IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
+    {
+        if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
+        {
+            return TextCommandResult.Error("Players only.");
+        }
+
+        var tempCode = new AssetLocation(ModId, "tempdim");
+        if (manifold.Registry.Get(tempCode) is null)
+        {
+            manifold.Registry
+                .Define(tempCode)
+                .Ephemeral()
+                .WithWorldgen(new FlatWorldgenStrategy())
+                .Create();
+        }
+
+        manifold.Transitions.TeleportPlayer(serverPlayer, tempCode);
+        return TextCommandResult.Success(
+            "Inside " + tempCode + ". Walk around to generate Chart tiles. Leave (/overworlddim) "
+            + "and it auto-reaps when empty, or /destroytempdim to force it now.");
+    }
+
+    /// <summary>Handles <c>/destroytempdim</c>: force-evacuates and removes manifoldsample:tempdim.</summary>
+    internal static TextCommandResult HandleDestroyTempDim(IManifoldServer manifold)
+    {
+        // Force teardown: ForceRemoveDimension evacuates any occupants to the overworld, then
+        // removes the dim. The plain Registry.TryRemove would refuse while you are inside.
+        bool removed = manifold.ForceRemoveDimension(new AssetLocation(ModId, "tempdim"));
+        return removed
+            ? TextCommandResult.Success(
+                "Destroyed manifoldsample:tempdim (you were evacuated to the overworld if inside). "
+                + "Chart should now drop its .bin cache and clear rendered components.")
+            : TextCommandResult.Error("manifoldsample:tempdim is not currently registered.");
+    }
+
+    /// <summary>Handles <c>/miningreset</c>: wipes the mining dimension so the next visit regenerates it.</summary>
+    internal static TextCommandResult HandleMiningReset(IManifoldServer manifold, AssetLocation miningCode)
+    {
+        if (manifold.Registry.Get(miningCode) is null)
+        {
+            return TextCommandResult.Success("Nothing to reset - manifoldsample:mining is not currently registered.");
+        }
+
+        if (!manifold.ForceRemoveDimension(miningCode))
+        {
+            return TextCommandResult.Error("Could not evacuate everyone from manifoldsample:mining; it is still in use.");
+        }
+
+        return TextCommandResult.Success("Reset manifoldsample:mining; run /miningdim to generate a fresh one.");
     }
 }
