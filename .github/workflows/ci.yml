@@ -97,18 +97,25 @@ jobs:
             --logger "trx;LogFileName=scenarios.trx" \
             --results-directory TestResults
 
-      # Cross-version compatibility (0.5.1 release <-> this dev build, both directions):
-      # loads the two committed savegame fixtures under tests/Manifold.Scenarios.Compat/fixtures
-      # (see that project's README; Manifold.Scenarios.CompatFixtures, which built them, is a
-      # one-time local generator and does not run here). dotnet test, not a plain `atlas run`:
-      # see the README for why a plain `atlas run` here is unsafe (one process cannot load two
-      # different builds of the same-identity Manifold.dll), which dotnet test's own test host
-      # does not hit.
-      - name: E2E compat scenarios (0.5.1 <-> dev)
+      # Cross-version compatibility (0.5.1 release <-> this dev build, both directions), one
+      # project per direction (see Manifold.Scenarios.Compat/README.md's "Why two projects
+      # instead of one"): a process can only bind ONE physical build of Manifold's
+      # frozen-identity dll, so each direction needs its own dotnet test invocation (its own
+      # process) rather than being two classes sharing one project. Each loads its own committed
+      # savegame fixture (Manifold.Scenarios.CompatFixtures* built them; those are one-time local
+      # generators and do not run here).
+      - name: E2E compat scenarios (0.5.1 -> dev)
         run: |
           dotnet test tests/Manifold.Scenarios.Compat \
             -c Release \
-            --logger "trx;LogFileName=compat.trx" \
+            --logger "trx;LogFileName=compat-upgrade.trx" \
+            --results-directory TestResults
+
+      - name: E2E compat scenarios (dev -> 0.5.1)
+        run: |
+          dotnet test tests/Manifold.Scenarios.CompatDowngrade \
+            -c Release \
+            --logger "trx;LogFileName=compat-downgrade.trx" \
             --results-directory TestResults
 
       - name: Upload E2E results
@@ -118,4 +125,5 @@ jobs:
           name: scenarios-trx
           path: |
             TestResults/scenarios.trx
-            TestResults/compat.trx
+            TestResults/compat-upgrade.trx
+            TestResults/compat-downgrade.trx

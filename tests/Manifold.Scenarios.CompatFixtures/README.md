@@ -1,10 +1,28 @@
 # Manifold.Scenarios.CompatFixtures
 
-Builds the two savegame fixtures `tests/Manifold.Scenarios.Compat` loads:
-`fixtures/upgrade-from-0.5.1.vcdbs` (played entirely with the published Manifold 0.5.1
-release) and `fixtures/downgrade-from-dev.vcdbs` (played with this repo's dev build). Not a
-test suite that runs in CI: a one-time, re-runnable generator. Both fixtures are committed
-(about 2 MB each), so an ordinary contributor never needs to run this project at all.
+Builds `fixtures/downgrade-from-dev.vcdbs` (played with this repo's dev build; see "Two
+projects, not one" below), the savegame fixture `tests/Manifold.Scenarios.CompatDowngrade`
+loads. The matching upgrade-direction fixture, `fixtures/upgrade-from-0.5.1.vcdbs` (played
+entirely with the published Manifold 0.5.1 release), is built by the sibling project
+`Manifold.Scenarios.CompatFixturesUpgrade` and loaded by `Manifold.Scenarios.Compat`. Neither
+project is a test suite that runs in CI: both are one-time, re-runnable generators. Both
+fixtures are committed (about 2 MB each), so an ordinary contributor never needs to run either
+project at all.
+
+## Two projects, not one
+
+`BuildTheDowngradeFixture` (this project) needs the dev build; `BuildTheUpgradeFixture`
+(`Manifold.Scenarios.CompatFixturesUpgrade`) needs the published 0.5.1 release instead. Both
+were originally two classes in this one project, staged against different builds of Manifold's
+frozen-identity dll (see `Directory.Build.props`) - which a single .NET process cannot actually
+do: whichever build's dll a `ProjectReference` copies into the shared output directory wins
+default assembly probing for the WHOLE process, silently, no matter what each class's own
+`[AtlasWorld(Mods = [...])]` says to stage. `Manifold.Scenarios.Compat/README.md`'s "Why two
+projects instead of one" has the full story (it was caught the same way there: the "wrong"
+build's class kept passing while silently running against the dev build the whole time). The
+fix here is the same: `Manifold.Scenarios.CompatFixturesUpgrade` has no `ProjectReference` to
+`src/Manifold` at all, so there is no dev-build dll in its output to collide with the 0.5.1 zip
+it stages explicitly; this project keeps the ordinary dev-build reference.
 
 ## Why a separate project, and why savegame fixtures at all
 
@@ -37,11 +55,11 @@ consumed by the other"): at ~2 MB each they cost little in the repo, and skippin
 build-then-harvest step in CI (with its own ordering and mod-staging concerns, see below) for
 every PR keeps the e2e job's runtime down and removes a whole class of "the generator changed
 but nobody regenerated the fixture" staleness a CI-time build cannot introduce.
-Regenerating them only needs re-running this project's two scenarios; see below.
+Regenerating them only needs re-running the two builder scenarios (one per project); see below.
 
 ## The fixture mod
 
-Both builder scenarios drive the SAME compiled fixture,
+Both builder scenarios (in their separate projects) drive the SAME compiled fixture,
 `tests/Manifold.Scenarios.CompatFixtureMod` (modid `manicompat`), compiled only against the
 published `Pixnop.Manifold` 0.5.1 NuGet package. It is staged against the 0.5.1 release zip
 for `BuildTheUpgradeFixture` and against this repo's dev-built `Manifold.dll` for
@@ -58,13 +76,13 @@ question is asking.
 
     VINTAGE_STORY=/path/to/vintagestory dotnet build Manifold.slnx -c Release
 
-    atlas fixture tests/Manifold.Scenarios.CompatFixtures/bin/Release/net10.0/Manifold.Scenarios.CompatFixtures.dll \
+    atlas fixture tests/Manifold.Scenarios.CompatFixturesUpgrade/bin/Release/net10.0/Manifold.Scenarios.CompatFixturesUpgrade.dll \
       --scenario BuildTheUpgradeFixture \
       --out tests/Manifold.Scenarios.Compat/fixtures/upgrade-from-0.5.1.vcdbs --force
 
     atlas fixture tests/Manifold.Scenarios.CompatFixtures/bin/Release/net10.0/Manifold.Scenarios.CompatFixtures.dll \
       --scenario BuildTheDowngradeFixture \
-      --out tests/Manifold.Scenarios.Compat/fixtures/downgrade-from-dev.vcdbs --force
+      --out tests/Manifold.Scenarios.CompatDowngrade/fixtures/downgrade-from-dev.vcdbs --force
 
 (`atlas` is the `Pixnop.Atlas.Cli` dotnet tool; `dotnet tool install -g Pixnop.Atlas.Cli
 --version 0.15.0` if not already installed, matching `Pixnop.Atlas.XUnit`'s version, since an
@@ -72,10 +90,11 @@ older CLI reports version skew and exits 2 instead of harvesting.) Re-run both a
 `CompatFixtureModSystem` or a builder scenario's world-building steps change; commit the
 resulting files alongside that change.
 
-Each builder can also be run as an ordinary scenario for iterating on it
-(`atlas run ...Fixtures.dll --filter BuildTheUpgradeFixture`, or `dotnet test`): its
-assertions on its own setup (the player actually lands where expected, actually gets forced
-into Creative, and so on) catch a broken generator before it ever reaches `atlas fixture`.
+Each builder can also be run as an ordinary scenario for iterating on it, in its own project
+(`atlas run ...FixturesUpgrade.dll --filter BuildTheUpgradeFixture`, or `dotnet test` on either
+project): its assertions on its own setup (the player actually lands where expected, actually
+gets forced into Creative, and so on) catch a broken generator before it ever reaches `atlas
+fixture`.
 
 ## What each builder does
 

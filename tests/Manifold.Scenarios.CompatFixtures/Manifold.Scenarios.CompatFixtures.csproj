@@ -4,11 +4,6 @@
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);CS1591;SA0001;SA1600;SA1601;SA1602</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <!-- The published Manifold release zip, staged for the two "upgrade" (0.5.1-side) generator
-         classes below. See README.md for why this project exists and how it is run. -->
-    <ManifoldModVersion>0.5.1</ManifoldModVersion>
-    <ManifoldModZipUrl>https://github.com/Pixnop/Manifold/releases/download/v$(ManifoldModVersion)/Manifold-$(ManifoldModVersion).zip</ManifoldModZipUrl>
-    <ManifoldModZipCache>$(BaseIntermediateOutputPath)Manifold-$(ManifoldModVersion).zip</ManifoldModZipCache>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,12 +21,12 @@
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
     </Reference>
-    <!-- Assembly-default mod set (the dev build): DowngradeFixtureGenerator uses it as-is.
-         UpgradeFixtureGenerator overrides with ExcludeAssemblyMods and the 0.5.1 release zip
-         instead (see its [AtlasWorld]). CompatFixtureMod is tagged here too so it is staged as
-         its own named folder by StageAtlasFolderMods below and reachable by both classes: the
-         dev one through the assembly default, the 0.5.1 one by naming the same staged path
-         explicitly. -->
+    <!-- Assembly-default mod set (the dev build): DowngradeFixtureBuilderScenarios, the only
+         class here, uses it as-is. CompatFixtureMod is tagged here too so it is staged as its
+         own named folder by StageAtlasFolderMods below. The upgrade direction (which needs the
+         0.5.1 release zip instead of the dev build) lives in its own project,
+         Manifold.Scenarios.CompatFixturesUpgrade, with no ProjectReference to src/Manifold at
+         all; see README.md for why booting both builds from one project is unsafe. -->
     <ProjectReference Include="..\..\src\Manifold\Manifold.csproj">
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
@@ -57,20 +52,6 @@
     <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
                       Lines="@(_AtlasFolderModDll->'%(StageDir)')"
                       Overwrite="true" />
-  </Target>
-
-  <!-- Downloads the published Manifold release zip once (cached under obj/) and stages it next
-       to the test assembly under a version-independent name, for UpgradeFixtureGenerator's
-       explicit Mods list (see AssemblyInfo.cs and Manifold.Scenarios.Compat's identical target,
-       which the CHANGELOG's dev/downgrade direction does not need). -->
-  <Target Name="StageManifoldReleaseZip" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
-    <DownloadFile SourceUrl="$(ManifoldModZipUrl)"
-                  DestinationFolder="$(BaseIntermediateOutputPath)"
-                  DestinationFileName="Manifold-$(ManifoldModVersion).zip"
-                  Condition="!Exists('$(ManifoldModZipCache)')" />
-    <Copy SourceFiles="$(ManifoldModZipCache)"
-          DestinationFiles="$(TargetDir)atlas-mods\manifold051.zip"
-          SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

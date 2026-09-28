@@ -4,11 +4,6 @@
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);CS1591;SA0001;SA1600;SA1601;SA1602</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <!-- The published Manifold release zip, staged for DowngradeVerifyScenarios (the 0.5.1-side
-         class). See README.md for why this project exists and how its fixtures were produced. -->
-    <ManifoldModVersion>0.5.1</ManifoldModVersion>
-    <ManifoldModZipUrl>https://github.com/Pixnop/Manifold/releases/download/v$(ManifoldModVersion)/Manifold-$(ManifoldModVersion).zip</ManifoldModZipUrl>
-    <ManifoldModZipCache>$(BaseIntermediateOutputPath)Manifold-$(ManifoldModVersion).zip</ManifoldModZipCache>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,7 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The two savegame fixtures atlas fixture harvested (see README.md), one per direction. -->
+    <!-- The upgrade-direction savegame fixture atlas fixture harvested (see README.md), for the
+         one class in this project. -->
     <None Include="fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -31,10 +27,12 @@
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
     </Reference>
-    <!-- Assembly-default mod set (the dev build): UpgradeVerifyScenarios uses it as-is.
-         DowngradeVerifyScenarios overrides with ExcludeAssemblyMods and the 0.5.1 release zip
-         instead (see its [AtlasWorld]). CompatFixtureMod is tagged here too so it is staged as
-         its own named folder by StageAtlasFolderMods below and reachable by both classes. -->
+    <!-- Assembly-default mod set (the dev build): UpgradeVerifyScenarios, the only class here,
+         uses it as-is. CompatFixtureMod is tagged here too so it is staged as its own named
+         folder by StageAtlasFolderMods below. The downgrade direction (which needs the 0.5.1
+         release zip instead of the dev build) lives in its own project,
+         Manifold.Scenarios.CompatDowngrade, with no ProjectReference to src/Manifold at all; see
+         README.md for why booting both builds from one project is unsafe. -->
     <ProjectReference Include="..\..\src\Manifold\Manifold.csproj">
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
@@ -59,19 +57,6 @@
     <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
                       Lines="@(_AtlasFolderModDll->'%(StageDir)')"
                       Overwrite="true" />
-  </Target>
-
-  <!-- Downloads the published Manifold release zip once (cached under obj/) and stages it next
-       to the test assembly under a version-independent name, for DowngradeVerifyScenarios's
-       explicit Mods list. -->
-  <Target Name="StageManifoldReleaseZip" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
-    <DownloadFile SourceUrl="$(ManifoldModZipUrl)"
-                  DestinationFolder="$(BaseIntermediateOutputPath)"
-                  DestinationFileName="Manifold-$(ManifoldModVersion).zip"
-                  Condition="!Exists('$(ManifoldModZipCache)')" />
-    <Copy SourceFiles="$(ManifoldModZipCache)"
-          DestinationFiles="$(TargetDir)atlas-mods\manifold051.zip"
-          SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

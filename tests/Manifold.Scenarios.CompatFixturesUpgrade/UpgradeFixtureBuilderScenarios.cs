@@ -1,4 +1,4 @@
-namespace Manifold.Scenarios.CompatFixtures;
+namespace Manifold.Scenarios.CompatFixturesUpgrade;
 
 using Atlas.Api;
 using Atlas.XUnit;

@@ -1,54 +1,65 @@
 # Manifold.Scenarios.Compat
 
-Proves, on a real embedded Vintage Story server through Atlas, that worlds survive moving
-between the published Manifold 0.5.1 release and this repo's dev build, in both directions:
+Proves, on a real embedded Vintage Story server through Atlas, that a world played entirely
+with the published Manifold 0.5.1 release survives opening with this repo's dev build: the
+**upgrade** direction (`UpgradeVerifyScenarios`). The **downgrade** direction (a world saved by
+the dev build opened with the published 0.5.1 release) lives in the sibling project
+`Manifold.Scenarios.CompatDowngrade`; see "Why two projects instead of one" below for why they
+are not one project with two classes.
 
-- **Upgrade** (`UpgradeVerifyScenarios`): a world played entirely with the published 0.5.1
-  mod opens with the dev build.
-- **Downgrade** (`DowngradeVerifyScenarios`): a world saved by the dev build (which also
-  writes the `manifold:schema` sidecar) opens with the published 0.5.1 release.
-
-Each loads one of the two committed savegame fixtures under `fixtures/` (built by
+Loads the committed savegame fixture under `fixtures/` (built by
 `tests/Manifold.Scenarios.CompatFixtures`; see that project's README for how and why) and
-asserts everything the brief named survives: the same persistent dimension and internal id,
-its generated terrain intact including a block a player placed, the player's last-visited
-position, their separate-inventory profile, and their saved pre-forced game mode. The
-downgrade direction additionally asserts the schema sidecar itself, something 0.5.1 has never
-heard of, survives unharmed rather than being stripped or crashing the boot.
+asserts everything the brief named survives: the same persistent dimension and internal id, its
+generated terrain intact including a block a player placed, the player's last-visited position,
+their separate-inventory profile, and their saved pre-forced game mode.
 
 ## Running locally
 
     VINTAGE_STORY=/path/to/vintagestory dotnet test tests/Manifold.Scenarios.Compat -c Release
 
-Requires the same VINTAGE_STORY setup as `Manifold.Scenarios` (Atlas 0.15.0). Each class
-boots its own embedded server: one against the dev build (the assembly-default mod set,
-staged the same way `Manifold.Scenarios` stages it), one against the published 0.5.1 zip
-(downloaded once and cached under `obj/`, same as `Chart.Scenarios`; see the csproj).
+Requires the same VINTAGE_STORY setup as `Manifold.Scenarios` (Atlas 0.15.0).
 
-### A one-process-per-build limit, not a scenario limit
+## Why two projects instead of one
 
-Run the two scenarios with `dotnet test` (used above and by CI) or `atlas run --parallel`
-(each class on its own worker subprocess) and both pass reliably. A plain `atlas run` with no
-`--parallel` runs every class of a dll in ONE process, and that does NOT reliably work here:
-whichever class boots its Manifold build SECOND in that process fails with `Could not load
-file or assembly 'Manifold, Version=0.1.0.0, ...'. Assembly with same name is already
-loaded`. Manifold's `AssemblyVersion` is deliberately frozen across releases (see
-`Directory.Build.props` and `Manifold.Scenarios.CompatFixtureMod`'s csproj), which is exactly
-what lets a companion mod and, empirically, an embedded server's mod loader keep loading
-EITHER build on its own; it also means two DIFFERENT physical `Manifold.dll` files share that
-one identity, and the process only ever binds the first one it loads under that name. This
-is a real, reproducible limit of running two different builds of the same-identity assembly
-in one .NET process, observed here across ten repeated runs (five orderings each of
-`atlas run` with no filter, always failing whichever class ran second, and five of `dotnet
-test`/`atlas run --parallel`, ten-for-ten green), not a flaky scenario: do not "fix" a red
-`atlas run` (no `--parallel`) result here by rewriting the scenarios, re-run it with
-`--parallel` or use `dotnet test` instead.
+Verifying both directions needs, in the same test run, two DIFFERENT physical builds of a
+same-identity assembly: Manifold's `AssemblyVersion` is deliberately frozen across releases (see
+`Directory.Build.props`), which is exactly what lets a companion mod and an embedded server's
+mod loader keep loading EITHER build on its own, but it also means the .NET process can only
+ever bind ONE of the two dlls under that identity, no matter how Atlas's own mod loader is told
+to stage them. A single test process (what one `dotnet test` invocation of one project is) that
+tries to boot the dev build for one class and the 0.5.1 release for another therefore cannot
+genuinely run both: whichever build's dll a `ProjectReference` happens to copy into the shared
+output directory wins default assembly probing for the WHOLE process, silently, for every class
+in it, regardless of what each class's own `[AtlasWorld(Mods = [...])]` says to stage. This was
+caught, not theorized: with both directions in one project, `DowngradeVerifyScenarios` kept
+passing while actually booting the dev build's `Manifold.dll` the entire time (it logs
+`"[Manifold] Initialized."`, the dev build's own message; the 0.5.1 release logs `"[Manifold]
+Initialized (healthy)."` and `"Harmony ready"`, neither of which ever appeared) - the assertions
+happened to hold for the wrong build, because a same-schema save loads back fine regardless of
+which build reads it, so nothing failed loudly.
+
+The fix is not a build-system flag: it is giving each direction its OWN process, since a process
+can only ever bind one physical dll under Manifold's frozen identity. Two separate test projects
+give exactly that (`dotnet test` runs one project's tests in one process): this project has an
+ordinary `ProjectReference` to `src/Manifold` (so `UpgradeVerifyScenarios` gets the dev build,
+the direction it actually needs) and no reference to the 0.5.1 zip at all; `Manifold.Scenarios.
+CompatDowngrade` has no `ProjectReference` to `src/Manifold` at all and stages the 0.5.1 release
+zip explicitly instead, so there is no dev-build dll anywhere in ITS output to collide with.
+Running both classes as two `dotnet test` invocations (as CI does) gives each its own process
+and, for the first time, each direction genuinely runs against the build it claims to.
+
+An earlier version of this doc described a "one-process-per-build CLR limit" that only a plain
+`atlas run` (no `--parallel`) supposedly hit, with `dotnet test` claimed safe. That was backwards:
+`dotnet test` was never actually loading two different builds in one process in the first place
+(see above), so it could not have been exercising, let alone surviving, the one-process limit;
+the limit is real, but it is not something `dotnet test` on the old one-project layout ever
+avoided.
 
 ## What Atlas could and could not do here
 
 Everything the brief asked for is covered by real, restartable, engine-backed assertions;
 nothing was impossible. The one accommodation: `atlas fixture` (Atlas 0.15.0), not
-`[AtlasScenario(RestartWorld = true)]`, is what actually produces the two fixture saves; see
+`[AtlasScenario(RestartWorld = true)]`, is what actually produces the fixture save; see
 `Manifold.Scenarios.CompatFixtures/README.md`'s "Why a separate project" section for why
 `RestartWorld` alone cannot (it restarts the class host BEFORE the scenario body that would
 need to seed the world runs, and scenario order within a class is not guaranteed, so two
@@ -66,6 +77,6 @@ lives in `Manifold.Scenarios.CompatFixtureMod` (see its own doc comment), reache
 boundary `ManifoldScenarioBase` uses in `Manifold.Scenarios`.
 
 A joined Atlas test player gets a UID derived from its name (`atlas-<name>`), so joining
-`compat051` (or `compatdev`) here, the SAME name the matching builder scenario used, resumes
-that exact player: their position, game mode and inventory as the OTHER build's boot last
-wrote them. This is the mechanism behind every per-player assertion in these scenarios.
+`compat051` here, the SAME name the matching builder scenario used, resumes that exact player:
+their position, game mode and inventory as the 0.5.1 build's boot last wrote them. This is the
+mechanism behind every per-player assertion in this scenario.

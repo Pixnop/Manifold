@@ -11,6 +11,8 @@
     <Project Path="tests/Manifold.Scenarios.FixtureMod/Manifold.Scenarios.FixtureMod.csproj" />
     <Project Path="tests/Manifold.Scenarios.CompatFixtureMod/Manifold.Scenarios.CompatFixtureMod.csproj" />
     <Project Path="tests/Manifold.Scenarios.CompatFixtures/Manifold.Scenarios.CompatFixtures.csproj" />
+    <Project Path="tests/Manifold.Scenarios.CompatFixturesUpgrade/Manifold.Scenarios.CompatFixturesUpgrade.csproj" />
     <Project Path="tests/Manifold.Scenarios.Compat/Manifold.Scenarios.Compat.csproj" />
+    <Project Path="tests/Manifold.Scenarios.CompatDowngrade/Manifold.Scenarios.CompatDowngrade.csproj" />
   </Folder>
 </Solution>

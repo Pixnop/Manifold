@@ -1,4 +1,4 @@
-namespace Manifold.Scenarios.Compat;
+namespace Manifold.Scenarios.CompatDowngrade;
 
 using Atlas.Api;
 using Atlas.XUnit;

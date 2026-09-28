@@ -5,7 +5,6 @@ using Xunit;
 // classes would race on it.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-// No assembly-level [AtlasMods]: BuildTheDowngradeFixture uses the assembly-default mod set
-// (the dev build, staged by the ProjectReference AtlasMod sugar below), and
-// BuildTheUpgradeFixture overrides it with the 0.5.1 release zip explicitly (see its
-// [AtlasWorld]). See README.md for why this project exists and how it is run.
+// No assembly-level [AtlasMods]: BuildTheDowngradeFixture, the only class here, uses the
+// assembly-default mod set (the dev build, staged by the ProjectReference AtlasMod sugar below).
+// See README.md for why this project exists and how it is run.
