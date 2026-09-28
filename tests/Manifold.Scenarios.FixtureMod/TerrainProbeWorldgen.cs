@@ -40,7 +40,7 @@ using Vintagestory.API.MathTools;
 ///  X 536 <see cref="EmptyColumnX"/>   nothing generated (air throughout).
 ///                                     Expected landing: the source Y, unchanged.
 /// </summary>
-internal sealed class TerrainProbeWorldgen : IWorldgenStrategy
+public sealed class TerrainProbeWorldgen : IWorldgenStrategy
 {
     public const int ColumnZ = 512;
     public const int OpenGroundX = 512;

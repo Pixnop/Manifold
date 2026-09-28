@@ -6,6 +6,7 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Xunit;
+using static AtlasFixture.TerrainProbeWorldgen;
 
 /// <summary>
 /// Proves TargetPositionResolvers.SameXZSurfaceY against the real engine: TerrainProbeWorldgen
@@ -14,7 +15,8 @@ using Xunit;
 /// entity) to one of them with SameCoordinates: the unit tests in Manifold.Pure.Tests already
 /// pin this resolver down against a fake block accessor; these scenarios pin the same contract
 /// down against the actual block types, actual collision data and actual world height. Column
-/// X/Y layout mirrors TerrainProbeWorldgen's own doc comment exactly; keep the two in sync.
+/// X/Y layout is TerrainProbeWorldgen's own constants (see its doc comment for the full picture),
+/// shared here at compile time rather than redeclared.
 ///
 /// Every scenario starts the player (or entity) at a distinct, deliberately-tall source Y
 /// (<see cref="SourceY"/>) in the overworld, at the target column's X/Z, then transits with no
@@ -31,18 +33,6 @@ using Xunit;
 [Trait("Category", "E2E")]
 public class RealTerrainLandingScenarios : ManifoldScenarioBase
 {
-    private const int ColumnZ = 512;
-    private const int OpenGroundX = 512;
-    private const int TallGrassX = 516;
-    private const int RoofGapX = 520;
-    private const int LakeX = 524;
-    private const int WaterPocketX = 528;
-    private const int FullySolidX = 532;
-    private const int EmptyColumnX = 536;
-
-    private const int GroundLandingY = 11;
-    private const int LakeLandingY = 16;
-
     /// <summary>
     /// The overworld Y every scenario starts its player/entity at: tall enough that it can never
     /// collide with the "terrain" dimension's own columns (all of which top out well below this),
