@@ -26,6 +26,14 @@
     "resource": [
       {
         "files": ["images/**"]
+      },
+      {
+        "files": ["assets/moddb/**"],
+        "exclude": ["assets/moddb/generate.py", "assets/moddb/README.md"]
+      },
+      {
+        "files": ["assets/site/**"],
+        "exclude": ["assets/site/generate.py", "assets/site/README.md"]
       }
     ],
     "output": "_site",
@@ -36,7 +44,11 @@
       "_enableSearch": true,
       "_appFooter": "Manifold - Vintage Story dimension API. MIT License.",
       "_appLogoPath": "images/logo.svg",
-      "_appFaviconPath": "images/logo.svg"
+      "_appFaviconPath": "images/logo.svg",
+      "_description": "A Vintage Story library mod for declaring and managing custom dimensions: procedural worldgen, player and entity transit, and travel policy, with a Harmony-free API.",
+      "_ogImage": "https://pixnop.github.io/Manifold/assets/moddb/banner-manifold.png",
+      "_ogTitle": "Manifold",
+      "_ogDescription": "A Vintage Story library mod for declaring and managing custom dimensions."
     },
     "sitemap": {
       "baseUrl": "https://pixnop.github.io/Manifold"

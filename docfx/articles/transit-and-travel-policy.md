@@ -1,3 +1,8 @@
+<picture>
+<source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-transit-and-travel-policy.png">
+<img class="mf-article-header" src="../assets/site/header-transit-and-travel-policy.webp" width="220" height="160" alt="A chest carried through a portal between two islands" loading="eager" fetchpriority="high" decoding="async">
+</picture>
+
 # Transit and Travel Policy
 
 Manifold provides a single primitive for moving players between dimensions - `ITransitionService.TeleportPlayer` - plus helpers that layer on top of it. Travel policy (where the player lands and what game mode they use) is configured per-dimension on the builder and optionally overridden per-transit.

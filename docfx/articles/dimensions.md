@@ -1,3 +1,8 @@
+<picture>
+<source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-dimensions.png">
+<img class="mf-article-header" src="../assets/site/header-dimensions.webp" width="220" height="160" alt="Two settled islands and a third, ephemeral one fading in and out" loading="eager" fetchpriority="high" decoding="async">
+</picture>
+
 # Dimensions
 
 A **dimension** in Manifold is a named, isolated world region with its own terrain, player positions, and travel policy. Each dimension is identified by an `AssetLocation` code (e.g., `mymod:nether`) and mapped to a VS engine dimension id (an integer 0-1023).
@@ -151,6 +156,8 @@ once the owner re-declares it, exactly like any other `Pending` entry.
 | `IDimensionRegistry.TryRemove(code)` | Any dimension. | Returns `false` if the code is unknown or a connected player is still inside. Throws `DimensionBuiltInImmutableException` for the overworld, `DimensionStateException` for a `Persistent` dimension (use the admin purge command instead). |
 | `IManifoldServer.ForceRemoveDimension(code)` | `Ephemeral` only. | Evacuates every connected occupant to the overworld (`LastVisited` position) first, then removes. Returns `false` if the code is unknown, or if an occupant could not be evacuated (the dimension is left in place). For `BuiltIn`/`Persistent` it defers to `TryRemove` - same exceptions, without evacuating anyone first. |
 | `/manifold purge <code>` (privilege `controlserver`) | Any non-built-in dimension - `Active`, `Pending`, `Quarantined`, `Persistent` or `Ephemeral`. | Evacuates occupants first; if any player could not be evacuated, reports an error naming how many remain and does not purge. Errors (does not evacuate) if the code is unknown or built-in. On success, releases the engine id and fires `Destroyed`. |
+
+<div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/manifold purge mymod:vault</code></div>
 
 An `Ephemeral` dimension also reaps itself automatically: when its last occupant **transits out** (not
 on disconnect), `Destroyed` fires and its chunks are discarded - see [Persistent vs.

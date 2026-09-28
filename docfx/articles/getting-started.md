@@ -1,3 +1,8 @@
+<picture>
+<source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-getting-started.png">
+<img class="mf-article-header" src="../assets/site/header-getting-started.webp" width="220" height="160" alt="A portal gate assembling itself stone by stone" loading="eager" fetchpriority="high" decoding="async">
+</picture>
+
 # Getting Started
 
 This guide shows how to add Manifold as a dependency, obtain the facade, register a dimension with a worldgen strategy, and expose a chat command to enter it. The complete example is a trimmed version of the bundled [ManifoldSample](https://github.com/Pixnop/Manifold/tree/main/samples/ManifoldSample).
@@ -92,7 +97,9 @@ new DimensionCommandBuilder()
     .Register(sapi);
 ```
 
-Players can now type `/voiddim` to transit.
+Players can now type `/voiddim` to transit:
+
+<div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/voiddim</code></div>
 
 ## Complete Minimal Example
 
