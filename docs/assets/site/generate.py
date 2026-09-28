@@ -523,7 +523,10 @@ if __name__ == "__main__":
 
     island_underside().save(OUT / "island-underside.png", optimize=True)
     api_reference_art().save(OUT / "api-reference.png", optimize=True)
-    for n, (seed, radius, trees) in enumerate(((61, 2, 1), (62, 1, 0), (63, 2, 0))):
+    # radius=1 (drift-2's old value) crops to a much smaller bounding box than the others at the
+    # same R, so at the landing's uniform 110px display width it was upscaled and blurry; radius=2
+    # across all three keeps them the same native density.
+    for n, (seed, radius, trees) in enumerate(((61, 2, 1), (62, 2, 0), (63, 2, 0))):
         drift_island(seed, radius, trees).save(OUT / f"drift-{n + 1}.png", optimize=True)
 
     for f in sorted(OUT.glob("*.png")) + sorted(OUT.glob("*.webp")):
