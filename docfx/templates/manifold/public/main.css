@@ -1148,12 +1148,50 @@ dialog.mf-secret-portal::backdrop {
    Article header loops: a small looping illustration at the top of each
    article, same still-swap treatment as the hero layers.
    -------------------------------------------------------------------------- */
+/* A real header band, not a small thumbnail sitting above the title: the loop stretches the full
+   content width and the H1 sits in its fade, on a striped "ledge" standing in for the grass/dirt/
+   stone cross-section the build-headings use - so an article page carries the same island
+   language as the landing instead of reading as the stock docfx layout with a palette swap. */
 .mf-article-header {
   display: block;
-  width: 220px;
-  height: 160px;
-  margin: 0 0 1.5rem;
+  width: 100%;
+  max-width: 30rem;
+  height: 200px;
+  object-fit: cover;
+  object-position: 50% 38%;
   border-radius: var(--mf-radius);
+}
+article > picture:first-child {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 0 -2.5rem;
+}
+article > picture:first-child + h1,
+article > h1:first-child {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 1.1rem;
+  padding: 0 1.1rem 0.5rem;
+}
+article > picture:first-child + h1 {
+  max-width: 30rem;
+  padding-top: 0.5rem;
+  background: linear-gradient(to bottom, transparent, var(--bs-body-bg) 78%);
+}
+article > picture:first-child + h1::before,
+article > h1:first-child::before {
+  content: '';
+  display: block;
+  height: 6px;
+  width: 8.75rem;
+  max-width: 100%;
+  margin: 0 0 0.65rem;
+  border-radius: 2px;
+  opacity: 0.9;
+  background: repeating-linear-gradient(
+    90deg, var(--mf-green) 0 14px, var(--mf-slate-mid) 14px 28px, #6b4a34 28px 42px, transparent 42px 56px
+  );
 }
 
 /* --------------------------------------------------------------------------
