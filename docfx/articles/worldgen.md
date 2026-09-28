@@ -108,10 +108,15 @@ manifold.Registry.ColumnGenerated += (_, e) =>
 };
 ```
 
-`e.BlockAccessor` is the world's plain accessor: writes apply immediately, no `Commit()` needed.
-The column has not been sent to any client when this event fires - sending always happens right
-after - so a block placed here is included in that first send with no separate resync. Raised on
-the server main thread, for every generation path: a transit, the streaming driver, and
+`e.BlockAccessor` is a plain accessor: writes apply immediately, no `Commit()` needed. It uses the
+same `synchronize:false, relight:false` semantics as worldgen itself, so a write here does not
+queue a server relight task or a neighbour-update/resync entry the way a live player edit would -
+call `IManifoldServer.RelightRegion` afterwards if the decoration needs lighting. The column has
+not been sent to any client when this event fires - sending always happens right after - so a
+block placed here is included in that first send with no separate resync. Only the event's own
+column is guaranteed loaded: a write that lands in a neighbour column not generated yet is
+silently dropped, so split a structure that spans multiple columns and place it per column. Raised
+on the server main thread, for every generation path: a transit, the streaming driver, and
 `IManifoldServer.GenerateRegion`. A throwing subscriber is isolated like `Created`/`Destroyed`.
 
 ## WithGenerationRadius

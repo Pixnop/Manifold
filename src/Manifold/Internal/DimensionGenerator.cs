@@ -319,9 +319,19 @@ internal sealed class DimensionGenerator
         // Raised after the commit above, before the caller sends the column to any client (both
         // FillRegionColumns and the streaming driver send afterwards), so a handler's own writes to
         // this same column reach clients as part of its normal first send.
+        //
+        // The accessor handed to subscribers uses the same synchronize:false, relight:false
+        // semantics as the strategy's own bulk accessor above - not sapi.World.BlockAccessor
+        // (ServerMain.BlockAccessor / WorldMap.RelaxedBlockAccess), which is built with
+        // synchronize:true, relight:true and would make decoration behave like a live player edit:
+        // a queued server relight task (the flood EnsureRegion deliberately avoids) and a
+        // ModifiedBlocks/neighbour-update entry that breaks unsupported loose blocks and starts
+        // fluids flowing.
         if (_registry.GetByInternalId(dimId) is { } dim)
         {
-            _registry.RaiseColumnGenerated(dim, cx, cz, sapi.World.BlockAccessor);
+            IBlockAccessor postProcessAccessor =
+                sapi.World.GetBlockAccessor(synchronize: false, relight: false, strict: false);
+            _registry.RaiseColumnGenerated(dim, cx, cz, postProcessAccessor);
         }
 
         return true;
