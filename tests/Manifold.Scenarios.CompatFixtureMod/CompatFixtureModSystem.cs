@@ -28,6 +28,7 @@ public sealed class CompatFixtureModSystem : ModSystem
     internal const string DimensionPath = "compat";
 
     private static readonly AssetLocation DimensionCode = new(Domain, DimensionPath);
+    private static readonly AssetLocation FillerDimensionCode = new(Domain, "filler");
     private static readonly AssetLocation OverworldCode = new("manifold", "overworld");
 
     private ICoreServerAPI _sapi = null!;
@@ -50,6 +51,31 @@ public sealed class CompatFixtureModSystem : ModSystem
         if (previous is not null)
         {
             _sapi.WorldManager.SaveGame.StoreData($"{Domain}:prevdimid", previous);
+        }
+
+        // On the first ever boot only (no prior dimid), reserve one EPHEMERAL filler dimension
+        // before "compat" registers, so first-fit hands the filler the lower id and "compat" the
+        // next one up - never id 10 itself. Ephemeral dimensions are never written to the
+        // manifest, so this filler leaves a PERMANENT gap at its id: every later boot (including
+        // every reload of a committed fixture) has nothing reserved there at all, because nothing
+        // ever asks for it again. This is what makes the "same internal id" check below actually
+        // prove the manifest round-tripped "compat"'s id, rather than merely reproduce a
+        // coincidence: with only "compat" ever persistently registered, a first-fit allocator
+        // asked for a FRESH id (the failure mode this filler exists to catch: "compat"'s own
+        // manifest entry lost, RegisterStatic falling through to Reserve() instead of recovering
+        // its old id) would always land back on the exact same id "compat" already has, id 10,
+        // since nothing else is ever reserved to skip past. With the gap in place, that same
+        // fresh-allocation fallback lands on the gap's id instead - different from "compat"'s
+        // real, manifest-preserved id - so a lost manifest entry now actually fails this
+        // assertion instead of passing it by coincidence.
+        if (previous is null)
+        {
+            _manifold.Registry
+                .Define(FillerDimensionCode)
+                .Ephemeral()
+                .WithWorldgen(new SlabWorldgen())
+                .WithGenerationRadius(0)
+                .Create();
         }
 
         IDimension compat = _manifold.Registry
