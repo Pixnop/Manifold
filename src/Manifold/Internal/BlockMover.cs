@@ -22,6 +22,10 @@ internal sealed class BlockMover : IBlockMover
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
 
     /// <inheritdoc/>
+    public bool IsMultiPosition(BlockPos pos, out string? reason) =>
+        MultiPositionBlockDetector.IsMultiPosition(_sapi.World.BlockAccessor, pos, out reason);
+
+    /// <inheritdoc/>
     public bool Move(BlockPos source, BlockPos target)
     {
         ArgumentNullException.ThrowIfNull(source);
