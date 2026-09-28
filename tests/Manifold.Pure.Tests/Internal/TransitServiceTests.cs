@@ -423,7 +423,7 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             positionResolver,
             generator,
             new PlayerPositionStore(),
@@ -460,7 +460,7 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             positionResolver,
             generator,
             new PlayerPositionStore(),
@@ -505,6 +505,53 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Dismount_The_Player_Before_Teleporting()
+    {
+        var (svc, _, teleporter, _, _, dismounter) = NewServiceWithDismounter();
+        var player = NewPlayer();
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        // The mount must be released before the player's entity moves to the target dimension -
+        // never after, or the player would briefly be flagged as mounted on an entity that never
+        // left the source dimension.
+        Received.InOrder(() =>
+        {
+            dismounter.Dismount(player);
+            teleporter.Teleport(player, Arg.Any<BlockPos>());
+        });
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Not_Dismount_When_The_Transit_Is_Cancelled()
+    {
+        var (svc, _, _, _, _, dismounter) = NewServiceWithDismounter();
+        var player = NewPlayer();
+        svc.PlayerArriving += (_, e) => e.Cancel = true;
+
+        svc.TeleportPlayer(player, Code("owner:target"));
+
+        // A player who never left must not be forcibly dismounted from whatever they were riding.
+        dismounter.DidNotReceive().Dismount(Arg.Any<IServerPlayer>());
+    }
+
+    [Fact]
+    public void TryTeleportPlayer_Should_Abort_And_Return_False_When_The_Mount_Refuses_To_Release_The_Player()
+    {
+        var (svc, _, teleporter, _, _, dismounter) = NewServiceWithDismounter();
+        var player = NewPlayer();
+        dismounter.Dismount(player).Returns(false);
+
+        bool moved = svc.TryTeleportPlayer(player, Code("owner:target"));
+
+        // Nothing has moved yet at the dismount step, so a refusal must abort the whole transit,
+        // exactly like a PlayerArriving cancellation: not teleport the player and drag their mount
+        // to the target dimension's coordinates in the source dimension underneath them.
+        Assert.False(moved);
+        teleporter.DidNotReceive().Teleport(Arg.Any<IServerPlayer>(), Arg.Any<BlockPos>());
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Fall_Back_To_Default_Resolver_When_DimensionSpawn_Has_No_Spawn_Point()
     {
         var allocator = new DimensionAllocator();
@@ -523,7 +570,7 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             defaultResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
@@ -558,7 +605,7 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             defaultResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
@@ -687,12 +734,52 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, entityMover, blockMover),
+            new TransitMovers(teleporter, entityMover, blockMover, NewDismounter()),
             positionResolver,
             generator,
             new PlayerPositionStore(),
             new InventorySwapper(sapi));
 
         return (svc, registry, teleporter, entityMover, blockMover, sapi);
+    }
+
+    /// <summary>A dismounter substitute that releases the player by default, like the real one for an unmounted player.</summary>
+    private static IPlayerDismounter NewDismounter()
+    {
+        var dismounter = Substitute.For<IPlayerDismounter>();
+        dismounter.Dismount(Arg.Any<IServerPlayer>()).Returns(true);
+        return dismounter;
+    }
+
+    private static (TransitService Service, DimensionRegistry Registry, IPlayerTeleporter Teleporter, IEntityMover EntityMover, IBlockMover BlockMover, IPlayerDismounter Dismounter)
+        NewServiceWithDismounter()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:target"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+        var positionResolver = Substitute.For<ITargetPositionResolver>();
+        positionResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(100, 100, 100, 10));
+
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var entityMover = Substitute.For<IEntityMover>();
+        var blockMover = Substitute.For<IBlockMover>();
+        var dismounter = NewDismounter();
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, entityMover, blockMover, dismounter),
+            positionResolver,
+            generator,
+            new PlayerPositionStore(),
+            new InventorySwapper(sapi));
+
+        return (svc, registry, teleporter, entityMover, blockMover, dismounter);
     }
 }

@@ -177,9 +177,11 @@ What that means in practice:
   `WithDarkSky(ceilingY)` when you want a dark dimension: it seals every generated column with an
   opaque ceiling so the area below is lit only by block light (torches, lamps, lava). Pair it with
   `WithFixedSpawn(...)` at a Y below `ceilingY`. The default `SameCoordinates` resolver scans downward
-  from the world's height looking for the first solid block; with no fixed spawn (or on a first
-  `LastVisited` visit) it finds the ceiling cap first and lands the player on top of it, in full
-  skylight, not in the dark space below.
+  from the world's height looking for the first non-liquid block with two clear blocks above it (see
+  [the default surface search](transit-and-travel-policy.md#the-default-surface-search)); with no
+  fixed spawn (or on a first `LastVisited` visit) it finds the ceiling cap first, unless `ceilingY` is
+  within two blocks of the world's top, in which case it skips the cap for lack of headroom and lands
+  the player inside the dark space below instead.
 - **Solid-filled dimensions** (terrain carved into rooms) are dark without any option.
 - **Blocks placed after generation** are not relit by the engine in a custom dimension; use
   `RelightRegion` or `/manifold relight`, described below.

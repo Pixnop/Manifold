@@ -52,6 +52,7 @@ internal sealed class TransitService : ITransitionService
         ArgumentNullException.ThrowIfNull(movers.Player);
         ArgumentNullException.ThrowIfNull(movers.Entity);
         ArgumentNullException.ThrowIfNull(movers.Block);
+        ArgumentNullException.ThrowIfNull(movers.Dismounter);
         _movers = movers;
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
@@ -178,6 +179,21 @@ internal sealed class TransitService : ITransitionService
                 player.PlayerName,
                 target.Code,
                 arrivingArgs.CancellationReason ?? "(no reason)");
+            return false;
+        }
+
+        // Dismount before moving the player: a cross-dimension teleport rehomes only the player's
+        // own entity, so a rider left mounted would end up flagged as mounted on an entity that
+        // never left the source dimension. The mount itself stays put. A refused dismount is
+        // treated like a PlayerArriving cancellation: nothing has moved yet, so it is safe to
+        // abort here instead of teleporting a player the engine would then drag their mount along
+        // with (in the source dimension) for.
+        if (!_movers.Dismounter.Dismount(player))
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled: could not dismount them.",
+                player.PlayerName,
+                target.Code);
             return false;
         }
 
