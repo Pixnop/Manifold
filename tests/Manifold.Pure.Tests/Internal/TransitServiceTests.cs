@@ -531,6 +531,97 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportPlayer_Should_Write_The_Inventory_Schema_Sidecar_Entry_After_A_Swap()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:sep"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSeparateInventory(ManifoldInventory.Hotbar)
+            .RegisterStatic();
+
+        var positionResolver = Substitute.For<ITargetPositionResolver>();
+        positionResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(100, 100, 100, 10));
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var swapper = Substitute.For<IInventorySwapper>();
+        swapper.Serialize(Arg.Any<IServerPlayer>(), Arg.Any<ManifoldInventory>()).Returns(new byte[] { 1 });
+
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
+            positionResolver,
+            generator,
+            new PlayerPositionStore(),
+            swapper);
+
+        var player = NewPlayer();
+        var moddata = BackModdata(player);
+
+        svc.TeleportPlayer(player, Code("owner:sep"));
+
+        Assert.Equal(1, SchemaSidecar.Load(moddata["manifold:schema"]).GetVersion("manifold:inv"));
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Refuse_An_Unrecognized_Future_Inventory_Version()
+    {
+        var allocator = new DimensionAllocator();
+        var registry = new DimensionRegistry(allocator);
+        registry.DefineForOwner(Code("owner:sep"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithSeparateInventory(ManifoldInventory.Hotbar)
+            .RegisterStatic();
+
+        var positionResolver = Substitute.For<ITargetPositionResolver>();
+        positionResolver
+            .Resolve(Arg.Any<Entity>(), Arg.Any<IDimension>(), Arg.Any<ICoreServerAPI>())
+            .Returns(new BlockPos(100, 100, 100, 10));
+        var sapi = Substitute.For<ICoreServerAPI>();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var swapper = Substitute.For<IInventorySwapper>();
+        var teleporter = Substitute.For<IPlayerTeleporter>();
+
+        var svc = new TransitService(
+            registry,
+            sapi,
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
+            positionResolver,
+            generator,
+            new PlayerPositionStore(),
+            swapper);
+
+        var player = NewPlayer();
+        var moddata = BackModdata(player);
+
+        // A payload that IS valid for the current parser (a real store), so refusal is provably
+        // driven by the version check, not by a garbage payload hitting the corrupt-data path.
+        var seed = new PlayerInventoryStore();
+        seed.SetCurrentKey(ManifoldInventory.Hotbar, "mod:vault");
+        var raw = seed.ToBytes();
+        moddata["manifold:inv"] = raw;
+        var sidecar = SchemaSidecar.Load(null);
+        sidecar.SetVersion("manifold:inv", 99);
+        moddata["manifold:schema"] = sidecar.ToBytes();
+
+        svc.TeleportPlayer(player, Code("owner:sep"));
+
+        // Transit itself still completes; only the inventory swap is skipped.
+        teleporter.Received(1).Teleport(player, Arg.Any<BlockPos>());
+        swapper.DidNotReceive().Serialize(Arg.Any<IServerPlayer>(), Arg.Any<ManifoldInventory>());
+        swapper.DidNotReceive().Clear(Arg.Any<IServerPlayer>(), Arg.Any<ManifoldInventory>());
+        Assert.Equal(raw, moddata["manifold:inv"]);
+        Assert.Equal(raw, moddata["manifold:inv.unrecognized"]);
+        Assert.Equal(99, SchemaSidecar.Load(moddata["manifold:schema"]).GetVersion("manifold:inv")); // never downgraded
+        sapi.Logger.Received(1).Error(
+            Arg.Any<string>(),
+            Arg.Is<object[]>(a => a.Contains("manifold:inv") && a.Contains(99) && a.Contains(1)));
+    }
+
+    [Fact]
     public void TeleportPlayer_Should_Not_Mutate_Callers_OverridePosition()
     {
         var (svc, _, _, _, _) = NewService();
@@ -685,6 +776,68 @@ public sealed class TransitServiceTests
         svc.TeleportPlayer(player, Code("owner:target"));
         Assert.Equal(EnumGameMode.Survival, player.WorldData.CurrentGameMode);
         Assert.Empty(moddata);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Match_The_0_5_1_Released_GameMode_Format_And_Record_Schema_Version_1()
+    {
+        // Golden bytes: the saved value is the raw 4-byte int, no envelope, unchanged since v0.5.1
+        // (git show v0.5.1:src/Manifold/Internal/TransitService.cs). The sidecar records version 1
+        // for it, the same way DimensionPersistence.Save does for the manifest.
+        var (svc, registry, _, _, _) = NewService();
+        var player = NewPlayer();
+        RegisterForced(registry, "owner:creative", EnumGameMode.Creative);
+        var moddata = BackModdata(player);
+        player.WorldData.CurrentGameMode = EnumGameMode.Survival;
+
+        svc.TeleportPlayer(player, Code("owner:creative"));
+
+        Assert.Equal(BitConverter.GetBytes((int)EnumGameMode.Survival), moddata["manifold:gamemode-before-forced"]);
+        Assert.Equal(1, SchemaSidecar.Load(moddata["manifold:schema"]).GetVersion("manifold:gamemode-before-forced"));
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Restore_GameMode_From_A_Blob_With_No_Sidecar_Entry()
+    {
+        // A player who left a forced dimension on a build that predates this sidecar and only
+        // reconnects now: the saved value is there, but "manifold:schema" has no entry for it.
+        var (svc, _, _, _, _) = NewService();
+        var player = NewPlayer();
+        var moddata = BackModdata(player);
+        player.WorldData.CurrentGameMode = EnumGameMode.Creative;
+        moddata["manifold:gamemode-before-forced"] = BitConverter.GetBytes((int)EnumGameMode.Survival);
+
+        svc.TeleportPlayer(player, Code("owner:target")); // unforced
+
+        Assert.Equal(EnumGameMode.Survival, player.WorldData.CurrentGameMode);
+        Assert.DoesNotContain("manifold:gamemode-before-forced", moddata.Keys);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Leave_An_Unrecognized_Future_GameMode_Version_Untouched()
+    {
+        var (svc, _, _, _, _, sapi) = NewServiceWithApi();
+        var player = NewPlayer();
+        var moddata = BackModdata(player);
+        player.WorldData.CurrentGameMode = EnumGameMode.Creative;
+        var saved = BitConverter.GetBytes((int)EnumGameMode.Survival);
+        moddata["manifold:gamemode-before-forced"] = saved;
+        var sidecar = SchemaSidecar.Load(null);
+        sidecar.SetVersion("manifold:gamemode-before-forced", 99);
+        moddata["manifold:schema"] = sidecar.ToBytes();
+
+        svc.TeleportPlayer(player, Code("owner:target")); // unforced: would normally restore and clear the key
+
+        // Refused: the mode is left alone rather than decoded wrong, the saved blob is kept
+        // untouched (not cleared), a copy is preserved under the recovery key, and the sidecar
+        // entry is not downgraded back to 1.
+        Assert.Equal(EnumGameMode.Creative, player.WorldData.CurrentGameMode);
+        Assert.Equal(saved, moddata["manifold:gamemode-before-forced"]);
+        Assert.Equal(saved, moddata["manifold:gamemode-before-forced.unrecognized"]);
+        Assert.Equal(99, SchemaSidecar.Load(moddata["manifold:schema"]).GetVersion("manifold:gamemode-before-forced"));
+        sapi.Logger.Received(1).Error(
+            Arg.Any<string>(),
+            Arg.Is<object[]>(a => a.Contains("manifold:gamemode-before-forced") && a.Contains(99) && a.Contains(1)));
     }
 
     [Fact]

@@ -93,6 +93,81 @@ public sealed class PlayerPositionStoreTests
     }
 
     [Fact]
+    public void ToBytes_Should_Match_The_0_5_1_Released_Format()
+    {
+        // Golden bytes: BinaryWriter's own encoding of (count:int, then per entry key:string,
+        // x:int, y:int, z:int), pinned independently of ToBytes itself, hand-built the same way
+        // BinaryWriter.Write(string) always has (7-bit length prefix + UTF8 bytes). Unchanged
+        // since v0.5.1 (git show v0.5.1:src/Manifold/Internal/PlayerPositionStore.cs).
+        var store = new PlayerPositionStore();
+        store.Record("alice", 10, 1, 2, 3);
+
+        using var ms = new System.IO.MemoryStream();
+        using (var w = new System.IO.BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            w.Write(1);
+            w.Write("alice|10");
+            w.Write(1);
+            w.Write(2);
+            w.Write(3);
+        }
+
+        Assert.Equal(ms.ToArray(), store.ToBytes());
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Read_A_Blob_With_No_Sidecar_Entry_As_Version_1()
+    {
+        var store = new PlayerPositionStore();
+        store.LoadFromBytes(new PlayerPositionStore().ToBytes()); // version defaults to 1
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Refuse_A_Schema_Version_Newer_Than_Supported()
+    {
+        var seed = new PlayerPositionStore();
+        seed.Record("alice", 10, 1, 2, 3);
+
+        var store = new PlayerPositionStore();
+        store.LoadFromBytes(seed.ToBytes(), version: 99);
+
+        Assert.True(store.IsVersionRefused);
+        Assert.False(store.TryGet("alice", 10, out _, out _, out _));
+        Assert.False(store.IsDirty);
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Not_Refuse_An_Unrecognized_Version_When_The_Blob_Is_Absent()
+    {
+        // An unrecognized version with nothing to refuse (e.g. a future release that moved this
+        // data to another key) must not latch a refusal for the rest of the session.
+        var store = new PlayerPositionStore();
+        store.LoadFromBytes(null, version: 99);
+
+        Assert.False(store.IsVersionRefused);
+
+        store.LoadFromBytes(System.Array.Empty<byte>(), version: 99);
+
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Clear_IsVersionRefused_On_A_Later_Accepted_Load()
+    {
+        var seed = new PlayerPositionStore();
+        seed.Record("alice", 10, 1, 2, 3);
+
+        var store = new PlayerPositionStore();
+        store.LoadFromBytes(seed.ToBytes(), version: 99);
+        Assert.True(store.IsVersionRefused);
+
+        store.LoadFromBytes(null);
+
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
     public void ClearDirty_Should_Reset_Flag()
     {
         var store = new PlayerPositionStore();

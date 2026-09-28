@@ -20,6 +20,9 @@ internal sealed class TransitService : ITransitionService
     private const string InventoryCorruptModdataKey = "manifold:inv.corrupt";
     private const string GameModeModdataKey = "manifold:gamemode-before-forced";
 
+    /// <summary>Current schema version this build writes for <see cref="GameModeModdataKey"/>.</summary>
+    private const int GameModeSchemaVersion = 1;
+
     private readonly DimensionRegistry _registry;
     private readonly ICoreServerAPI _sapi;
     private readonly TransitMovers _movers;
@@ -238,14 +241,16 @@ internal sealed class TransitService : ITransitionService
             if (saved is null)
             {
                 player.SetModdata(GameModeModdataKey, BitConverter.GetBytes((int)player.WorldData.CurrentGameMode));
+                WritePlayerBlobVersion(player, GameModeModdataKey, GameModeSchemaVersion);
             }
 
             mode = forced;
         }
-        else if (saved is { Length: sizeof(int) })
+        else if (saved is not null && TryDecodeSavedGameMode(saved, player) is { } savedMode)
         {
             player.RemoveModdata(GameModeModdataKey);
-            mode = (EnumGameMode)BitConverter.ToInt32(saved, 0);
+            RemovePlayerBlobVersion(player, GameModeModdataKey);
+            mode = savedMode;
         }
         else
         {
@@ -264,8 +269,78 @@ internal sealed class TransitService : ITransitionService
         }
     }
 
+    /// <summary>
+    /// Decodes a saved pre-forced game mode (always the raw 4-byte int; the format itself never
+    /// changed). A <paramref name="saved"/> blob whose sidecar-recorded version is newer than
+    /// <see cref="GameModeSchemaVersion"/> is refused: logged, copied to a recovery key, and the
+    /// sidecar entry is left exactly as read (never downgraded); the caller then leaves the
+    /// moddata untouched and simply skips the restore for this transit. This means the player keeps
+    /// whatever mode a forced dimension left them in, in every dimension including unforced ones,
+    /// until a build that recognizes the blob's version runs; nothing is lost, the restore is only
+    /// deferred.
+    /// </summary>
+    private EnumGameMode? TryDecodeSavedGameMode(byte[] saved, IServerPlayer player)
+    {
+        int version = ReadPlayerBlobVersion(player, GameModeModdataKey);
+        if (version > GameModeSchemaVersion)
+        {
+            RefusePlayerBlob(player, GameModeModdataKey, saved, version, GameModeSchemaVersion);
+            return null;
+        }
+
+        return saved.Length == sizeof(int) ? (EnumGameMode)BitConverter.ToInt32(saved, 0) : null;
+    }
+
     private void LogSubscriberError(Exception ex) =>
         _sapi.Logger?.Warning("[Manifold] A transit event subscriber threw and was isolated: {0}", ex);
+
+    /// <summary>The schema version the sidecar in <paramref name="player"/>'s moddata records for <paramref name="blobKey"/>.</summary>
+    private static int ReadPlayerBlobVersion(IServerPlayer player, string blobKey) =>
+        SchemaSidecar.Load(player.GetModdata(SchemaSidecar.Key)).GetVersion(blobKey);
+
+    /// <summary>Records the schema version just written for one of <paramref name="player"/>'s blobs.</summary>
+    private static void WritePlayerBlobVersion(IServerPlayer player, string blobKey, int version)
+    {
+        var sidecar = SchemaSidecar.Load(player.GetModdata(SchemaSidecar.Key));
+        sidecar.SetVersion(blobKey, version);
+        player.SetModdata(SchemaSidecar.Key, sidecar.ToBytes());
+    }
+
+    /// <summary>
+    /// Drops the recorded version for one of <paramref name="player"/>'s blobs, for when the blob
+    /// itself is removed (e.g. the restored pre-forced game mode). Removes the sidecar moddata
+    /// entry entirely once it has no entries left, rather than leaving an empty placeholder.
+    /// </summary>
+    private static void RemovePlayerBlobVersion(IServerPlayer player, string blobKey)
+    {
+        var sidecar = SchemaSidecar.Load(player.GetModdata(SchemaSidecar.Key));
+        sidecar.RemoveVersion(blobKey);
+        if (sidecar.IsEmpty)
+        {
+            player.RemoveModdata(SchemaSidecar.Key);
+        }
+        else
+        {
+            player.SetModdata(SchemaSidecar.Key, sidecar.ToBytes());
+        }
+    }
+
+    /// <summary>
+    /// Logs and preserves a player blob whose sidecar-recorded version is newer than this build
+    /// supports: the raw bytes are copied to <c>"{blobKey}.unrecognized"</c> so they are never
+    /// lost, and the sidecar entry is deliberately left untouched here: only the caller's own
+    /// write path ever advances it, so a refused key's recorded version is never downgraded.
+    /// </summary>
+    private void RefusePlayerBlob(IServerPlayer player, string blobKey, byte[] raw, int version, int supported)
+    {
+        _sapi.Logger?.Error(
+            "[Manifold] '{0}' for {1} is schema version {2}, this build supports up to {3}. The original blob is preserved under '{0}.unrecognized' and left untouched.",
+            blobKey,
+            player.PlayerName,
+            version,
+            supported);
+        player.SetModdata(blobKey + ".unrecognized", raw);
+    }
 
     /// <summary>
     /// Swaps the player's separated inventory categories to the destination dimension's profile.
@@ -275,9 +350,18 @@ internal sealed class TransitService : ITransitionService
     private void ApplyInventoryPolicy(IServerPlayer player, IDimension target, DimensionImpl? targetImpl)
     {
         var raw = player.GetModdata(InventoryModdataKey);
-        var store = PlayerInventoryStore.TryFromBytes(raw);
+        int version = ReadPlayerBlobVersion(player, InventoryModdataKey);
+        var store = PlayerInventoryStore.TryFromBytes(raw, version);
         if (store is null)
         {
+            if (version > PlayerInventoryStore.SchemaVersion)
+            {
+                // Unrecognized future version, not corruption: refuse, preserve verbatim, and never
+                // touch the sidecar entry (see RefusePlayerBlob).
+                RefusePlayerBlob(player, InventoryModdataKey, raw!, version, PlayerInventoryStore.SchemaVersion);
+                return;
+            }
+
             // Corrupt moddata: never overwrite it with an empty store (that would silently and
             // permanently wipe every snapshot the player had stashed for other dimensions). Skip the
             // swap entirely and leave the raw bytes in place; keep a copy under a recovery key too.
@@ -329,6 +413,7 @@ internal sealed class TransitService : ITransitionService
             // engine saves the physical inventory independently of this moddata, so skipping the
             // persist on a mid-swap failure would silently and permanently lose the player's items.
             player.SetModdata(InventoryModdataKey, store.ToBytes());
+            WritePlayerBlobVersion(player, InventoryModdataKey, PlayerInventoryStore.SchemaVersion);
         }
     }
 
