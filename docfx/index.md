@@ -8,15 +8,15 @@ title: Manifold
 <img class="mf-hero__layer mf-hero__layer--bg mf-hero__layer--bg-light" src="assets/site/hero-bg-light.webp" width="1440" height="640" alt="" loading="eager" decoding="async">
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-far.png">
-<img class="mf-hero__layer mf-hero__layer--far" src="assets/site/hero-far.webp" srcset="assets/site/hero-far-720.webp 720w, assets/site/hero-far.webp 1440w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
+<img class="mf-hero__layer mf-hero__layer--far" src="assets/site/hero-far.webp" srcset="assets/site/hero-far-720.webp 1440w, assets/site/hero-far.webp 2880w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
 </picture>
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-mid.png">
-<img class="mf-hero__layer mf-hero__layer--mid" src="assets/site/hero-mid.webp" srcset="assets/site/hero-mid-720.webp 720w, assets/site/hero-mid.webp 1440w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
+<img class="mf-hero__layer mf-hero__layer--mid" src="assets/site/hero-mid.webp" srcset="assets/site/hero-mid-720.webp 1440w, assets/site/hero-mid.webp 2880w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
 </picture>
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-near.png">
-<img class="mf-hero__layer mf-hero__layer--near" src="assets/site/hero-near.webp" srcset="assets/site/hero-near-720.webp 720w, assets/site/hero-near.webp 1440w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
+<img class="mf-hero__layer mf-hero__layer--near" src="assets/site/hero-near.webp" srcset="assets/site/hero-near-720.webp 1440w, assets/site/hero-near.webp 2880w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
 </picture>
 <canvas class="mf-hero__sparks" id="mf-hero-sparks" width="1440" height="640" aria-hidden="true"></canvas>
 <a class="mf-hero__portal-link" href="articles/getting-started.md" aria-label="Enter Manifold: read the Getting Started guide">
