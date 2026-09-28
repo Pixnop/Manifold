@@ -2,6 +2,7 @@ using System;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
+using NSubstitute;
 using Vintagestory.API.Common;
 using Xunit;
 
@@ -182,6 +183,81 @@ public sealed class DimensionRegistryTests
 
         Assert.Equal(42, dim.InternalId);
         Assert.Equal(DimensionState.Active, dim.State);
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_Should_Keep_Its_Owner_When_It_Was_Seeded_After_The_Builder()
+    {
+        // A rollback resync can seed the Pending entry between Define and RegisterStatic.
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("owner_a:dim"), "owner_b")
+            .WithWorldgen(new FakeWorldgenStrategy());
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner_a:dim"), 42, DimensionLifetime.Persistent, "owner_a"),
+            DimensionState.Pending);
+
+        var dim = builder.RegisterStatic();
+
+        Assert.Equal(42, dim.InternalId);
+        Assert.Equal("owner_a", dim.OwnerModId);
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_Should_Keep_Its_Lifetime_When_The_Builder_Requested_Another()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner:dim"), 42, DimensionLifetime.Persistent, "owner"),
+            DimensionState.Pending);
+
+        var dim = registry.DefineForOwner(Code("owner:dim"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Ephemeral()
+            .Create();
+
+        // The seeded Pending entry's lifetime wins over the builder's requested one.
+        Assert.Equal(DimensionLifetime.Persistent, dim.Lifetime);
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_With_A_Mismatched_Lifetime_Should_Log_A_Warning()
+    {
+        var allocator = new DimensionAllocator();
+        var logger = Substitute.For<ILogger>();
+        var registry = new DimensionRegistry(allocator, logger: logger);
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner:dim"), 42, DimensionLifetime.Persistent, "owner"),
+            DimensionState.Pending);
+
+        registry.DefineForOwner(Code("owner:dim"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Ephemeral()
+            .Create();
+
+        logger.Received(1).Warning(
+            Arg.Is<string>(s => s.Contains("Pending entry", StringComparison.Ordinal)),
+            Arg.Is<object[]>(a => a.Length == 3
+                && Equals(a[0], Code("owner:dim"))
+                && (DimensionLifetime)a[1]! == DimensionLifetime.Ephemeral
+                && (DimensionLifetime)a[2]! == DimensionLifetime.Persistent));
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_With_A_Matching_Lifetime_Should_Not_Log_A_Warning()
+    {
+        var allocator = new DimensionAllocator();
+        var logger = Substitute.For<ILogger>();
+        var registry = new DimensionRegistry(allocator, logger: logger);
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner:dim"), 42, DimensionLifetime.Persistent, "owner"),
+            DimensionState.Pending);
+
+        registry.DefineForOwner(Code("owner:dim"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Persistent()
+            .Create();
+
+        logger.DidNotReceive().Warning(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
     [Fact]
@@ -567,6 +643,48 @@ public sealed class DimensionRegistryTests
         Assert.True(registry.TryRemove(Code("a:b")));
         Assert.Null(registry.Get(Code("a:b")));
         Assert.True(goodRan);
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Throw_When_Entity_Is_Null()
+    {
+        var registry = NewRegistry();
+        Assert.Throws<ArgumentNullException>(() => registry.GetDimensionOf(null!));
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Return_Overworld_For_Id_Zero()
+    {
+        var registry = NewRegistry();
+        var entity = NSubstitute.Substitute.For<Vintagestory.API.Common.Entities.Entity>();
+
+        var dim = registry.GetDimensionOf(entity);
+
+        Assert.NotNull(dim);
+        Assert.Equal(Code("manifold:overworld"), dim!.Code);
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Return_Registered_Dimension_The_Entity_Is_In()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("testmod:nether"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        var entity = NSubstitute.Substitute.For<Vintagestory.API.Common.Entities.Entity>();
+        entity.Pos.Dimension = dim.InternalId;
+
+        Assert.Equal(dim.Code, registry.GetDimensionOf(entity)!.Code);
+    }
+
+    [Fact]
+    public void GetDimensionOf_Should_Return_Null_When_Id_Matches_No_Registered_Dimension()
+    {
+        var registry = NewRegistry();
+        var entity = NSubstitute.Substitute.For<Vintagestory.API.Common.Entities.Entity>();
+        entity.Pos.Dimension = 999;
+
+        Assert.Null(registry.GetDimensionOf(entity));
     }
 
     private static AssetLocation Code(string s) => new(s);

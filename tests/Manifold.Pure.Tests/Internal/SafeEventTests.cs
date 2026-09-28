@@ -7,6 +7,8 @@ namespace Manifold.Pure.Tests.Internal;
 
 public sealed class SafeEventTests
 {
+    private static readonly string[] ExpectedCallOrder = { "a", "b" };
+
     [Fact]
     public void Raise_Should_Invoke_All_Subscribers()
     {
@@ -17,7 +19,7 @@ public sealed class SafeEventTests
 
         SafeEvent.Raise(handler, this, new Args());
 
-        Assert.Equal(new[] { "a", "b" }, calls);
+        Assert.Equal(ExpectedCallOrder, calls);
     }
 
     [Fact]
@@ -27,7 +29,9 @@ public sealed class SafeEventTests
         handler += (_, _) => throw new InvalidOperationException("boom");
 
         // Must not throw - a misbehaving third-party subscriber cannot abort the operation.
-        SafeEvent.Raise(handler, this, new Args());
+        var thrown = Record.Exception(() => SafeEvent.Raise(handler, this, new Args()));
+
+        Assert.Null(thrown);
     }
 
     [Fact]
@@ -46,7 +50,11 @@ public sealed class SafeEventTests
     [Fact]
     public void Raise_Should_Be_NoOp_When_Handler_Null()
     {
-        SafeEvent.Raise<Args>(null, this, new Args());
+        bool errorCallbackInvoked = false;
+
+        SafeEvent.Raise<Args>(null, this, new Args(), _ => errorCallbackInvoked = true);
+
+        Assert.False(errorCallbackInvoked);
     }
 
     [Fact]

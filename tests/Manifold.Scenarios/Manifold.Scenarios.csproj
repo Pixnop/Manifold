@@ -37,6 +37,11 @@
     <ProjectReference Include="..\Manifold.Scenarios.FixtureMod\Manifold.Scenarios.FixtureMod.csproj">
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
+    <!-- The sample consumer mod itself: never exercised by the scenario suite before this,
+         so its commands (/miningdim, /miningreset, /voiddim, ...) had no automated coverage. -->
+    <ProjectReference Include="..\..\samples\ManifoldSample\ManifoldSample.csproj">
+      <AtlasMod>true</AtlasMod>
+    </ProjectReference>
   </ItemGroup>
 
   <!-- Atlas 0.3.0 fixed issue 22 (a tagged reference with a sibling modinfo.json is staged
@@ -55,6 +60,18 @@
     </ItemGroup>
     <Copy SourceFiles="@(_AtlasFolderModDll)" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(_AtlasFolderModDll->'%(ModInfoPath)')" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
+
+    <!-- ManifoldSample ships block/item assets (voidportal.json, its texture/shape) that its
+         ModSystem resolves at boot; the dll+modinfo copy above is not enough for those to load.
+         Neither Manifold nor the fixture mod ships an assets folder, so this stays specific to
+         the one staged mod that needs it rather than a generic per-reference glob. -->
+    <ItemGroup>
+      <_ManifoldSampleAsset Include="..\..\samples\ManifoldSample\assets\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ManifoldSampleAsset)"
+          DestinationFiles="@(_ManifoldSampleAsset->'$(TargetDir)atlas-mods\ManifoldSample\assets\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
     <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
                       Lines="@(_AtlasFolderModDll->'%(StageDir)')"
                       Overwrite="true" />

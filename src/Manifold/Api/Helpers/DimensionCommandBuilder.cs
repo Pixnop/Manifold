@@ -1,7 +1,6 @@
 using System;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
-using Manifold.Internal;
 using Vintagestory.API.Common;
 using Vintagestory.API.Server;
 
@@ -125,11 +124,6 @@ public sealed class DimensionCommandBuilder
                     return TextCommandResult.Error("Manifold not loaded.");
                 }
 
-                if (!manifold.IsHealthy)
-                {
-                    return TextCommandResult.Error("Manifold is unhealthy; transit unavailable.");
-                }
-
                 return TryTeleport(manifold, player, Target!, Options);
             });
     }
@@ -138,9 +132,7 @@ public sealed class DimensionCommandBuilder
     /// Attempts the transit and turns the outcome into a chat reply: an error naming the failure when
     /// the target is missing or not Active (<see cref="Manifold.Api.ManifoldException"/>), an error
     /// when a <c>PlayerEntering</c>/<c>PlayerArriving</c> subscriber cancels the transit, success
-    /// otherwise. Detects the cancelled case via <see cref="TransitService.TryTeleportPlayer"/> when
-    /// <paramref name="manifold"/>'s <c>Transitions</c> is that internal type (always true outside of
-    /// tests) - <see cref="Server.ITransitionService.TeleportPlayer"/> itself stays <c>void</c>.
+    /// otherwise.
     /// </summary>
     /// <param name="manifold">Manifold's server facade.</param>
     /// <param name="player">The player to teleport.</param>
@@ -152,9 +144,7 @@ public sealed class DimensionCommandBuilder
     {
         try
         {
-            bool moved = manifold.Transitions is TransitService core
-                ? core.TryTeleportPlayer(player, target, options)
-                : TeleportAndAssumeMoved(manifold.Transitions, player, target, options);
+            bool moved = manifold.Transitions.TryTeleportPlayer(player, target, options);
             return moved
                 ? TextCommandResult.Success($"Teleported to {target}.")
                 : TextCommandResult.Error("Transit was cancelled.");
@@ -163,12 +153,5 @@ public sealed class DimensionCommandBuilder
         {
             return TextCommandResult.Error(ex.Message);
         }
-    }
-
-    private static bool TeleportAndAssumeMoved(
-        ITransitionService transitions, IServerPlayer player, AssetLocation target, TransitionOptions options)
-    {
-        transitions.TeleportPlayer(player, target, options);
-        return true;
     }
 }

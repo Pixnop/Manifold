@@ -18,7 +18,7 @@ Manifold gives consumer mods a clean, Harmony-free public API to create persiste
 - **Dark dimensions and relight**: `WithDarkSky` seals a dimension so it stays dark without a per-dimension day/night cycle, and `RelightRegion` / `/manifold relight` recalculate light after runtime block placement.
 - **Safe teardown**: a dimension is never removed while a player is inside it; `ForceRemoveDimension` and `/manifold purge` evacuate occupants first, ephemeral dimensions reap themselves when emptied, and a player whose dimension is gone is rescued to the overworld on join.
 - **Savegame persistence**: dimension manifest, generated-column set, and per-player positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused).
-- **Client mirror**: the dimension list is replicated to connected clients.
+- **Client mirror**: the dimension list, with metadata, is replicated to connected clients, which also learn when the local player transits.
 - **Zero Harmony patches**: built entirely on the public VintagestoryAPI.
 - **Opt-in helpers**: `PortalBlockBase`, `DimensionCommandBuilder`, `BasicVoidWorldgenStrategy`.
 
@@ -41,7 +41,7 @@ Add Manifold as a dependency in your `modinfo.json`, get the facade, and registe
 
 - Vintage Story **1.22.x** (the integration suite runs on 1.22.7)
 - **.NET 10**
-- No Harmony required (0Harmony and protobuf are provided by the game itself)
+- No Harmony reference; protobuf is provided by the game itself
 
 ## License
 

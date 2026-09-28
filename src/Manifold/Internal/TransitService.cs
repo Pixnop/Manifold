@@ -20,6 +20,9 @@ internal sealed class TransitService : ITransitionService
     private const string InventoryCorruptModdataKey = "manifold:inv.corrupt";
     private const string GameModeModdataKey = "manifold:gamemode-before-forced";
 
+    /// <summary>Current schema version this build writes for <see cref="GameModeModdataKey"/>.</summary>
+    private const int GameModeSchemaVersion = 1;
+
     private readonly DimensionRegistry _registry;
     private readonly ICoreServerAPI _sapi;
     private readonly TransitMovers _movers;
@@ -28,7 +31,6 @@ internal sealed class TransitService : ITransitionService
     private readonly PlayerPositionStore _positionStore;
     private readonly IInventorySwapper _inventory;
     private readonly HashSet<int> _warnedMissingSpawnPoint = new();
-    private bool _unhealthy;
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
@@ -49,7 +51,12 @@ internal sealed class TransitService : ITransitionService
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
-        _movers = (movers ?? throw new ArgumentNullException(nameof(movers))).Required();
+        ArgumentNullException.ThrowIfNull(movers);
+        ArgumentNullException.ThrowIfNull(movers.Player);
+        ArgumentNullException.ThrowIfNull(movers.Entity);
+        ArgumentNullException.ThrowIfNull(movers.Block);
+        ArgumentNullException.ThrowIfNull(movers.Dismounter);
+        _movers = movers;
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
@@ -81,7 +88,16 @@ internal sealed class TransitService : ITransitionService
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(targetDim);
         ArgumentNullException.ThrowIfNull(targetLocal);
-        var target = RequireActiveTarget(targetDim);
+        var target = DimensionGate.RequireActive(_registry, targetDim);
+
+        if (_movers.Block.IsMultiPosition(source, out var reason))
+        {
+            // Refuse before touching either side: a plain block+BlockEntity copy of one position
+            // would leave the rest of the structure behind, broken, at the source, and drop an
+            // incomplete fragment of it at the target.
+            _sapi.Logger?.Warning("[Manifold] TeleportBlock refused at {0}: {1}", source, reason);
+            return false;
+        }
 
         var targetPos = targetLocal.Copy();
         targetPos.dimension = target.InternalId;
@@ -91,6 +107,13 @@ internal sealed class TransitService : ITransitionService
         _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(targetPos.X), ChunkMath.ToChunk(targetPos.Z), null);
 
         return _movers.Block.Move(source, targetPos);
+    }
+
+    /// <inheritdoc/>
+    public bool IsMultiPositionBlock(BlockPos pos)
+    {
+        ArgumentNullException.ThrowIfNull(pos);
+        return _movers.Block.IsMultiPosition(pos, out _);
     }
 
     /// <inheritdoc/>
@@ -105,7 +128,7 @@ internal sealed class TransitService : ITransitionService
                 nameof(entity));
         }
 
-        var target = RequireActiveTarget(targetDim);
+        var target = DimensionGate.RequireActive(_registry, targetDim);
 
         // Capture source dim BEFORE the move so the post-event reports the actual previous
         // dimension. The default-to-overworld fallback mirrors TeleportPlayer's handling of
@@ -127,23 +150,12 @@ internal sealed class TransitService : ITransitionService
             LogSubscriberError);
     }
 
-    /// <summary>
-    /// Core of <see cref="TeleportPlayer"/>: identical behavior, but reports whether the player
-    /// actually moved (as opposed to a subscriber cancelling the transit). <see cref="TeleportPlayer"/>
-    /// is <c>void</c> per <see cref="ITransitionService"/> and cannot report this without a breaking
-    /// API change; <see cref="Api.Helpers.DimensionCommandBuilder"/> and <see cref="Api.Helpers.PortalBlockBase"/>
-    /// call this directly (when <c>Transitions</c> is this concrete type) so they can reply with an
-    /// error instead of reporting success on a cancelled transit.
-    /// </summary>
-    /// <param name="player">Server player to teleport.</param>
-    /// <param name="targetDim">Target dimension code.</param>
-    /// <param name="options">Optional transit settings.</param>
-    /// <returns><c>true</c> if the player was moved; <c>false</c> if a subscriber cancelled the transit.</returns>
-    internal bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
+    /// <inheritdoc/>
+    public bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(targetDim);
-        var target = RequireActiveTarget(targetDim);
+        var target = DimensionGate.RequireActive(_registry, targetDim);
 
         int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
@@ -189,6 +201,21 @@ internal sealed class TransitService : ITransitionService
             return false;
         }
 
+        // Dismount before moving the player: a cross-dimension teleport rehomes only the player's
+        // own entity, so a rider left mounted would end up flagged as mounted on an entity that
+        // never left the source dimension. The mount itself stays put. A refused dismount is
+        // treated like a PlayerArriving cancellation: nothing has moved yet, so it is safe to
+        // abort here instead of teleporting a player the engine would then drag their mount along
+        // with (in the source dimension) for.
+        if (!_movers.Dismounter.Dismount(player))
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Transit of {0} to {1} cancelled: could not dismount them.",
+                player.PlayerName,
+                target.Code);
+            return false;
+        }
+
         _movers.Player.Teleport(player, targetPos);
 
         ApplyGameModePolicy(player, targetImpl);
@@ -197,35 +224,6 @@ internal sealed class TransitService : ITransitionService
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
         SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
         return true;
-    }
-
-    /// <summary>Mark the service as unhealthy (called when Harmony patches fail at boot).</summary>
-    internal void MarkUnhealthy() => _unhealthy = true;
-
-    /// <summary>
-    /// Common transit gate shared by all three Teleport* methods: refuses when Manifold is
-    /// unhealthy, and resolves <paramref name="targetDim"/> to a registered, <see cref="DimensionState.Active"/>
-    /// dimension.
-    /// </summary>
-    /// <param name="targetDim">Target dimension code.</param>
-    /// <returns>The resolved target dimension.</returns>
-    private IDimension RequireActiveTarget(AssetLocation targetDim)
-    {
-        if (_unhealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; transit is disabled.");
-        }
-
-        var target = _registry.Get(targetDim)
-            ?? throw new DimensionNotFoundException($"No dimension registered with code '{targetDim}'.");
-        if (target.State != DimensionState.Active)
-        {
-            throw new DimensionStateException(
-                $"Dimension '{targetDim}' is in state {target.State}; transit not allowed.");
-        }
-
-        return target;
     }
 
     /// <summary>
@@ -243,14 +241,16 @@ internal sealed class TransitService : ITransitionService
             if (saved is null)
             {
                 player.SetModdata(GameModeModdataKey, BitConverter.GetBytes((int)player.WorldData.CurrentGameMode));
+                WritePlayerBlobVersion(player, GameModeModdataKey, GameModeSchemaVersion);
             }
 
             mode = forced;
         }
-        else if (saved is { Length: sizeof(int) })
+        else if (saved is not null && TryDecodeSavedGameMode(saved, player) is { } savedMode)
         {
             player.RemoveModdata(GameModeModdataKey);
-            mode = (EnumGameMode)BitConverter.ToInt32(saved, 0);
+            RemovePlayerBlobVersion(player, GameModeModdataKey);
+            mode = savedMode;
         }
         else
         {
@@ -269,8 +269,78 @@ internal sealed class TransitService : ITransitionService
         }
     }
 
+    /// <summary>
+    /// Decodes a saved pre-forced game mode (always the raw 4-byte int; the format itself never
+    /// changed). A <paramref name="saved"/> blob whose sidecar-recorded version is newer than
+    /// <see cref="GameModeSchemaVersion"/> is refused: logged, copied to a recovery key, and the
+    /// sidecar entry is left exactly as read (never downgraded); the caller then leaves the
+    /// moddata untouched and simply skips the restore for this transit. This means the player keeps
+    /// whatever mode a forced dimension left them in, in every dimension including unforced ones,
+    /// until a build that recognizes the blob's version runs; nothing is lost, the restore is only
+    /// deferred.
+    /// </summary>
+    private EnumGameMode? TryDecodeSavedGameMode(byte[] saved, IServerPlayer player)
+    {
+        int version = ReadPlayerBlobVersion(player, GameModeModdataKey);
+        if (version > GameModeSchemaVersion)
+        {
+            RefusePlayerBlob(player, GameModeModdataKey, saved, version, GameModeSchemaVersion);
+            return null;
+        }
+
+        return saved.Length == sizeof(int) ? (EnumGameMode)BitConverter.ToInt32(saved, 0) : null;
+    }
+
     private void LogSubscriberError(Exception ex) =>
         _sapi.Logger?.Warning("[Manifold] A transit event subscriber threw and was isolated: {0}", ex);
+
+    /// <summary>The schema version the sidecar in <paramref name="player"/>'s moddata records for <paramref name="blobKey"/>.</summary>
+    private static int ReadPlayerBlobVersion(IServerPlayer player, string blobKey) =>
+        SchemaSidecar.Load(player.GetModdata(SchemaSidecar.Key)).GetVersion(blobKey);
+
+    /// <summary>Records the schema version just written for one of <paramref name="player"/>'s blobs.</summary>
+    private static void WritePlayerBlobVersion(IServerPlayer player, string blobKey, int version)
+    {
+        var sidecar = SchemaSidecar.Load(player.GetModdata(SchemaSidecar.Key));
+        sidecar.SetVersion(blobKey, version);
+        player.SetModdata(SchemaSidecar.Key, sidecar.ToBytes());
+    }
+
+    /// <summary>
+    /// Drops the recorded version for one of <paramref name="player"/>'s blobs, for when the blob
+    /// itself is removed (e.g. the restored pre-forced game mode). Removes the sidecar moddata
+    /// entry entirely once it has no entries left, rather than leaving an empty placeholder.
+    /// </summary>
+    private static void RemovePlayerBlobVersion(IServerPlayer player, string blobKey)
+    {
+        var sidecar = SchemaSidecar.Load(player.GetModdata(SchemaSidecar.Key));
+        sidecar.RemoveVersion(blobKey);
+        if (sidecar.IsEmpty)
+        {
+            player.RemoveModdata(SchemaSidecar.Key);
+        }
+        else
+        {
+            player.SetModdata(SchemaSidecar.Key, sidecar.ToBytes());
+        }
+    }
+
+    /// <summary>
+    /// Logs and preserves a player blob whose sidecar-recorded version is newer than this build
+    /// supports: the raw bytes are copied to <c>"{blobKey}.unrecognized"</c> so they are never
+    /// lost, and the sidecar entry is deliberately left untouched here: only the caller's own
+    /// write path ever advances it, so a refused key's recorded version is never downgraded.
+    /// </summary>
+    private void RefusePlayerBlob(IServerPlayer player, string blobKey, byte[] raw, int version, int supported)
+    {
+        _sapi.Logger?.Error(
+            "[Manifold] '{0}' for {1} is schema version {2}, this build supports up to {3}. The original blob is preserved under '{0}.unrecognized' and left untouched.",
+            blobKey,
+            player.PlayerName,
+            version,
+            supported);
+        player.SetModdata(blobKey + ".unrecognized", raw);
+    }
 
     /// <summary>
     /// Swaps the player's separated inventory categories to the destination dimension's profile.
@@ -280,9 +350,18 @@ internal sealed class TransitService : ITransitionService
     private void ApplyInventoryPolicy(IServerPlayer player, IDimension target, DimensionImpl? targetImpl)
     {
         var raw = player.GetModdata(InventoryModdataKey);
-        var store = PlayerInventoryStore.TryFromBytes(raw);
+        int version = ReadPlayerBlobVersion(player, InventoryModdataKey);
+        var store = PlayerInventoryStore.TryFromBytes(raw, version);
         if (store is null)
         {
+            if (version > PlayerInventoryStore.SchemaVersion)
+            {
+                // Unrecognized future version, not corruption: refuse, preserve verbatim, and never
+                // touch the sidecar entry (see RefusePlayerBlob).
+                RefusePlayerBlob(player, InventoryModdataKey, raw!, version, PlayerInventoryStore.SchemaVersion);
+                return;
+            }
+
             // Corrupt moddata: never overwrite it with an empty store (that would silently and
             // permanently wipe every snapshot the player had stashed for other dimensions). Skip the
             // swap entirely and leave the raw bytes in place; keep a copy under a recovery key too.
@@ -314,9 +393,9 @@ internal sealed class TransitService : ITransitionService
                 // Snapshot the current contents into the source key BEFORE touching any slot.
                 store.SetSnapshot(swap.Category, swap.FromKey, _inventory.Serialize(player, swap.Category));
 
-                if (store.HasSnapshot(swap.Category, swap.ToKey))
+                if (store.GetSnapshot(swap.Category, swap.ToKey) is { } snapshot)
                 {
-                    _inventory.Restore(player, swap.Category, store.GetSnapshot(swap.Category, swap.ToKey)!);
+                    _inventory.Restore(player, swap.Category, snapshot);
                 }
                 else
                 {
@@ -334,6 +413,7 @@ internal sealed class TransitService : ITransitionService
             // engine saves the physical inventory independently of this moddata, so skipping the
             // persist on a mid-swap failure would silently and permanently lose the player's items.
             player.SetModdata(InventoryModdataKey, store.ToBytes());
+            WritePlayerBlobVersion(player, InventoryModdataKey, PlayerInventoryStore.SchemaVersion);
         }
     }
 

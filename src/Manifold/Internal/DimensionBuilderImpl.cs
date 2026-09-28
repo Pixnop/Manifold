@@ -5,7 +5,6 @@ using Manifold.Api;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
 using Manifold.Api.Worldgen;
-using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 
@@ -30,7 +29,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
 
     private readonly AssetLocation _code;
     private readonly string _ownerModId;
-    private readonly System.Func<DimensionBuildRequest, IDimension> _completion;
+    private readonly System.Func<DimensionImpl, IDimension> _completion;
     private IWorldgenStrategy? _worldgen;
     private DimensionLifetime? _lifetime;
     private int _generationRadius = DefaultGenerationRadius;
@@ -53,10 +52,11 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     internal DimensionBuilderImpl(
         AssetLocation code,
         string ownerModId,
-        System.Func<DimensionBuildRequest, IDimension> completion)
+        System.Func<DimensionImpl, IDimension> completion)
     {
         _code = code ?? throw new ArgumentNullException(nameof(code));
-        _ownerModId = Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerModId);
+        _ownerModId = ownerModId;
         _completion = completion ?? throw new ArgumentNullException(nameof(completion));
     }
 
@@ -99,7 +99,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder WithGenerationRadius(int chunks)
     {
         ThrowIfUsed();
-        _generationRadius = Guards.InRange(chunks, 0, 16, nameof(chunks));
+        ArgumentOutOfRangeException.ThrowIfLessThan(chunks, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(chunks, 16);
+        _generationRadius = chunks;
         return this;
     }
 
@@ -107,7 +109,8 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder WithRelightHeight(int maxY)
     {
         ThrowIfUsed();
-        Guards.InRange(maxY, 1, 1024, nameof(maxY));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxY, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxY, 1024);
         return this;
     }
 
@@ -141,7 +144,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder Streaming(int loadRadius)
     {
         ThrowIfUsed();
-        _streamingLoadRadius = Guards.InRange(loadRadius, 1, 32, nameof(loadRadius));
+        ArgumentOutOfRangeException.ThrowIfLessThan(loadRadius, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(loadRadius, 32);
+        _streamingLoadRadius = loadRadius;
         return this;
     }
 
@@ -149,7 +154,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder WithStreamingBudget(int maxColumnsPerTick)
     {
         ThrowIfUsed();
-        _streamingBudgetPerTick = Guards.InRange(maxColumnsPerTick, 1, 64, nameof(maxColumnsPerTick));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxColumnsPerTick, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxColumnsPerTick, 64);
+        _streamingBudgetPerTick = maxColumnsPerTick;
         return this;
     }
 
@@ -157,7 +164,9 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder WithDarkSky(int ceilingY)
     {
         ThrowIfUsed();
-        _skyCapY = Guards.InRange(ceilingY, 1, 1024, nameof(ceilingY));
+        ArgumentOutOfRangeException.ThrowIfLessThan(ceilingY, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ceilingY, 1024);
+        _skyCapY = ceilingY;
         return this;
     }
 
@@ -173,7 +182,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     public IDimensionBuilder WithMetadata(string key, object? value)
     {
         ThrowIfUsed();
-        Guards.NotNullOrWhiteSpace(key, nameof(key));
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
         if (value is not null && !IsSupportedMetadataType(value.GetType()))
         {
             throw new ArgumentException(
@@ -211,20 +220,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(
-            _code,
-            _worldgen,
-            lifetime,
-            _ownerModId,
-            _generationRadius,
-            _spawnBehavior,
-            _spawnPoint,
-            _forcedGameMode,
-            _streamingLoadRadius,
-            _separateInventory,
-            BuildMetadata(),
-            _streamingBudgetPerTick,
-            _skyCapY));
+        return _completion(BuildTemplate(lifetime));
     }
 
     /// <inheritdoc/>
@@ -244,21 +240,31 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         }
 
         _used = true;
-        return _completion(new DimensionBuildRequest(
-            _code,
-            _worldgen,
-            _lifetime.Value,
-            _ownerModId,
-            _generationRadius,
-            _spawnBehavior,
-            _spawnPoint,
-            _forcedGameMode,
-            _streamingLoadRadius,
-            _separateInventory,
-            BuildMetadata(),
-            _streamingBudgetPerTick,
-            _skyCapY));
+        return _completion(BuildTemplate(_lifetime.Value));
     }
+
+    /// <summary>
+    /// Builds the dimension record for the registry to complete: <see cref="DimensionImpl.InternalId"/>
+    /// is a placeholder the registry overwrites (a fresh id, or the existing id when promoting a
+    /// Pending entry).
+    /// </summary>
+    private DimensionImpl BuildTemplate(DimensionLifetime lifetime) => new(
+        Code: _code,
+        InternalId: 0,
+        IsBuiltIn: false,
+        Lifetime: lifetime,
+        OwnerModId: _ownerModId,
+        State: DimensionState.Active,
+        Worldgen: _worldgen,
+        GenerationRadius: _generationRadius,
+        SpawnBehavior: _spawnBehavior,
+        SpawnPoint: _spawnPoint,
+        ForcedGameMode: _forcedGameMode,
+        StreamingLoadRadius: _streamingLoadRadius,
+        SeparateInventory: _separateInventory,
+        Metadata: BuildMetadata(),
+        StreamingBudgetPerTick: _streamingBudgetPerTick,
+        SkyCapY: _skyCapY);
 
     private static bool IsSupportedMetadataType(Type t) =>
         t.IsPrimitive || t == typeof(string) || t.IsEnum || t == typeof(byte[]);

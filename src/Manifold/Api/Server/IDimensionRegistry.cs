@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Manifold.Api.Events;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 
 namespace Manifold.Api.Server;
 
@@ -24,6 +25,20 @@ public interface IDimensionRegistry
     /// dimensions).
     /// </summary>
     event EventHandler<DimensionDestroyedEventArgs> Destroyed;
+
+    /// <summary>
+    /// Raised immediately after Manifold generates a brand-new chunk column for a dimension; never
+    /// for a column it only <em>loaded</em> from disk (a restart, or a re-visit of an already
+    /// generated column). Use it to decorate or post-process the terrain a worldgen strategy just
+    /// produced (a structure, a marker, loot) without changing the strategy itself. Raised on the
+    /// server main thread, after the column's blocks are committed, for every generation path: a
+    /// player transit, the streaming driver, and <see cref="IManifoldServer.GenerateRegion"/>.
+    /// Subscribers are isolated with the same per-subscriber try/catch as <see cref="Created"/> and
+    /// <see cref="Destroyed"/>: one throwing subscriber is reported and does not stop the others or
+    /// the caller. See <see cref="ColumnGeneratedEventArgs.BlockAccessor"/> for whether writes
+    /// need a commit and whether the column has already reached any client.
+    /// </summary>
+    event EventHandler<ColumnGeneratedEventArgs> ColumnGenerated;
 
     /// <summary>Current snapshot of registered dimensions (Active, Pending, and Quarantined).</summary>
     IReadOnlyCollection<IDimension> All { get; }
@@ -65,4 +80,16 @@ public interface IDimensionRegistry
     /// <exception cref="DimensionBuiltInImmutableException">The dimension is the built-in overworld.</exception>
     /// <exception cref="DimensionStateException">The dimension is Persistent (use the admin purge command).</exception>
     bool TryRemove(AssetLocation code);
+
+    /// <summary>
+    /// The registered dimension <paramref name="entity"/> is currently in, resolved from its live
+    /// position's dimension id (<c>Entity.Pos.Dimension</c>). Returns the built-in overworld for id 0.
+    /// </summary>
+    /// <param name="entity">The entity to locate.</param>
+    /// <returns>
+    /// The dimension the entity is in, or <c>null</c> if its position's dimension id does not match
+    /// any dimension currently registered (e.g. one removed since the entity last moved).
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="entity"/> is null.</exception>
+    IDimension? GetDimensionOf(Entity entity);
 }

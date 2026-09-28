@@ -7,6 +7,7 @@ using Manifold.Api.Events;
 using Manifold.Api.Server;
 using Manifold.Internal.Util;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 
 namespace Manifold.Internal;
 
@@ -63,6 +64,9 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     public event EventHandler<DimensionDestroyedEventArgs>? Destroyed;
 
     /// <inheritdoc/>
+    public event EventHandler<ColumnGeneratedEventArgs>? ColumnGenerated;
+
+    /// <inheritdoc/>
     public IReadOnlyCollection<IDimension> All => _snapshot.Values.Cast<IDimension>().ToList().AsReadOnly();
 
     /// <inheritdoc/>
@@ -110,6 +114,14 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         return true;
     }
 
+    /// <inheritdoc/>
+    public IDimension? GetDimensionOf(Entity entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        int dimId = EntityPosAccess.Pos(entity).Dimension;
+        return GetByInternalId(dimId);
+    }
+
     /// <summary>
     /// Start a fluent declaration with an explicit owner mod id. Called by
     /// <see cref="OwnerScopedRegistry"/> which captures the owner from the caller's
@@ -122,7 +134,7 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     internal IDimensionBuilder DefineForOwner(AssetLocation code, string ownerModId)
     {
         DimensionCodeValidator.Validate(code);
-        Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerModId);
         if (_snapshot.TryGetValue(code, out var existing))
         {
             if (existing.State != DimensionState.Pending)
@@ -206,49 +218,60 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     internal DimensionImpl? GetByInternalId(int internalId) =>
         _snapshot.Values.FirstOrDefault(d => d.InternalId == internalId);
 
-    private DimensionImpl Complete(DimensionBuildRequest request)
+    /// <summary>
+    /// Raises <see cref="ColumnGenerated"/> for a newly generated column. Called by
+    /// <see cref="DimensionGenerator"/> right after the column's blocks are committed, before it is
+    /// sent to any client.
+    /// </summary>
+    /// <param name="dimension">The dimension the column belongs to.</param>
+    /// <param name="chunkX">Chunk-grid X of the generated column.</param>
+    /// <param name="chunkZ">Chunk-grid Z of the generated column.</param>
+    /// <param name="blockAccessor">Accessor handed to subscribers for decorating the column.</param>
+    internal void RaiseColumnGenerated(IDimension dimension, int chunkX, int chunkZ, IBlockAccessor blockAccessor) =>
+        SafeEvent.Raise(
+            ColumnGenerated,
+            this,
+            new ColumnGeneratedEventArgs(dimension, chunkX, chunkZ, blockAccessor),
+            LogSubscriberError);
+
+    /// <summary>
+    /// Completes a builder's template: promotes a matching Pending entry in place (keeping its
+    /// existing <see cref="DimensionImpl.InternalId"/> and <see cref="DimensionImpl.Lifetime"/>,
+    /// exactly as before), or reserves a fresh engine id for a brand-new dimension.
+    /// </summary>
+    private DimensionImpl Complete(DimensionImpl template)
     {
-        if (_snapshot.TryGetValue(request.Code, out var existing) &&
+        if (_snapshot.TryGetValue(template.Code, out var existing) &&
             existing.State == DimensionState.Pending)
         {
-            var promoted = existing with
+            // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is
+            // new. A builder that requested a different lifetime than the entry it is promoting is
+            // most likely a bug (a code that used to be Persistent now built with Ephemeral(), or
+            // vice versa): the kept lifetime wins silently, but we warn so it does not go unnoticed.
+            if (template.Lifetime != existing.Lifetime)
             {
-                State = DimensionState.Active,
-                Worldgen = request.Worldgen,
-                GenerationRadius = request.GenerationRadius,
-                SpawnBehavior = request.SpawnBehavior,
-                SpawnPoint = request.SpawnPoint,
-                ForcedGameMode = request.ForcedGameMode,
-                StreamingLoadRadius = request.StreamingLoadRadius,
-                SeparateInventory = request.SeparateInventory,
-                Metadata = request.Metadata,
-                StreamingBudgetPerTick = request.StreamingBudgetPerTick,
-                SkyCapY = request.SkyCapY,
+                _logger?.Warning(
+                    "[Manifold] Dimension '{0}' was requested as {1} but is being promoted from a "
+                    + "Pending entry seeded as {2}; the Pending entry's lifetime wins.",
+                    template.Code,
+                    template.Lifetime,
+                    existing.Lifetime);
+            }
+
+            var promoted = template with
+            {
+                InternalId = existing.InternalId,
+                IsBuiltIn = existing.IsBuiltIn,
+                Lifetime = existing.Lifetime,
+                OwnerModId = existing.OwnerModId,
             };
-            _snapshot = _snapshot.SetItem(request.Code, promoted);
+            _snapshot = _snapshot.SetItem(template.Code, promoted);
             SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(promoted), LogSubscriberError);
             return promoted;
         }
 
-        int id = _allocator.Reserve(request.Code);
-        var dim = new DimensionImpl(
-            Code: request.Code,
-            InternalId: id,
-            IsBuiltIn: false,
-            Lifetime: request.Lifetime,
-            OwnerModId: request.OwnerModId,
-            State: DimensionState.Active,
-            Worldgen: request.Worldgen,
-            GenerationRadius: request.GenerationRadius,
-            SpawnBehavior: request.SpawnBehavior,
-            SpawnPoint: request.SpawnPoint,
-            ForcedGameMode: request.ForcedGameMode,
-            StreamingLoadRadius: request.StreamingLoadRadius,
-            SeparateInventory: request.SeparateInventory,
-            Metadata: request.Metadata,
-            StreamingBudgetPerTick: request.StreamingBudgetPerTick,
-            SkyCapY: request.SkyCapY);
-        _snapshot = _snapshot.Add(request.Code, dim);
+        var dim = template with { InternalId = _allocator.Reserve(template.Code) };
+        _snapshot = _snapshot.Add(template.Code, dim);
         SafeEvent.Raise(Created, this, new DimensionCreatedEventArgs(dim), LogSubscriberError);
         return dim;
     }

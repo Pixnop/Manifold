@@ -21,7 +21,15 @@ Must be called on the **main thread**. The method:
 6. Teleports the player, then applies the target's game-mode policy (forces its mode, or restores the saved one) and swaps separated inventory categories.
 7. Raises `PlayerLeft` (source dimension) and `PlayerEntered` (target dimension).
 
-Throws `DimensionNotFoundException` if the code is unknown, `DimensionStateException` if the dimension is not `Active`, or `ManifoldUnhealthyException` if Manifold failed to initialize.
+Throws `DimensionNotFoundException` if the code is unknown, or `DimensionStateException` if the dimension is not `Active`.
+
+If the player is riding a mount (a boat, a saddled creature, any `IMountableSeat`), they are cleanly
+dismounted right before the move. The mount is left behind in the source dimension: it is never
+dragged along, and the player is never left flagged as mounted on an entity that never changed
+dimension with them. A transit a subscriber cancels at `PlayerEntering`/`PlayerArriving` leaves the
+player mounted, exactly as they were. If the mount's seat refuses to release them (for example a
+moving elevator seat mid-move), the whole transit is aborted before anything moves, the same as a
+cancellation; use `TryTeleportPlayer` to detect this.
 
 ```csharp
 var transitions = manifold.Transitions;
@@ -33,6 +41,19 @@ transitions.PlayerEntering += (_, e) =>
 };
 
 transitions.TeleportPlayer(player, new AssetLocation("mymod", "nether"));
+```
+
+`TeleportPlayer` is `void`: a subscriber cancelling the transit at `PlayerEntering`/`PlayerArriving`
+leaves the player where they were, silently as far as the return type is concerned. When you need to
+know whether the transit actually happened, call `TryTeleportPlayer` instead - same behavior, same
+exceptions, but it returns `true` if the player moved and `false` if a subscriber vetoed it:
+
+```csharp
+bool moved = transitions.TryTeleportPlayer(player, new AssetLocation("mymod", "nether"));
+if (!moved)
+{
+    player.SendMessage(GlobalConstants.GeneralChatGroup, "Something stopped you from entering.", EnumChatType.Notification);
+}
 ```
 
 ## TeleportEntity
@@ -75,7 +96,8 @@ never a lost block).
 
 - The `targetLocal.dimension` field is overwritten with the target dimension's internal id; the
   caller's `BlockPos` is not mutated.
-- Returns `true` when a non-air block was moved; `false` when the source slot was air (no-op).
+- Returns `true` when a non-air block was moved; `false` when the source slot was air (no-op), or
+  when the source is refused (see below).
 - The `BlockEntity`'s embedded position (`posx/posy/posz`, with `posy` dimension-encoded as
   `localY + dim * 32768`) is re-stamped to the target before rehydration so interactions (opening a
   chest, etc.) route correctly to the new position.
@@ -85,13 +107,46 @@ never a lost block).
 var sel = serverPlayer.CurrentBlockSelection;
 if (sel?.Position is { } src)
 {
-    var target = new BlockPos(1024, 64, 1024, 0); // dimension overwritten by the service
-    bool moved = transitions.TeleportBlock(src, new AssetLocation("mymod", "vault"), target);
+    if (transitions.IsMultiPositionBlock(src))
+    {
+        serverPlayer.SendMessage(GlobalConstants.GeneralChatGroup, "That block can't be moved on its own.", EnumChatType.Notification);
+    }
+    else
+    {
+        var target = new BlockPos(1024, 64, 1024, 0); // dimension overwritten by the service
+        bool moved = transitions.TeleportBlock(src, new AssetLocation("mymod", "vault"), target);
+    }
 }
 ```
 
-Throws the same `DimensionNotFoundException` / `DimensionStateException` / `ManifoldUnhealthyException`
-as `TeleportPlayer`.
+Throws the same `DimensionNotFoundException` / `DimensionStateException` as `TeleportPlayer`.
+
+### Multi-position blocks are refused, not partially moved
+
+A door, a bed, or any structure built on the engine's multiblock mechanism occupies more than one
+grid position for one logical object. `TeleportBlock` only ever copies a single position plus its
+`BlockEntity`, so moving one cell of such a structure would leave the rest of it behind, broken, at
+the source, and drop an incomplete fragment of it at the target. Instead, `TeleportBlock` detects
+this before writing anything and refuses the move: neither side is touched.
+
+- A multiblock satellite or controller (the engine's `BlockMultiblock`, and anything built on
+  `BlockBehaviorMultiblock`): this also covers ordinary doors, including wide gates, which fill
+  every cell beyond their first with the same satellite mechanism (a plain 1-wide door is already
+  two cells tall). A vanilla trapdoor is a single cell; it is not covered by this check and is moved
+  normally.
+- A large gear's fillers (`BlockMPMultiblockGear`) or its centre (`BlockLargeGear3m`).
+- A bed's head or feet half.
+- A large trough's head or feet half (`BlockTroughDoubleBlock`).
+- A legacy door's up or down half (`BlockDoor`): worlds predating the current door behavior may
+  still contain these.
+
+The refusal returns `false` (the same value as the existing air no-op) and is logged as a
+warning with the reason. Call `IsMultiPositionBlock` first to tell the two apart, or to give a
+player a clearer message than a silent no-op:
+
+```csharp
+bool IsMultiPositionBlock(BlockPos pos);
+```
 
 ## Transit events
 
@@ -159,7 +214,7 @@ transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new Tran
 
 | Value | Effect |
 |-------|--------|
-| `SameCoordinates` | Keep the player's current X/Z; land on the surface at that column. Default. |
+| `SameCoordinates` | Keep the player's current X/Z; land on the surface at that column (see below). Default. |
 | `DimensionSpawn` | Always land at the dimension's configured fixed spawn point (set with `WithFixedSpawn`). |
 | `LastVisited` | Return to where the player last was in this dimension; falls back to `SameCoordinates` on first visit. |
 
@@ -184,6 +239,30 @@ manifold.Registry
 ```
 
 Per-player last-visited positions are persisted in the savegame and survive server restarts.
+
+### The default surface search
+
+`SameXZSurfaceY` (used by `SameCoordinates`, as the fallback for `DimensionSpawn`/`LastVisited` when
+they have nothing to land on, and as `TeleportEntity`'s own default resolver) scans down from the
+target dimension's ceiling and lands on the first solid, dry block that has two full blocks of clear
+space above it (feet, then head). This means:
+
+- A one-block gap in a cave ceiling is skipped (there is no room to stand in it), and the search
+  keeps going for a spot with real clearance, above or below it.
+- A plant, vine or torch with no floor to stand on is skipped too, the same as a one-block gap: the
+  search walks through it like air instead of landing on top of it.
+- The first liquid block found while scanning down is the top of that liquid body (a lake, an
+  ocean): the search never continues past it looking for dry ground underneath, since real terrain
+  never has open water floating over a cave, only the liquid's own bed and then solid ground. The
+  liquid's surface is used as a landing spot, with the same two-block clearance check, only if the
+  column has no dry spot above it.
+- If the column has no valid spot whatsoever (a fully solid column, an empty/void column, one outside
+  the world's height range, or a liquid body capped by solid ground with no clearance above it), the
+  player's current Y is kept unchanged. This is the same behavior a void dimension always had; it now
+  also covers a solid column with no opening in it.
+
+Positions the caller chose explicitly are never second-guessed by this search: `OverridePosition`, a
+custom `Resolver`, and a `DimensionSpawn`/`FixedSpawn` point are all used as-is.
 
 ## ITargetPositionResolver
 

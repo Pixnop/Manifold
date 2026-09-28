@@ -14,6 +14,9 @@ namespace Manifold.Internal;
 /// <remarks>Server-side, main thread. Snapshot payloads are opaque bytes (produced by the swapper).</remarks>
 internal sealed class PlayerInventoryStore
 {
+    /// <summary>Current schema version this build writes and reads via <see cref="ToBytes"/>/<see cref="TryFromBytes"/>.</summary>
+    public const int SchemaVersion = 1;
+
     private readonly Dictionary<string, byte[]> _snapshots = new();
     private readonly Dictionary<ManifoldInventory, string> _currentKeys = new();
 
@@ -27,13 +30,6 @@ internal sealed class PlayerInventoryStore
     /// <param name="category">The inventory category.</param>
     /// <param name="ownerKey">The new owner key.</param>
     public void SetCurrentKey(ManifoldInventory category, string ownerKey) => _currentKeys[category] = ownerKey;
-
-    /// <summary>Whether a snapshot exists for (category, owner key).</summary>
-    /// <param name="category">The inventory category.</param>
-    /// <param name="ownerKey">The owner key.</param>
-    /// <returns><c>true</c> if a snapshot is stored for this pair.</returns>
-    public bool HasSnapshot(ManifoldInventory category, string ownerKey) =>
-        _snapshots.ContainsKey(SnapshotKey(category, ownerKey));
 
     /// <summary>Returns the snapshot bytes for (category, owner key), or null.</summary>
     /// <param name="category">The inventory category.</param>
@@ -73,15 +69,26 @@ internal sealed class PlayerInventoryStore
         return ms.ToArray();
     }
 
-    /// <summary>Deserialise a store from moddata bytes; returns an empty store on null/empty input.</summary>
+    /// <summary>
+    /// Deserialise a store from moddata bytes; returns an empty store on null/empty input. The
+    /// blob format itself never changed by versioning: a <paramref name="version"/> newer than
+    /// <see cref="SchemaVersion"/> is refused the same way corrupt data is (returns <c>null</c>)
+    /// instead of being misread.
+    /// </summary>
     /// <param name="data">Serialised bytes, or <c>null</c>/empty for an empty store.</param>
-    /// <returns>The deserialised store, an empty store if input is absent, or <c>null</c> if it is corrupt.</returns>
-    public static PlayerInventoryStore? TryFromBytes(byte[]? data)
+    /// <param name="version">The schema version recorded for this blob (from the sidecar; 1 if it has none).</param>
+    /// <returns>The deserialised store, an empty store if input is absent, or <c>null</c> if it is corrupt or an unrecognized newer version.</returns>
+    public static PlayerInventoryStore? TryFromBytes(byte[]? data, int version = SchemaVersion)
     {
         var store = new PlayerInventoryStore();
         if (data is not { Length: > 0 })
         {
             return store;
+        }
+
+        if (version > SchemaVersion)
+        {
+            return null;
         }
 
         try

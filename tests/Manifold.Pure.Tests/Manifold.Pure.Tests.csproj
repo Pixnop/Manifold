@@ -19,11 +19,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Manifold\Manifold.csproj" />
+    <ProjectReference Include="..\..\samples\ManifoldSample\ManifoldSample.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- Private=true: unlike Manifold.csproj's own (game-provided) reference, tests need the DLL
+         copied locally so ProtoBuf.Serializer round-trip tests resolve it at run time. -->
+    <Reference Include="protobuf-net">
+      <HintPath>$(VINTAGE_STORY)\Lib\protobuf-net.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

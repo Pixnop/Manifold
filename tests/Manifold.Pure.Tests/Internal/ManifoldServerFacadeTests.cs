@@ -15,10 +15,12 @@ namespace Manifold.Pure.Tests.Internal;
 
 public sealed class ManifoldServerFacadeTests
 {
+    private static readonly string[] TeleportThenDestroyed = { "teleport", "destroyed" };
+
     [Fact]
     public void RelightRegion_Should_Throw_When_Dimension_Is_Null()
     {
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         Assert.Throws<ArgumentNullException>(
             () => facade.RelightRegion(null!, new BlockPos(0, 0, 0, 0), new BlockPos(1, 1, 1, 0)));
     }
@@ -26,7 +28,7 @@ public sealed class ManifoldServerFacadeTests
     [Fact]
     public void RelightRegion_Should_Throw_When_Bounds_Are_Null()
     {
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         var code = new AssetLocation("owner:target");
         Assert.Throws<ArgumentNullException>(
             () => facade.RelightRegion(code, null!, new BlockPos(1, 1, 1, 0)));
@@ -35,18 +37,9 @@ public sealed class ManifoldServerFacadeTests
     }
 
     [Fact]
-    public void RelightRegion_Should_Throw_When_Unhealthy()
-    {
-        var (facade, _) = NewFacade(healthy: false);
-        Assert.Throws<ManifoldUnhealthyException>(
-            () => facade.RelightRegion(
-                new AssetLocation("owner:target"), new BlockPos(0, 0, 0, 0), new BlockPos(1, 1, 1, 0)));
-    }
-
-    [Fact]
     public void RelightRegion_Should_Throw_When_Dimension_Not_Found()
     {
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         Assert.Throws<DimensionNotFoundException>(
             () => facade.RelightRegion(
                 new AssetLocation("nope:nope"), new BlockPos(0, 0, 0, 0), new BlockPos(1, 1, 1, 0)));
@@ -55,7 +48,7 @@ public sealed class ManifoldServerFacadeTests
     [Fact]
     public void RelightRegion_Should_Call_FullRelight_For_Known_Dimension()
     {
-        var (facade, sapi) = NewFacade(healthy: true);
+        var (facade, sapi) = NewFacade();
 
         facade.RelightRegion(
             new AssetLocation("owner:target"), new BlockPos(0, 0, 0, 0), new BlockPos(31, 64, 31, 0));
@@ -73,29 +66,21 @@ public sealed class ManifoldServerFacadeTests
     [Fact]
     public void ForceRemove_Should_Throw_When_Dimension_Is_Null()
     {
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         Assert.Throws<ArgumentNullException>(() => facade.ForceRemoveDimension(null!));
-    }
-
-    [Fact]
-    public void ForceRemove_Should_Throw_When_Unhealthy()
-    {
-        var (facade, _) = NewFacade(healthy: false);
-        Assert.Throws<ManifoldUnhealthyException>(
-            () => facade.ForceRemoveDimension(new AssetLocation("owner:ephemeral")));
     }
 
     [Fact]
     public void ForceRemove_Should_Return_False_When_Not_Found()
     {
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         Assert.False(facade.ForceRemoveDimension(new AssetLocation("nope:nope")));
     }
 
     [Fact]
     public void ForceRemove_Should_Remove_Empty_Ephemeral_Dimension()
     {
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         Assert.True(facade.ForceRemoveDimension(new AssetLocation("owner:ephemeral")));
         Assert.Null(facade.Registry.Get(new AssetLocation("owner:ephemeral")));
     }
@@ -104,7 +89,7 @@ public sealed class ManifoldServerFacadeTests
     public void ForceRemove_Should_Throw_When_Target_Is_Persistent()
     {
         // Lifetime immutability wins: persistent dimensions cannot be force-removed (no evacuation).
-        var (facade, _) = NewFacade(healthy: true);
+        var (facade, _) = NewFacade();
         Assert.Throws<DimensionStateException>(
             () => facade.ForceRemoveDimension(new AssetLocation("owner:target")));
     }
@@ -117,17 +102,19 @@ public sealed class ManifoldServerFacadeTests
         sapi.World.AllOnlinePlayers.Returns(new IPlayer[] { occupant });
 
         var order = new List<string>();
-        transitions.When(t => t.TeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
+        transitions.TryTeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>())
+            .Returns(true);
+        transitions.When(t => t.TryTeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
             .Do(_ => order.Add("teleport"));
         facade.Registry.Destroyed += (_, _) => order.Add("destroyed");
 
         Assert.True(facade.ForceRemoveDimension(new AssetLocation("owner:ephemeral")));
 
-        transitions.Received(1).TeleportPlayer(
+        transitions.Received(1).TryTeleportPlayer(
             occupant,
             Arg.Is<AssetLocation>(c => c.Equals(new AssetLocation("manifold:overworld"))),
             Arg.Is<TransitionOptions>(o => o.SpawnBehavior == SpawnBehavior.LastVisited));
-        Assert.Equal(new[] { "teleport", "destroyed" }, order);
+        Assert.Equal(TeleportThenDestroyed, order);
         Assert.Null(facade.Registry.Get(new AssetLocation("owner:ephemeral")));
     }
 
@@ -144,7 +131,92 @@ public sealed class ManifoldServerFacadeTests
         Assert.Empty(transitions.ReceivedCalls());
     }
 
-    private static (ManifoldServerFacade Facade, ICoreServerAPI Sapi) NewFacade(bool healthy)
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Dimension_Is_Null()
+    {
+        var (facade, _) = NewFacade();
+        Assert.Throws<ArgumentNullException>(() => facade.GenerateRegion(null!, new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Center_Is_Null()
+    {
+        var (facade, _) = NewFacade();
+        Assert.Throws<ArgumentNullException>(
+            () => facade.GenerateRegion(new AssetLocation("owner:target"), null!));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Dimension_Not_Found()
+    {
+        var (facade, _) = NewFacade();
+        Assert.Throws<DimensionNotFoundException>(
+            () => facade.GenerateRegion(new AssetLocation("nope:nope"), new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Throw_When_Dimension_Not_Active()
+    {
+        var (facade, _) = NewFacade();
+        var qCode = new AssetLocation("ghost:pending");
+        ((DimensionRegistry)facade.Registry).SeedFromManifest(
+            new ManifestEntry(qCode, 501, DimensionLifetime.Persistent, "ghost"),
+            DimensionState.Quarantined);
+
+        Assert.Throws<DimensionStateException>(
+            () => facade.GenerateRegion(qCode, new BlockPos(0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GenerateRegion_Should_Generate_The_Column_Around_Center_With_No_Player()
+    {
+        var (facade, sapi) = NewFacade();
+        var target = facade.Registry.Get(new AssetLocation("owner:target"))!;
+
+        facade.GenerateRegion(new AssetLocation("owner:target"), new BlockPos(64, 8, 160, 0));
+
+        // Distinct, non-zero chunk X and Z catch an X/Z swap: chunk (2, 5), never (5, 2).
+        sapi.WorldManager.Received(1).CreateChunkColumnForDimension(2, 5, target.InternalId);
+        sapi.WorldManager.DidNotReceive().CreateChunkColumnForDimension(5, 2, target.InternalId);
+        sapi.WorldManager.DidNotReceiveWithAnyArgs().ForceSendChunkColumn(default!, default, default, default);
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Throw_When_Dimension_Is_Null()
+    {
+        var (facade, _) = NewFacade();
+        Assert.Throws<ArgumentNullException>(() => facade.GetPlayersIn(null!));
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Throw_When_Dimension_Not_Found()
+    {
+        var (facade, _) = NewFacade();
+        Assert.Throws<DimensionNotFoundException>(() => facade.GetPlayersIn(new AssetLocation("nope:nope")));
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Return_Empty_When_No_One_Is_Inside()
+    {
+        var (facade, _) = NewFacade();
+        Assert.Empty(facade.GetPlayersIn(new AssetLocation("owner:target")));
+    }
+
+    [Fact]
+    public void GetPlayersIn_Should_Return_Only_Occupants_Of_That_Dimension()
+    {
+        var (facade, sapi) = NewFacade();
+        var target = facade.Registry.Get(new AssetLocation("owner:target"))!;
+        var inside = PlayerAt(target.InternalId, "inside");
+        var elsewhere = PlayerAt(target.InternalId + 5, "elsewhere");
+        sapi.World.AllOnlinePlayers.Returns(new IPlayer[] { inside, elsewhere });
+
+        var players = facade.GetPlayersIn(new AssetLocation("owner:target"));
+
+        Assert.Equal(new[] { inside }, players);
+    }
+
+    private static (ManifoldServerFacade Facade, ICoreServerAPI Sapi) NewFacade()
     {
         var registry = new DimensionRegistry(new DimensionAllocator());
         registry.DefineForOwner(new AssetLocation("owner:target"), "owner")
@@ -158,11 +230,12 @@ public sealed class ManifoldServerFacadeTests
         var sapi = Substitute.For<ICoreServerAPI>();
         sapi.World.AllOnlinePlayers.Returns(System.Array.Empty<IPlayer>());
         var transitions = Substitute.For<Manifold.Api.Server.ITransitionService>();
-        var facade = new ManifoldServerFacade(registry, transitions, sapi, healthy);
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var facade = new ManifoldServerFacade(registry, transitions, sapi, generator);
         return (facade, sapi);
     }
 
-    // Healthy facade with a single ephemeral dimension and an exposed transit substitute, for the
+    // Facade with a single ephemeral dimension and an exposed transit substitute, for the
     // occupant-evacuation tests. The registry has no occupancy predicate (the facade tests exercise
     // ForceRemove's evacuation, not the registry guard, which is covered in DimensionRegistryTests).
     private static (ManifoldServerFacade Facade, Manifold.Api.Server.ITransitionService Transitions, int EphemeralId) NewOccupiedFacade(out ICoreServerAPI sapi)
@@ -175,7 +248,8 @@ public sealed class ManifoldServerFacadeTests
 
         sapi = Substitute.For<ICoreServerAPI>();
         var transitions = Substitute.For<Manifold.Api.Server.ITransitionService>();
-        var facade = new ManifoldServerFacade(registry, transitions, sapi, isHealthy: true);
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var facade = new ManifoldServerFacade(registry, transitions, sapi, generator);
         return (facade, transitions, ephemeral.InternalId);
     }
 

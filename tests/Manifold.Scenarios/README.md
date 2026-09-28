@@ -41,10 +41,10 @@ desync-gone proof: re-creating a dimension whose first incarnation only a
 rollback removed. Boot-time mini-dimension terrain no longer disqualifies
 rollback; the fixture still generates terrain on demand only
 (`/atlasfx pregen <dimpath>` or a transit) purely to keep snapshots small.
-Classes with joined players cannot roll back yet. Five of them
+Classes with joined players cannot roll back yet. Six of them
 (`MultiPlayerScenarios`, `PlayerInventoryScenarios`, `TransitEventScenarios`,
-`PlayerTransitScenarios`, `StreamingWorldgenScenarios`) carry a
-`rollback-stage2-candidate` comment stating what a future rollback stage
+`PlayerTransitScenarios`, `StreamingWorldgenScenarios`, `RealTerrainLandingScenarios`)
+carry a `rollback-stage2-candidate` comment stating what a future rollback stage
 would need; the others that join players (`ClientMirrorScenarios`,
 `CommandBuilderScenarios`, `InventoryAccessScenarios`, `QuarantineScenarios`,
 `ReconnectScenarios`, `TeardownScenarios`, `TravelPolicyScenarios`) do not
@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-63 scenarios, one class per area:
+102 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
@@ -75,6 +75,9 @@ self-sufficient in any order.
 | Metadata, id recycling | `DimensionMetadataScenarios`, `RecyclingScenarios` |
 | What the client receives (Manifold's packets) | `ClientMirrorScenarios` |
 | Persistence and quarantine across a real restart | `DimensionPersistenceScenarios`, `QuarantineScenarios` |
+| Landing position on real terrain (`TargetPositionResolvers.SameXZSurfaceY`) | `RealTerrainLandingScenarios` |
+| The sample consumer mod (`samples/ManifoldSample`), staged as a real Atlas mod | `ManifoldSampleMiningScenarios`, `ManifoldSampleSmokeScenarios` |
+| Cross-version save compatibility (0.5.1 <-> dev) | `UpgradeVerifyScenarios` (project `Manifold.Scenarios.Compat`), `DowngradeVerifyScenarios` (project `Manifold.Scenarios.CompatDowngrade`) |
 
 `ClientMirrorScenarios` decodes Manifold's own network packets through
 Atlas's client observations (`player.Client.Packets<T>`), deserialized into
@@ -82,6 +85,42 @@ the internal packet types (Manifold grants this project internals access).
 `QuarantineScenarios` stages a ModConfig that makes the fixture append, on
 every world save, a manifest entry owned by a mod that is not installed; the
 restarted server must bring it back Quarantined.
+
+`ManifoldSampleMiningScenarios` and `ManifoldSampleSmokeScenarios` stage
+`samples/ManifoldSample` itself (modid `manifoldsample`) as a third Atlas
+mod and drive its real `/voiddim`, `/flatdim`, `/darkdim`, `/streamdim`,
+`/vaultdim`, `/overworlddim`, `/sendtestitem`, `/sendtestblock`,
+`/createtempdim`, `/destroytempdim`, `/miningdim` and `/miningreset`
+commands as joined players, the sample's own manual smoke checklist
+(samples/ManifoldSample/README.md) run through Atlas instead of a hand
+session. The mining dimension gets its own class because `/miningreset`
+needs the fuller create/reuse/reset/reset-again/recreate narrative (a
+single global dimension code, so the whole lifecycle lives in one
+scenario rather than several whose order Atlas does not guarantee); every
+other command gets one smoke scenario each in the sibling class. Two
+items on the sample's checklist looked at first like they needed a real
+client to drive (aim/raycast for `/sendtestblock`, walking into the void
+portal block), but both are reachable through `ITestPlayer.Entity`, the
+documented escape hatch onto the live `EntityPlayer`:
+`IServerPlayer.CurrentBlockSelection` is just `Entity.BlockSelection`, a
+public field, so a scenario sets the caller's aim directly instead of
+raycasting for it; and the portal's `OnEntityCollide` fires from the
+engine's own server-side collision resolution
+(`IRemotePhysics.OnReceivedClientPos`, the same handler a real client's
+position packet drives, reachable via `Entity.SidedProperties.Behaviors`),
+so replaying it with a moved entity position is a real collision. The
+boot scenario also asserts the portal block itself resolves
+(`World.GetBlock(manifoldsample:voidportal)`), proving the portal's own
+asset staging (the `StageAtlasFolderMods` target had to learn to copy
+`samples/ManifoldSample/assets/` too, since neither the fixture nor
+Manifold itself ships assets).
+
+Cross-version compatibility (a world moving between the published 0.5.1 release and this
+dev build, in both directions) is a separate concern from this project's restart coverage
+above, which only ever restarts within ONE Manifold build: see `Manifold.Scenarios.Compat`
+and `Manifold.Scenarios.CompatDowngrade` (verifier scenarios, one project per direction) and
+`Manifold.Scenarios.CompatFixtures` and `Manifold.Scenarios.CompatFixturesUpgrade` (the
+savegame fixtures they load, also split one project per direction, and for the same reason).
 
 Two Manifold bugs were found this way and fixed in the same release: a forced
 game mode leaking out of its dimension, and the transit packet carrying the
@@ -96,7 +135,11 @@ companion mod `Manifold.Scenarios.FixtureMod` (modid `atlasfixture`), which
 registers deterministic test dimensions and exposes `/atlasfx` server
 commands. Command outcomes are asserted directly on the `CommandResult`
 returned by `ExecuteCommand`; boot-published state (dimension ids) and
-transit event observations still flow through `SaveGame` data.
+transit event observations still flow through `SaveGame` data. The sample
+mod follows the same rule: it is exercised only through its own chat
+commands and the fixture's generic `/atlasfx state <domain:path>` (which
+accepts any fully qualified dimension code, not just the fixture's own),
+never through a direct reference.
 
 Player-dependent paths (player transit, per-dimension inventory swap,
 concurrent players across dimensions) run against headless test players

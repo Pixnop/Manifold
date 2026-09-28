@@ -39,13 +39,17 @@ public interface IDimension
     /// <summary>
     /// Read-only metadata attached to this dimension at registration time. Owning mods populate
     /// it via <c>IDimensionBuilder.WithMetadata</c>; consumers query it directly or through the
-    /// typed <c>GetMetadata&lt;T&gt;</c> extension. Server-side only in v1 - not replicated to
-    /// client mirrors and not persisted across server restarts (re-declare in your boot path).
+    /// typed <c>GetMetadata&lt;T&gt;</c> extension. Replicated to client mirrors; not persisted
+    /// across server restarts (re-declare in your boot path).
     /// </summary>
     /// <remarks>
     /// Supported value types are primitives, <c>string</c>, <c>enum</c>, and <c>byte[]</c>; passing
     /// other types to <c>WithMetadata</c> throws. Empty for the built-in overworld and for
     /// dimensions reloaded from the manifest.
+    /// On a client mirror an enum value is resolved back to its original enum type by searching the
+    /// client's loaded assemblies for the owning mod's assembly; when that assembly cannot be
+    /// resolved client-side (for example the owning mod is not installed on the client), the value
+    /// is instead the raw underlying value as a <c>long</c>.
     /// </remarks>
     IReadOnlyDictionary<string, object?> Metadata { get; }
 }

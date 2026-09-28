@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using Manifold.Api;
 using Manifold.Api.Events;
 using Manifold.Api.Server;
-using Manifold.Internal.Util;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 
 namespace Manifold.Internal;
 
@@ -26,7 +26,8 @@ internal sealed class OwnerScopedRegistry : IDimensionRegistry
     public OwnerScopedRegistry(DimensionRegistry shared, string ownerModId)
     {
         _shared = shared ?? throw new ArgumentNullException(nameof(shared));
-        _ownerModId = Guards.NotNullOrWhiteSpace(ownerModId, nameof(ownerModId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerModId);
+        _ownerModId = ownerModId;
     }
 
     /// <inheritdoc/>
@@ -44,6 +45,13 @@ internal sealed class OwnerScopedRegistry : IDimensionRegistry
     }
 
     /// <inheritdoc/>
+    public event EventHandler<ColumnGeneratedEventArgs> ColumnGenerated
+    {
+        add => _shared.ColumnGenerated += value;
+        remove => _shared.ColumnGenerated -= value;
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyCollection<IDimension> All => _shared.All;
 
     /// <inheritdoc/>
@@ -55,4 +63,7 @@ internal sealed class OwnerScopedRegistry : IDimensionRegistry
 
     /// <inheritdoc/>
     public bool TryRemove(AssetLocation code) => _shared.TryRemove(code);
+
+    /// <inheritdoc/>
+    public IDimension? GetDimensionOf(Entity entity) => _shared.GetDimensionOf(entity);
 }

@@ -53,6 +53,20 @@ IDimension dim = manifold.Registry
     .RegisterStatic();
 ```
 
+**`RegisterStatic()`/`Create()` do not generate any terrain.** Registration only reserves the engine
+dimension id and records the dimension in the registry; Manifold's active worldgen driver otherwise
+only runs when something visits the dimension (a player transit or a rejoining player). A dimension
+registered at boot and never transited into has no chunks until then. To pregenerate it up front -
+so it is ready before any player arrives - call `IManifoldServer.GenerateRegion` right after
+registering it:
+
+```csharp
+manifold.GenerateRegion(dim.Code, new BlockPos(0, 0, 0, 0)); // X/Z only; Y and dimension are ignored
+```
+
+This runs the same generation `TeleportPlayer` would (`GenerationRadius` chunks around the given
+column), synchronously, on the main thread, with no player involved.
+
 ### Reading the Registry
 
 ```csharp
@@ -64,6 +78,13 @@ foreach (IDimension d in manifold.Registry.All)
 {
     Console.WriteLine($"{d.Code} [{d.State}] owner={d.OwnerModId}");
 }
+
+// Which registered dimension is this entity in right now? (overworld for id 0, null if the
+// entity's position points at an id nothing has registered)
+IDimension? here = manifold.Registry.GetDimensionOf(somePlayer.Entity);
+
+// Who is currently inside a given dimension?
+System.Collections.Generic.IReadOnlyList<IServerPlayer> occupants = manifold.GetPlayersIn(dim.Code);
 ```
 
 ### Events
@@ -74,6 +95,13 @@ manifold.Registry.Created += (_, e) =>
 
 manifold.Registry.Destroyed += (_, e) =>
     Mod.Logger.Notification($"Dimension removed: {e.Dimension.Code}");
+
+manifold.Registry.ColumnGenerated += (_, e) =>
+{
+    // Fires only for a brand-new column, never one loaded from disk: see Worldgen.md for using
+    // e.BlockAccessor to decorate it (a structure, a marker) right after generation.
+    Mod.Logger.Notification($"Column ({e.ChunkX}, {e.ChunkZ}) generated in {e.Dimension.Code}");
+};
 ```
 
 ## Dimension Codes (AssetLocation)
@@ -103,6 +131,14 @@ runtime `Create()`-made `Persistent` dimension, re-declare it at boot with the s
 strategy and policies, or it stays `Pending` forever and every transit into it throws
 `DimensionStateException`. To find dimensions your mod needs to re-declare, iterate `Registry.All` for
 `State == DimensionState.Pending && OwnerModId == yourModId`.
+
+Promotion also keeps the Pending entry's **lifetime**, ignoring `Persistent()`/`Ephemeral()` on the
+builder that completes it: a Pending entry is always `Persistent` (only `Persistent` dimensions are
+written to the manifest), so it stays `Persistent` even if you build it with `Ephemeral()` this time.
+This is deliberate: a Pending entry already has occupants and saved chunks riding on its original
+lifetime. Building it with `Ephemeral()` is usually a bug (the wrong builder call, or a code
+reused for a different dimension), so Manifold logs a warning naming the code, the requested
+lifetime, and the one actually kept.
 
 If you reinstall a mod whose dimension was `Quarantined`, that dimension does not become `Active` on
 its own either: it becomes `Pending` at the next boot (the owner is loaded again), and then `Active`
@@ -148,7 +184,8 @@ if (dim.HasMetadata("category")) { /* ... */ }
 - Supported value types: primitives, `string`, `enum`, `byte[]`, and `null`. Other types throw `ArgumentException`.
 - Setting the same key twice on a builder throws.
 - `IDimension.Metadata` is an `IReadOnlyDictionary<string, object?>`; the typed `GetMetadata<T>` extension returns the default value if the key is absent or the stored value is not a `T`.
-- Server-side only in v1: metadata is not replicated to client mirrors and not persisted across server restarts. For `RegisterStatic` dimensions this is harmless (the owning mod re-declares them on every boot); for runtime `Create` dimensions, treat metadata as ephemeral.
+- Replicated to client mirrors: a connected client's `IManifoldClient.Get(code)!.Metadata` sees the same entries. An enum value is resolved back to its original type by searching the client's loaded assemblies for the owning mod's assembly; if that assembly cannot be found client-side, the value is instead the raw underlying value as a `long`.
+- Not persisted across server restarts. For `RegisterStatic` dimensions this is harmless (the owning mod re-declares them on every boot); for runtime `Create` dimensions, treat metadata as ephemeral.
 
 ## Per-Dimension Streaming Budget (0.4.0)
 

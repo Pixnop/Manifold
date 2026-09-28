@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
-using Manifold.Internal;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
@@ -53,7 +52,7 @@ public abstract class PortalBlockBase : Block
         }
 
         var manifold = ManifoldAccess.GetServer(sapi);
-        if (manifold is null || !manifold.IsHealthy)
+        if (manifold is null)
         {
             return;
         }
@@ -84,14 +83,7 @@ public abstract class PortalBlockBase : Block
 
         try
         {
-            if (manifold.Transitions is TransitService core)
-            {
-                core.TryTeleportPlayer(player, TargetDimensionCode, Options);
-            }
-            else
-            {
-                manifold.Transitions.TeleportPlayer(player, TargetDimensionCode, Options);
-            }
+            manifold.Transitions.TryTeleportPlayer(player, TargetDimensionCode, Options);
         }
         catch (ManifoldException ex)
         {

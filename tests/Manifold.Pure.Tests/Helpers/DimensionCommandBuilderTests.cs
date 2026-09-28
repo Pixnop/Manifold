@@ -87,7 +87,7 @@ public sealed class DimensionCommandBuilderTests
         var transitions = Substitute.For<ITransitionService>();
         manifold.Transitions.Returns(transitions);
         transitions
-            .When(t => t.TeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
+            .When(t => t.TryTeleportPlayer(Arg.Any<IServerPlayer>(), Arg.Any<AssetLocation>(), Arg.Any<TransitionOptions>()))
             .Do(_ => throw new DimensionNotFoundException("No dimension registered with code 'mod:gone'."));
 
         var result = DimensionCommandBuilder.TryTeleport(
@@ -120,7 +120,8 @@ public sealed class DimensionCommandBuilderTests
             new TransitMovers(
                 Substitute.For<IPlayerTeleporter>(),
                 Substitute.For<IEntityMover>(),
-                Substitute.For<IBlockMover>()),
+                Substitute.For<IBlockMover>(),
+                Substitute.For<IPlayerDismounter>()),
             positionResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),

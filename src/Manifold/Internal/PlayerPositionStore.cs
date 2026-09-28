@@ -16,10 +16,21 @@ namespace Manifold.Internal;
 /// <remarks>Server-side, main thread.</remarks>
 internal sealed class PlayerPositionStore
 {
+    /// <summary>Current schema version this build writes and reads via <see cref="ToBytes"/>/<see cref="LoadFromBytes"/>.</summary>
+    public const int SchemaVersion = 1;
+
     private readonly Dictionary<string, (int X, int Y, int Z)> _positions = new();
 
     /// <summary>Whether the store has unsaved changes since the last <see cref="ClearDirty"/>.</summary>
     public bool IsDirty { get; private set; }
+
+    /// <summary>
+    /// Whether the last <see cref="LoadFromBytes"/> refused a schema version newer than this build
+    /// supports. Latched until the next call to <see cref="LoadFromBytes"/>. While <c>true</c>, the
+    /// caller must not persist this store's key: the newer blob is preserved elsewhere and must not
+    /// be overwritten by this session's empty in-memory positions.
+    /// </summary>
+    public bool IsVersionRefused { get; private set; }
 
     /// <summary>Record a player's position within a dimension.</summary>
     /// <param name="playerUid">Player unique id.</param>
@@ -91,13 +102,22 @@ internal sealed class PlayerPositionStore
         return ms.ToArray();
     }
 
-    /// <summary>Replace the store contents from a byte array produced by <see cref="ToBytes"/>. Clears the dirty flag.</summary>
+    /// <summary>
+    /// Replace the store contents from a byte array produced by <see cref="ToBytes"/>. Clears the
+    /// dirty flag. The blob format itself never changed by versioning: a <paramref name="version"/>
+    /// newer than <see cref="SchemaVersion"/> is refused (the data is not parsed, and
+    /// <see cref="IsVersionRefused"/> is set, instead of misreading it), unless
+    /// <paramref name="data"/> is absent or empty: an unrecognized version with nothing to refuse
+    /// instead reads as an empty store, same as an absent blob at a recognized version.
+    /// </summary>
     /// <param name="data">Serialised bytes, or <c>null</c>/empty for an empty store.</param>
     /// <param name="logger">Optional logger used to report corrupt data. <c>null</c> silences the report.</param>
-    public void LoadFromBytes(byte[]? data, ILogger? logger = null)
+    /// <param name="version">The schema version recorded for this blob (from the sidecar; 1 if it has none).</param>
+    public void LoadFromBytes(byte[]? data, ILogger? logger = null, int version = SchemaVersion)
     {
         _positions.Clear();
-        if (data is { Length: > 0 })
+        IsVersionRefused = version > SchemaVersion && data is { Length: > 0 };
+        if (!IsVersionRefused && data is { Length: > 0 })
         {
             try
             {
@@ -115,7 +135,7 @@ internal sealed class PlayerPositionStore
             }
             catch (Exception ex)
             {
-                _positions.Clear(); // corrupted - start fresh
+                _positions.Clear(); // corrupted, start fresh
                 logger?.Warning(
                     "[Manifold] Player position store is corrupt ({0} bytes): {1}. Starting fresh (LastVisited memory lost).",
                     data.Length,

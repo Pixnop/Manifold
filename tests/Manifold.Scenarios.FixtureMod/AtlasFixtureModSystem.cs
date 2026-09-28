@@ -9,6 +9,14 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
+using Vintagestory.GameContent;
+
+/// <summary>Sample enum value for the "flat" fixture dimension's "fixture-tint" metadata entry.</summary>
+public enum FixtureTint
+{
+    Plain = 0,
+    Painted = 7,
+}
 
 /// <summary>
 /// Server-side fixture driven by the Manifold.Scenarios suite. All Manifold API
@@ -42,6 +50,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .WithGenerationRadius(2)
             .WithMetadata("fixture-label", "granite-slab")
             .WithMetadata("fixture-level", 3)
+            .WithMetadata("fixture-active", true)
+            .WithMetadata("fixture-signature", new byte[] { 1, 2, 3 })
+            .WithMetadata("fixture-tint", FixtureTint.Painted)
+            .WithMetadata("fixture-note", null)
             .RegisterStatic();
         PublishDimensionId("flat", flat.InternalId);
 
@@ -74,6 +86,47 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .RegisterStatic();
         PublishDimensionId("stream", stream.InternalId);
 
+        IDimension pregenerated = _manifold.Registry
+            .Define(new AssetLocation(Domain, "pregenerated"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(0)
+            .RegisterStatic();
+        PublishDimensionId("pregenerated", pregenerated.InternalId);
+
+        // Dedicated to ColumnGeneratedEventScenarios: never pregenerated at boot (unlike
+        // "pregenerated" above), so its one column only ever generates once the ColumnGenerated
+        // subscriber below (registered in StartCoverageFixtures, which runs after this) is live.
+        IDimension colgen = _manifold.Registry
+            .Define(new AssetLocation(Domain, "colgen"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(0)
+            .RegisterStatic();
+        PublishDimensionId("colgen", colgen.InternalId);
+
+        // Real vanilla terrain for RealTerrainLandingScenarios: seven known columns built by
+        // TerrainProbeWorldgen (see its class doc for the layout), proving
+        // TargetPositionResolvers.SameXZSurfaceY against the actual engine. Generation radius 0
+        // keeps it to the single chunk the columns live in, same as "pregenerated" above; no
+        // WithFixedSpawn, so it keeps the default SpawnBehavior.SameCoordinates the columns are
+        // built to exercise.
+        IDimension terrain = _manifold.Registry
+            .Define(new AssetLocation(Domain, "terrain"))
+            .Persistent()
+            .WithWorldgen(new TerrainProbeWorldgen())
+            .WithGenerationRadius(0)
+            .RegisterStatic();
+        PublishDimensionId("terrain", terrain.InternalId);
+
+        // Exercises IManifoldServer.GenerateRegion called synchronously right here, right after
+        // RegisterStatic, with no player and no transit (issue #69: a statically registered
+        // dimension otherwise has no terrain until something visits it). Radius 0 keeps this to a
+        // single chunk column so it does not meaningfully grow this class's snapshot.
+        _manifold.GenerateRegion(pregenerated.Code, FixedSpawn);
+
         _manifold.Transitions.PlayerEntered += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
             $"{Domain}:event:player-entered:{e.TargetDimension.Code.Path}", new[] { (byte)1 });
         _manifold.Transitions.PlayerLeft += (_, e) => _sapi.WorldManager.SaveGame.StoreData(
@@ -83,6 +136,7 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         var config = api.LoadModConfig<AtlasFixtureConfig>("atlasfixture.json") ?? new();
         SeedPersistenceFixtures(config);
         StartCoverageFixtures(api, config);
+        StartSchemaFixtures(config);
     }
 
     private void PublishDimensionId(string path, int internalId)
@@ -153,22 +207,17 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
     }
 
     /// <summary>
-    /// RegisterStatic only records the dimension; it does not generate any terrain. Manifold's
-    /// active worldgen driver only runs through Transitions (player transit / join), so nothing
-    /// generates a boot-registered dimension's spawn region on its own. Force it here via a no-op
-    /// TeleportBlock: this call exists purely for its generate-destination-region side effect via
-    /// DimensionGenerator.EnsureRegion, not for the move itself. The source position must be air
-    /// so the move is a guaranteed no-op; a near-ceiling position at the world origin is reliably
-    /// air, unlike y=1 near bedrock, and using a non-air source would actually move a real
-    /// overworld block. Invoked on demand through /atlasfx pregen, not at boot.
+    /// RegisterStatic/Create only records the dimension; it does not generate any terrain. Manifold's
+    /// active worldgen driver otherwise only runs through a player transit or join, so nothing
+    /// generates a boot-registered dimension's spawn region on its own. IManifoldServer.GenerateRegion
+    /// covers exactly this (issue #69). Invoked on demand through /atlasfx pregen, not at boot -
+    /// except for the "pregenerated" dimension, which calls it directly from StartServerSide.
     /// </summary>
     private void PregenerateSpawn(IDimension dimension)
     {
-        var overworldAir = new BlockPos(0, _sapi.WorldManager.MapSizeY - 2, 0, 0);
-        var target = new BlockPos(FixedSpawn.X, FixedSpawn.Y, FixedSpawn.Z, dimension.InternalId);
         try
         {
-            _manifold.Transitions.TeleportBlock(overworldAir, dimension.Code, target);
+            _manifold.GenerateRegion(dimension.Code, FixedSpawn);
         }
         catch (Exception ex)
         {
@@ -189,6 +238,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .BeginSubCommand("teleport-entity")
                 .WithArgs(parsers.Word("entityid"), parsers.Word("dimpath"))
                 .HandleWith(OnTeleportEntity)
+            .EndSubCommand()
+            .BeginSubCommand("teleport-entity-plain")
+                .WithArgs(parsers.Word("entityid"), parsers.Word("dimpath"))
+                .HandleWith(OnTeleportEntityPlain)
             .EndSubCommand()
             .BeginSubCommand("teleport-block")
                 .WithArgs(
@@ -221,6 +274,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .BeginSubCommand("teleport-player")
                 .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
                 .HandleWith(OnTeleportPlayer)
+            .EndSubCommand()
+            .BeginSubCommand("mount-player")
+                .WithArgs(parsers.Word("playername"), parsers.Word("entityid"))
+                .HandleWith(OnMountPlayer)
             .EndSubCommand()
             .BeginSubCommand("pregen")
                 .WithArgs(parsers.Word("dimpath"))
@@ -279,6 +336,34 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         return TextCommandResult.Success("ok");
     }
 
+    /// <summary>
+    /// Entity transit with no options at all, so the default resolver
+    /// (TargetPositionResolvers.SameXZSurfaceY) decides the landing, same as OnTeleportEntity
+    /// but without the OverridePosition that masks it. Drives RealTerrainLandingScenarios.
+    /// </summary>
+    private TextCommandResult OnTeleportEntityPlain(TextCommandCallingArgs args)
+    {
+        long entityId = long.Parse((string)args[0], CultureInfo.InvariantCulture);
+        var dimPath = (string)args[1];
+
+        Entity? entity = _sapi.World.GetEntityById(entityId);
+        if (entity is null)
+        {
+            return TextCommandResult.Error($"No entity with id {entityId}.");
+        }
+
+        try
+        {
+            _manifold.Transitions.TeleportEntity(entity, ResolveTargetCode(dimPath));
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+
+        return TextCommandResult.Success("ok");
+    }
+
     private TextCommandResult OnTeleportPlayer(TextCommandCallingArgs args)
     {
         var playerName = (string)args[0];
@@ -303,6 +388,40 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         return TextCommandResult.Success("ok");
     }
 
+    /// <summary>
+    /// Mounts <c>playername</c> onto the seat of the already-spawned mountable entity
+    /// <c>entityid</c> (a boat, a saddled creature). Base-game mounting, not Manifold's, this is
+    /// only here so PlayerTransitScenarios can set up a rider to teleport, without the scenario
+    /// project itself needing a GameContent reference for one seat call.
+    /// </summary>
+    private TextCommandResult OnMountPlayer(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        long entityId = long.Parse((string)args[1], CultureInfo.InvariantCulture);
+
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        Entity? mount = _sapi.World.GetEntityById(entityId);
+        if (mount is null)
+        {
+            return TextCommandResult.Error($"No entity with id {entityId}.");
+        }
+
+        EntityBehaviorSeatable? seatable = mount.GetBehavior<EntityBehaviorSeatable>();
+        if (seatable is null)
+        {
+            return TextCommandResult.Error($"Entity {entityId} has no seatable behavior.");
+        }
+
+        return seatable.TryMount(player.Entity)
+            ? TextCommandResult.Success("mounted")
+            : TextCommandResult.Error("The seat refused to mount the player.");
+    }
+
     private TextCommandResult OnTeleportBlock(TextCommandCallingArgs args)
     {
         var source = new BlockPos((int)args[0], (int)args[1], (int)args[2], (int)args[3]);
@@ -311,7 +430,16 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         try
         {
             bool moved = _manifold.Transitions.TeleportBlock(source, ResolveTargetCode((string)args[4]), targetLocal);
-            return TextCommandResult.Success(moved ? "moved" : "no-op");
+            if (moved)
+            {
+                return TextCommandResult.Success("moved");
+            }
+
+            // Tells apart the two ways TeleportBlock can no-op: source was air, or source is part of
+            // a multi-position structure (multiblock/door/bed) and was refused. Also exercises
+            // IsMultiPositionBlock as the pre-check callers are meant to use.
+            bool refused = _manifold.Transitions.IsMultiPositionBlock(source);
+            return TextCommandResult.Success(refused ? "refused" : "no-op");
         }
         catch (ManifoldException ex)
         {
@@ -322,7 +450,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
     private TextCommandResult OnCreateEphemeral(TextCommandCallingArgs args)
     {
         var path = (string)args[0];
-        IDimension dimension = DefineSlab(path).Ephemeral().Create();
+        IDimension dimension = DefineSlab(path)
+            .WithMetadata("fixture-tint", FixtureTint.Painted)
+            .Ephemeral()
+            .Create();
         PublishDimensionId(path, dimension.InternalId);
 
         // Same pregeneration problem as boot-time dimensions: Create() only registers the

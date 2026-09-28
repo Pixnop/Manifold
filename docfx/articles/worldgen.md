@@ -21,7 +21,7 @@ public interface IWorldgenStrategy
 
 ### OnInitialize
 
-Called once, on the first transit into the dimension (lazy initialization). `IWorldgenInitContext` gives you `Api` (the `ICoreServerAPI`), plus `DimensionId` and `Seed`; use `ctx.Api.World.GetBlock(...)` to resolve block ids. Store them in fields for later use in `GenerateColumn`.
+Called once, on the first generation for the dimension - a player transit or an `IManifoldServer.GenerateRegion` call (lazy initialization). `IWorldgenInitContext` gives you `Api` (the `ICoreServerAPI`), plus `DimensionId` and `Seed`; use `ctx.Api.World.GetBlock(...)` to resolve block ids. Store them in fields for later use in `GenerateColumn`.
 
 ```csharp
 public sealed class MyFloorStrategy : IWorldgenStrategy
@@ -80,14 +80,44 @@ When a player transits into a dimension for the first time (or after a server re
 
 This happens **synchronously on the main thread** before the player arrives - so the player never sees an ungenerated void.
 
-> **Generation is transit-driven - registration alone creates no terrain.** `RegisterStatic()` and
-> `Create()` only record the dimension; `WithFixedSpawn` and `WithGenerationRadius` describe what to
-> generate once a transit happens, not when. Until the first `TeleportPlayer`/`TeleportEntity`/
-> `TeleportBlock` targets the dimension (or a `.Streaming(...)` driver picks it up), every position
-> reads as air. If your mod needs content to exist before the first arrival - a spawn platform, a
-> prebuilt hub - trigger the generation yourself right after registration; a no-op `TeleportBlock`
-> from a guaranteed-air source into the dimension is the current supported way (see issue #69 for
-> the planned first-class API).
+> **Registration alone creates no terrain.** `RegisterStatic()` and `Create()` only record the
+> dimension; `WithFixedSpawn` and `WithGenerationRadius` describe what to generate, not when. Until
+> something generates it - a player transit, a rejoining player, or a `.Streaming(...)` driver -
+> every position reads as air. If your mod needs content to exist before the first arrival - a spawn
+> platform, a prebuilt hub - call `IManifoldServer.GenerateRegion(dimension, center)` yourself right
+> after registration; it runs the same bounded generation a transit would, synchronously, with no
+> player involved. See [The Registry](dimensions.md#the-registry) for an example.
+
+## Post-processing a Generated Column
+
+`IDimensionRegistry.ColumnGenerated` fires right after a column is generated, not when an
+existing one is only loaded (a restart, or a re-visit). Use it to decorate the terrain a strategy
+just produced without touching the strategy itself: a structure, a marker, loot (from any mod,
+not only the one that owns the dimension):
+
+```csharp
+manifold.Registry.ColumnGenerated += (_, e) =>
+{
+    if (e.Dimension.Code.Path != "mydim")
+    {
+        return;
+    }
+
+    var pos = new BlockPos((e.ChunkX * 32) + 16, 20, (e.ChunkZ * 32) + 16, e.Dimension.InternalId);
+    e.BlockAccessor.SetBlock(myMarkerBlockId, pos);
+};
+```
+
+`e.BlockAccessor` is a plain accessor: writes apply immediately, no `Commit()` needed. It uses the
+same `synchronize:false, relight:false` semantics as worldgen itself, so a write here does not
+queue a server relight task or a neighbour-update/resync entry the way a live player edit would;
+call `IManifoldServer.RelightRegion` afterwards if the decoration needs lighting. The column has
+not been sent to any client when this event fires (sending always happens right after), so a
+block placed here is included in that first send with no separate resync. Only the event's own
+column is guaranteed loaded: a write that lands in a neighbour column not generated yet is
+silently dropped, so split a structure that spans multiple columns and place it per column. Raised
+on the server main thread, for every generation path: a transit, the streaming driver, and
+`IManifoldServer.GenerateRegion`. A throwing subscriber is isolated like `Created`/`Destroyed`.
 
 ## WithGenerationRadius
 
@@ -178,9 +208,11 @@ What that means in practice:
   `WithDarkSky(ceilingY)` when you want a dark dimension: it seals every generated column with an
   opaque ceiling so the area below is lit only by block light (torches, lamps, lava). Pair it with
   `WithFixedSpawn(...)` at a Y below `ceilingY`. The default `SameCoordinates` resolver scans downward
-  from the world's height looking for the first solid block; with no fixed spawn (or on a first
-  `LastVisited` visit) it finds the ceiling cap first and lands the player on top of it, in full
-  skylight, not in the dark space below.
+  from the world's height looking for the first non-liquid block with two clear blocks above it (see
+  [the default surface search](transit-and-travel-policy.md#the-default-surface-search)); with no
+  fixed spawn (or on a first `LastVisited` visit) it finds the ceiling cap first, unless `ceilingY` is
+  within two blocks of the world's top, in which case it skips the cap for lack of headroom and lands
+  the player inside the dark space below instead.
 - **Solid-filled dimensions** (terrain carved into rooms) are dark without any option.
 - **Blocks placed after generation** are not relit by the engine in a custom dimension; use
   `RelightRegion` or `/manifold relight`, described below.
@@ -207,8 +239,7 @@ manifold.RelightRegion(
 ```
 
 The call is synchronous and best-effort; its cost scales with the relit volume, so keep the region
-bounded to what you actually changed. Throws `DimensionNotFoundException` for unknown codes and
-`ManifoldUnhealthyException` if Manifold failed to initialize.
+bounded to what you actually changed. Throws `DimensionNotFoundException` for unknown codes.
 
 ### `/manifold relight` admin command
 

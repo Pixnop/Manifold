@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>CompatFixture</AssemblyName>
+    <RootNamespace>CompatFixture</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS1591;SA0001;SA1600;SA1601;SA1602</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- No test-framework reference here (this is a staged mod, not a test assembly), so
+         SonarCloud would classify it as production code and fail the new-code coverage gate.
+         It is test tooling for the upgrade/downgrade compatibility scenarios. -->
+    <SonarQubeTestProject>true</SonarQubeTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The whole point of this fixture: it references the PUBLISHED 0.5.1 API package, never
+         the dev source tree, so its compiled calls are exactly what a mod author who last built
+         against 0.5.1 could make. It is staged against BOTH the 0.5.1 release zip and the dev
+         source build across the upgrade/downgrade scenarios (see
+         tests/Manifold.Scenarios.Compat*/README.md): Manifold's AssemblyVersion is frozen
+         (Directory.Build.props) precisely so a companion compiled against one release keeps
+         loading against another, and this is that promise exercised end to end. -->
+    <PackageReference Include="Pixnop.Manifold" Version="0.5.1">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Private=false: at runtime the ModLoader provides VintagestoryAPI and whichever Manifold
+         build (0.5.1 zip or dev) the host stages; bundling copies would split assembly identities. -->
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="modinfo.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

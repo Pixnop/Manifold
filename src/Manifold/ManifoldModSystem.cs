@@ -8,7 +8,6 @@ using Manifold.Api.Helpers;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
 using Manifold.Internal;
-using Manifold.Internal.HarmonyPatches;
 using Manifold.Internal.Networking;
 using Manifold.Internal.Util;
 using Vintagestory.API.Client;
@@ -39,7 +38,6 @@ public sealed class ManifoldModSystem : ModSystem
     /// </summary>
     private const string AtlasRollbackRestoredEvent = "atlas:rollback:restored";
 
-    private HarmonyPatcher? _harmony;
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
@@ -47,6 +45,7 @@ public sealed class ManifoldModSystem : ModSystem
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
     private SaveGameManifestStore? _manifestStore;
+    private SchemaSidecar? _schemaSidecar;
     private ManifoldNetworkChannel? _network;
     private ICoreServerAPI? _sapi;
     private bool _disposed;
@@ -61,37 +60,18 @@ public sealed class ManifoldModSystem : ModSystem
     public override double ExecuteOrder() => 0.05;
 
     /// <inheritdoc/>
-    public override void Start(ICoreAPI api)
-    {
-        // Manifold registers no block/item/entity/behaviour classes - pure dependency library.
-        base.Start(api);
-    }
-
-    /// <inheritdoc/>
     public override void StartServerSide(ICoreServerAPI api)
     {
         ArgumentNullException.ThrowIfNull(api);
         base.StartServerSide(api);
 
         _sapi = api;
-        _harmony = new HarmonyPatcher(Mod.Logger);
-        _harmony.Apply();
-
-        if (!_harmony.IsHealthy)
-        {
-            BuildUnhealthyServerFacade(api);
-            Mod.Logger.Error(
-                "[Manifold] Disabled - Harmony patches failed at boot. "
-                + "IsHealthy=false; dimension registration still succeeds (on a disconnected registry "
-                + "with no in-game effect), but transit and relight calls throw ManifoldUnhealthyException.");
-            return;
-        }
 
         var allocator = new DimensionAllocator();
         _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(
             _manifestStore,
-            new ModLoaderQuery(api.ModLoader),
+            api.ModLoader.IsModEnabled,
             Mod.Logger);
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(api);
@@ -123,16 +103,15 @@ public sealed class ManifoldModSystem : ModSystem
         var transit = new TransitService(
             _registry,
             api,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(api), new BlockMover(api)),
+            new TransitMovers(new PlayerTeleporter(), new EntityMover(api), new BlockMover(api), new PlayerDismounter(api)),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore,
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
-        transit.PlayerLeft += OnTransitPlayerLeft;
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, api, isHealthy: true);
-        ManifoldAccess.SetServerResolver(_ => ServerFacade);
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator);
+        ManifoldAccess.SetServerResolver(ServerFacade);
 
         RegisterManifoldCommand(api);
 
@@ -149,7 +128,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Priority 0.6 > default 0.5: Manifold resyncs before consumer mods' restored-handlers (mirrors ExecuteOrder at boot).
         api.Event.RegisterEventBusListener(OnAtlasRollbackRestored, 0.6, AtlasRollbackRestoredEvent);
 
-        Mod.Logger.Notification("[Manifold] Initialized (healthy).");
+        Mod.Logger.Notification("[Manifold] Initialized.");
     }
 
     /// <inheritdoc/>
@@ -160,17 +139,19 @@ public sealed class ManifoldModSystem : ModSystem
 
         _network = new ManifoldNetworkChannel();
 
-        // The mirror is kept alive by the channel delegates and ClientFacade below; it needs no field.
-        var clientMirror = new ClientDimensionMirror();
+        // The mirror and transit handler are kept alive by the channel delegates and ClientFacade
+        // below; neither needs a field.
+        var clientMirror = new ClientDimensionMirror(api.Logger);
+        var transitHandler = new ClientTransitHandler(clientMirror, api.Logger);
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
         _network.OnClientManifest += clientMirror.ApplyManifest;
-        _network.OnClientPlayerTransited += OnClientPlayerTransited;
+        _network.OnClientPlayerTransited += transitHandler.Handle;
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror, api.Logger);
-        ManifoldAccess.SetClientResolver(_ => ClientFacade);
+        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
+        ManifoldAccess.SetClientResolver(ClientFacade);
     }
 
     /// <inheritdoc/>
@@ -196,35 +177,32 @@ public sealed class ManifoldModSystem : ModSystem
             ManifoldAccess.SetClientResolver(null);
         }
 
-        _harmony?.Dispose();
         base.Dispose();
     }
 
     /// <summary>
-    /// Evacuates every occupant of <paramref name="internalId"/> via <paramref name="rescue"/>
+    /// Evacuates every player in <paramref name="occupants"/> via <paramref name="rescue"/>
     /// (best-effort per player - a failure is logged, not thrown) and reports how many actually left.
     /// A player <paramref name="rescue"/> silently failed to move is still standing in the dimension
     /// afterward, so it is counted as remaining, not evacuated - the caller must not destroy the
     /// dimension out from under them.
     /// </summary>
-    /// <param name="players">Online players to check (typically every connected <see cref="IServerPlayer"/>).</param>
+    /// <param name="occupants">
+    /// Players already known to be inside <paramref name="internalId"/> (e.g. from
+    /// <see cref="OccupancyScan.PlayersIn"/>); this does not filter them itself.
+    /// </param>
     /// <param name="internalId">Engine id of the dimension being evacuated.</param>
     /// <param name="rescue">Best-effort teleport-to-overworld for one occupant.</param>
     /// <returns>How many occupants were actually moved out, and how many are still inside.</returns>
     internal static (int Evacuated, int Remaining) EvacuateOccupants(
-        IEnumerable<IServerPlayer> players, int internalId, Action<IServerPlayer> rescue)
+        IEnumerable<IServerPlayer> occupants, int internalId, Action<IServerPlayer> rescue)
     {
         int evacuated = 0;
         int remaining = 0;
-        foreach (var p in players)
+        foreach (var p in occupants)
         {
-            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension != internalId)
-            {
-                continue;
-            }
-
             rescue(p);
-            if (EntityPosAccess.PosOrNull(p.Entity)?.Dimension == internalId)
+            if (OccupancyScan.IsIn(p, internalId))
             {
                 remaining++;
             }
@@ -237,24 +215,55 @@ public sealed class ManifoldModSystem : ModSystem
         return (evacuated, remaining);
     }
 
-    private void BuildUnhealthyServerFacade(ICoreServerAPI sapi)
+    /// <summary>
+    /// Persists the manifest and whichever savegame-level stores changed, then the sidecar itself.
+    /// Pulled out of <see cref="OnGameWorldSave"/>, taking every dependency as a parameter instead
+    /// of reading instance fields, so the refusal guards below are unit-testable without a real
+    /// <see cref="ICoreServerAPI"/>.
+    /// </summary>
+    /// <param name="manifestStore">Savegame byte store.</param>
+    /// <param name="persistence">Dimension manifest reader/writer.</param>
+    /// <param name="entries">Current in-memory manifest entries to persist.</param>
+    /// <param name="generatedColumns">Generated-columns store to persist if dirty.</param>
+    /// <param name="positionStore">Per-player last-position store to persist if dirty.</param>
+    /// <param name="sidecar">Schema sidecar to update and persist.</param>
+    internal static void SaveWorldState(
+        IManifestStore manifestStore,
+        DimensionPersistence persistence,
+        IEnumerable<ManifestEntry> entries,
+        GeneratedColumnStore generatedColumns,
+        PlayerPositionStore positionStore,
+        SchemaSidecar sidecar)
     {
-        // Allocator + registry + transit are still created so that consumers calling GetManifoldServer()
-        // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
-        var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator, logger: Mod.Logger);
-        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
-        var transit = new TransitService(
-            registry,
-            sapi,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(sapi), new BlockMover(sapi)),
-            TargetPositionResolvers.SameXZSurfaceY,
-            generator,
-            new PlayerPositionStore(),
-            new InventorySwapper(sapi));
-        transit.MarkUnhealthy();
-        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, isHealthy: false);
-        ManifoldAccess.SetServerResolver(_ => ServerFacade);
+        persistence.Save(entries);
+        if (!persistence.IsVersionRefused)
+        {
+            sidecar.SetVersion(DimensionPersistence.ManifestKey, DimensionPersistence.SchemaVersion);
+        }
+
+        // Persist the generated-columns set so revisits after restart load instead of regenerate.
+        // Skipped while IsVersionRefused: a newer, unrecognized-version blob is on disk (preserved
+        // under its own ".unrecognized" key), and this session's set is not a reliable replacement
+        // for it (its sidecar entry is left exactly as loaded too, never downgraded).
+        if (generatedColumns is { IsDirty: true, IsVersionRefused: false })
+        {
+            manifestStore.Write(GeneratedColumnsKey, generatedColumns.ToBytes());
+            generatedColumns.ClearDirty();
+            sidecar.SetVersion(GeneratedColumnsKey, GeneratedColumnStore.SchemaVersion);
+        }
+
+        // Persist per-player last positions for the LastVisited spawn behavior. Same refusal skip.
+        if (positionStore is { IsDirty: true, IsVersionRefused: false })
+        {
+            manifestStore.Write(PlayerPositionsKey, positionStore.ToBytes());
+            positionStore.ClearDirty();
+            sidecar.SetVersion(PlayerPositionsKey, PlayerPositionStore.SchemaVersion);
+        }
+
+        // Written whenever any of the blobs above is (re-)written, so the sidecar always matches
+        // what is actually on disk for each key it names; also keeps a refused key's entry exactly
+        // as loaded, since only the branches above ever advance it.
+        manifestStore.Write(SchemaSidecar.Key, sidecar.ToBytes());
     }
 
     /// <summary>
@@ -349,7 +358,7 @@ public sealed class ManifoldModSystem : ModSystem
 
         // Evacuate anyone standing in the dimension before destroying it, so no one is stranded.
         var (evacuated, remaining) = EvacuateOccupants(
-            api.World.AllOnlinePlayers.OfType<IServerPlayer>(), dim.InternalId, RescueToOverworld);
+            OccupancyScan.PlayersIn(api, dim.InternalId), dim.InternalId, RescueToOverworld);
         if (remaining > 0)
         {
             return TextCommandResult.Error(
@@ -426,24 +435,15 @@ public sealed class ManifoldModSystem : ModSystem
     {
         // internalId 0 is the overworld; TryRemove throws on it before reaching the occupancy check,
         // so the == 0 guard is belt-and-suspenders (and a safe default if the predicate is reused).
-        if (_sapi is null || internalId == 0)
-        {
-            return false;
-        }
-
-        foreach (var p in _sapi.World.AllOnlinePlayers)
-        {
-            if (p is IServerPlayer sp && EntityPosAccess.PosOrNull(sp.Entity)?.Dimension == internalId)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return _sapi is not null && internalId != 0 && OccupancyScan.IsOccupied(_sapi, internalId);
     }
 
     private void OnTransitPlayerEntered(object? sender, PlayerEnteredDimensionEventArgs e)
     {
+        // Send the transit packet before reaping the source dimension below: the client resolves
+        // this packet's source/target codes through its dimension mirror, and reaping broadcasts a
+        // DimensionRemovedPacket that would otherwise remove the source from that mirror first,
+        // making the transit unresolvable on the client (see ReapEphemeralIfEmpty).
         _network?.SendPlayerTransited(e.Player, new PlayerTransitedPacket
         {
             SourceCode = e.SourceDimension.Code.ToString(),
@@ -452,10 +452,7 @@ public sealed class ManifoldModSystem : ModSystem
             TargetY = e.TargetPosition.Y,
             TargetZ = e.TargetPosition.Z,
         });
-    }
 
-    private void OnTransitPlayerLeft(object? sender, PlayerLeftDimensionEventArgs e)
-    {
         // When a player transits out, try to reap the dimension they left if it is an empty ephemeral
         // instance. Disconnect does NOT reap (see OnPlayerDisconnect): a logged-out player keeps their
         // dimension so they reconnect into it; it is only reaped on a deliberate leave or at shutdown.
@@ -556,7 +553,8 @@ public sealed class ManifoldModSystem : ModSystem
     /// the capture, including id reservations and generator state;
     /// (2) re-seed manifest entries memory lacks (a removal undone by the rollback), Pending or
     /// Quarantined exactly as at boot;
-    /// (3) reload the generated-columns and player-position stores from the SaveGame blobs.
+    /// (3) reload the generated-columns and player-position stores from the SaveGame blobs, each
+    /// guided by the schema version <see cref="SchemaSidecar"/> records for it.
     /// Registrations matching the manifest keep their in-memory record untouched: it carries
     /// worldgen configuration the manifest does not persist, and an owner-promoted Active state
     /// remains coherent with the restored world.
@@ -570,14 +568,78 @@ public sealed class ManifoldModSystem : ModSystem
             return (0, 0);
         }
 
+        _schemaSidecar = SchemaSidecar.Load(_manifestStore.Read(SchemaSidecar.Key));
+
         var manifest = new Dictionary<AssetLocation, ManifestEntry>();
-        foreach (var entry in _persistence.LoadOrEmpty())
+        foreach (var entry in _persistence.LoadOrEmpty(_schemaSidecar.GetVersion(DimensionPersistence.ManifestKey)))
         {
             manifest[entry.Code] = entry;
         }
 
+        int dropped = DropStaleRegistrations(manifest);
+        int reseeded = ReseedMissingManifestEntries(manifest);
+
+        // Restore the persisted set of generated columns so revisits LOAD (preserving player
+        // modifications) instead of regenerating over them, and the per-player last positions.
+        LoadStoreOrPreserveUnrecognized(_generatedColumns, GeneratedColumnsKey);
+        LoadStoreOrPreserveUnrecognized(_positionStore, PlayerPositionsKey);
+
+        return (dropped, reseeded);
+    }
+
+    /// <summary>
+    /// Loads a savegame-level store's blob under the version <see cref="_schemaSidecar"/> records
+    /// for its key, and if the load refuses an unrecognized newer version, logs it (naming the key
+    /// and both versions) and copies the raw blob to <c>"{key}.unrecognized"</c> so it is never
+    /// lost (the store only latches its own <c>IsVersionRefused</c> flag; it does not hold the key
+    /// it was read from or log with it, so that is done here instead).
+    /// </summary>
+    private void LoadStoreOrPreserveUnrecognized(GeneratedColumnStore store, string key)
+    {
+        int version = _schemaSidecar!.GetVersion(key);
+        var raw = _manifestStore!.Read(key);
+        store.LoadFromBytes(raw, version);
+        if (store.IsVersionRefused)
+        {
+            PreserveUnrecognized(key, raw, version, GeneratedColumnStore.SchemaVersion);
+        }
+    }
+
+    /// <summary>See <see cref="LoadStoreOrPreserveUnrecognized(GeneratedColumnStore, string)"/>.</summary>
+    private void LoadStoreOrPreserveUnrecognized(PlayerPositionStore store, string key)
+    {
+        int version = _schemaSidecar!.GetVersion(key);
+        var raw = _manifestStore!.Read(key);
+        store.LoadFromBytes(raw, Mod.Logger, version);
+        if (store.IsVersionRefused)
+        {
+            PreserveUnrecognized(key, raw, version, PlayerPositionStore.SchemaVersion);
+        }
+    }
+
+    /// <summary>Logs an unrecognized-schema-version refusal naming the key and both versions, and copies the raw blob to a recovery key.</summary>
+    private void PreserveUnrecognized(string key, byte[]? raw, int version, int supported)
+    {
+        Mod.Logger.Error(
+            "[Manifold] '{0}' is schema version {1}, this build supports up to {2}. The original blob is preserved under '{0}.unrecognized' and this key will not be re-saved.",
+            key,
+            version,
+            supported);
+        if (raw is { Length: > 0 })
+        {
+            _manifestStore!.Write(key + ".unrecognized", raw);
+        }
+    }
+
+    /// <summary>
+    /// Drops every non-built-in registration <paramref name="manifest"/> does not describe with the
+    /// same (code, id, lifetime, owner), via the purge path so ids are released, Destroyed fires, and
+    /// the per-dimension cleanup runs. Part of <see cref="ResyncFromSaveGame"/>'s first pass.
+    /// </summary>
+    private int DropStaleRegistrations(Dictionary<AssetLocation, ManifestEntry> manifest)
+    {
         int dropped = 0;
-        foreach (var dim in _registry.All)
+        foreach (var dim in _registry!.All)
         {
             if (dim.IsBuiltIn || dim.Lifetime == DimensionLifetime.BuiltIn)
             {
@@ -598,19 +660,28 @@ public sealed class ManifoldModSystem : ModSystem
             }
         }
 
-        // A corrupt/tampered entry (out-of-range id, bad code) must not abort the whole seed loop
-        // and break the hydrate - log and skip it, matching LoadOrEmpty's drop-silently policy.
+        return dropped;
+    }
+
+    /// <summary>
+    /// Re-seeds <paramref name="manifest"/> entries memory lacks (a removal undone by the rollback),
+    /// Pending or Quarantined exactly as at boot. A corrupt/tampered entry (out-of-range id, bad code)
+    /// must not abort the loop - it is logged and skipped, matching LoadOrEmpty's drop-silently policy.
+    /// Part of <see cref="ResyncFromSaveGame"/>'s second pass.
+    /// </summary>
+    private int ReseedMissingManifestEntries(Dictionary<AssetLocation, ManifestEntry> manifest)
+    {
         int reseeded = 0;
         foreach (var entry in manifest.Values)
         {
-            if (_registry.Get(entry.Code) is not null)
+            if (_registry!.Get(entry.Code) is not null)
             {
                 continue;
             }
 
             try
             {
-                var state = _persistence.Classify(entry);
+                var state = _persistence!.Classify(entry);
                 _registry.SeedFromManifest(entry, state);
                 reseeded++;
             }
@@ -620,12 +691,7 @@ public sealed class ManifoldModSystem : ModSystem
             }
         }
 
-        // Restore the persisted set of generated columns so revisits LOAD (preserving player
-        // modifications) instead of regenerating over them, and the per-player last positions.
-        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
-        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey), Mod.Logger);
-
-        return (dropped, reseeded);
+        return reseeded;
     }
 
     /// <summary>Builds the full manifest snapshot (the join-time packet, and the rollback-resync broadcast).</summary>
@@ -651,32 +717,17 @@ public sealed class ManifoldModSystem : ModSystem
 
     private void OnGameWorldSave()
     {
-        if (_persistence is null || _registry is null)
+        if (_persistence is null || _registry is null || _manifestStore is null
+            || _generatedColumns is null || _positionStore is null || _schemaSidecar is null)
         {
             return;
         }
 
-        var entries = new List<ManifestEntry>();
-        foreach (var dim in _registry.All)
-        {
-            entries.Add(new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId));
-        }
+        var entries = _registry.All
+            .Select(dim => new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId))
+            .ToList();
 
-        _persistence.Save(entries);
-
-        // Persist the generated-columns set so revisits after restart load instead of regenerate.
-        if (_generatedColumns is { IsDirty: true } && _manifestStore is not null)
-        {
-            _manifestStore.Write(GeneratedColumnsKey, _generatedColumns.ToBytes());
-            _generatedColumns.ClearDirty();
-        }
-
-        // Persist per-player last positions for the LastVisited spawn behavior.
-        if (_positionStore is { IsDirty: true } && _manifestStore is not null)
-        {
-            _manifestStore.Write(PlayerPositionsKey, _positionStore.ToBytes());
-            _positionStore.ClearDirty();
-        }
+        SaveWorldState(_manifestStore, _persistence, entries, _generatedColumns, _positionStore, _schemaSidecar);
     }
 
     private void OnPlayerJoin(IServerPlayer player, ICoreServerAPI sapi)
@@ -757,30 +808,6 @@ public sealed class ManifoldModSystem : ModSystem
         Dispose();
     }
 
-    private void OnClientPlayerTransited(PlayerTransitedPacket packet)
-    {
-        // Reserved scaffolding for IManifoldClient.LocalPlayerTransited (not raised yet - the event
-        // args require an IServerPlayer the client does not have; see the event's XML doc). The packet
-        // type stays registered so v1 can light up the event without a protocol change. No per-packet
-        // work until then: consumers use ClientMirror Added/Removed + IClientPlayer events for now.
-    }
-
-    private int CountByState(DimensionState state)
-    {
-        if (_registry is null)
-        {
-            return 0;
-        }
-
-        int n = 0;
-        foreach (var dim in _registry.All)
-        {
-            if (dim.State == state)
-            {
-                n++;
-            }
-        }
-
-        return n;
-    }
+    private int CountByState(DimensionState state) =>
+        _registry?.All.Count(dim => dim.State == state) ?? 0;
 }

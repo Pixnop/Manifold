@@ -8,12 +8,12 @@
   </PropertyGroup>
 
   <!-- NuGet packaging. The package is a COMPILE-TIME API reference (Manifold.dll only); the mod
-       itself is distributed on the Mod DB. VintagestoryAPI/0Harmony/protobuf are provided by the
+       itself is distributed on the Mod DB. VintagestoryAPI/protobuf are provided by the
        game at compile and runtime (Private=false), so they are not package dependencies. -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>Pixnop.Manifold</PackageId>
-    <Version>0.5.1</Version>
+    <Version>0.6.0</Version>
     <!-- AssemblyVersion is pinned separately in Directory.Build.props; FileVersion would
          otherwise default to it instead of to Version, so it is repeated here explicitly. -->
     <FileVersion>$(Version)</FileVersion>
@@ -37,10 +37,6 @@
   <ItemGroup>
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="0Harmony">
-      <HintPath>$(VINTAGE_STORY)\Lib\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="protobuf-net">

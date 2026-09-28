@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Manifold.Api;
 using Manifold.Internal.Networking;
 using Vintagestory.API.Common;
@@ -14,8 +15,17 @@ namespace Manifold.Internal;
 /// <remarks>Client-side. Main thread for mutations (packet handlers run there).</remarks>
 internal sealed class ClientDimensionMirror
 {
+    private readonly ILogger? _logger;
+
     private volatile ImmutableDictionary<AssetLocation, DimensionImpl> _snapshot =
         ImmutableDictionary<AssetLocation, DimensionImpl>.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="ClientDimensionMirror"/> class.</summary>
+    /// <param name="logger">Optional logger used to report a skipped metadata entry. <c>null</c> silences the report.</param>
+    public ClientDimensionMirror(ILogger? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>Raised after a dimension has been added to the mirror.</summary>
     public event Action<IDimension>? Added;
@@ -24,25 +34,29 @@ internal sealed class ClientDimensionMirror
     public event Action<IDimension>? Removed;
 
     /// <summary>Current snapshot of mirrored dimensions.</summary>
-    public IReadOnlyCollection<IDimension> All
-    {
-        get
-        {
-            var list = new List<IDimension>(_snapshot.Count);
-            foreach (var dim in _snapshot.Values)
-            {
-                list.Add(dim);
-            }
-
-            return list.AsReadOnly();
-        }
-    }
+    public IReadOnlyCollection<IDimension> All => _snapshot.Values.Cast<IDimension>().ToList().AsReadOnly();
 
     /// <summary>Find a mirrored dimension by code.</summary>
     /// <param name="code">Asset code.</param>
     /// <returns>The dimension or <c>null</c>.</returns>
     public IDimension? Get(AssetLocation code) =>
         code is not null && _snapshot.TryGetValue(code, out var dim) ? dim : null;
+
+    /// <summary>Find a mirrored dimension by its engine dimension id.</summary>
+    /// <param name="internalId">Engine dimension id.</param>
+    /// <returns>The dimension, or <c>null</c> if the mirror does not know it.</returns>
+    public IDimension? GetByInternalId(int internalId)
+    {
+        foreach (var dim in _snapshot.Values)
+        {
+            if (dim.InternalId == internalId)
+            {
+                return dim;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Replace the entire mirror with the supplied snapshot, raising <see cref="Removed"/> for every
@@ -57,7 +71,7 @@ internal sealed class ClientDimensionMirror
         var builder = ImmutableDictionary.CreateBuilder<AssetLocation, DimensionImpl>();
         foreach (var desc in packet.Dimensions)
         {
-            var impl = DimensionDescriptorMapper.ToImpl(desc);
+            var impl = DimensionDescriptorMapper.ToImpl(desc, _logger);
             builder[impl.Code] = impl;
         }
 
@@ -65,20 +79,14 @@ internal sealed class ClientDimensionMirror
         var updated = builder.ToImmutable();
         _snapshot = updated;
 
-        foreach (var kvp in previous)
+        foreach (var kvp in previous.Where(kvp => !updated.ContainsKey(kvp.Key)))
         {
-            if (!updated.ContainsKey(kvp.Key))
-            {
-                Removed?.Invoke(kvp.Value);
-            }
+            Removed?.Invoke(kvp.Value);
         }
 
-        foreach (var kvp in updated)
+        foreach (var kvp in updated.Where(kvp => !previous.ContainsKey(kvp.Key)))
         {
-            if (!previous.ContainsKey(kvp.Key))
-            {
-                Added?.Invoke(kvp.Value);
-            }
+            Added?.Invoke(kvp.Value);
         }
     }
 
@@ -87,7 +95,7 @@ internal sealed class ClientDimensionMirror
     public void ApplyAdded(DimensionAddedPacket packet)
     {
         ArgumentNullException.ThrowIfNull(packet);
-        var impl = DimensionDescriptorMapper.ToImpl(packet.Dimension);
+        var impl = DimensionDescriptorMapper.ToImpl(packet.Dimension, _logger);
         _snapshot = _snapshot.SetItem(impl.Code, impl);
         Added?.Invoke(impl);
     }

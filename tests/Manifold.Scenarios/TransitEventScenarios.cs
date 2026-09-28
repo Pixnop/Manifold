@@ -11,6 +11,18 @@ using Xunit;
 [Trait("Category", "E2E")]
 public class TransitEventScenarios : ManifoldScenarioBase
 {
+    private static readonly string[] FullSequenceFlat = { "entering:flat", "arriving:flat", "left:overworld->flat", "entered:flat" };
+
+    private static readonly string[] VetoBeforeGenerationLocked = { "entering:locked" };
+
+    private static readonly string[] VetoAfterGenerationGate = { "entering:gate", "arriving:gate" };
+
+    private static readonly string[] FullSequenceFaulty = { "entering:faulty", "arriving:faulty", "left:overworld->faulty", "entered:faulty" };
+
+    private static readonly string[] EntityMoveOverworldToFlat = { "entity:overworld->flat" };
+
+    private static readonly string[] EphemeralCreatedThenDestroyed = { "created:evtephemeral", "destroyed:evtephemeral" };
+
     [AtlasScenario]
     public async Task Transit_Should_LogFullSequence_When_PlayerEntersDimension()
     {
@@ -22,9 +34,7 @@ public class TransitEventScenarios : ManifoldScenarioBase
         await Ok("/atlasfx teleport-player evt_flat flat");
         await LandedAt(player, flatId, 512, 512);
 
-        Assert.Equal(
-            new[] { "entering:flat", "arriving:flat", "left:overworld->flat", "entered:flat" },
-            EventLog());
+        Assert.Equal(FullSequenceFlat, EventLog());
     }
 
     [AtlasScenario]
@@ -38,7 +48,7 @@ public class TransitEventScenarios : ManifoldScenarioBase
         await Ok("/atlasfx teleport-player evt_locked locked");
 
         Assert.Equal(0, player.Position.dimension);
-        Assert.Equal(new[] { "entering:locked" }, EventLog());
+        Assert.Equal(VetoBeforeGenerationLocked, EventLog());
 
         // PlayerEntering (and its veto) runs before EnsureRegion: the spawn column was never generated.
         var spawnColumn = new BlockPos(512, 3, 512, lockedId);
@@ -56,7 +66,7 @@ public class TransitEventScenarios : ManifoldScenarioBase
         await Ok("/atlasfx teleport-player evt_gate gate");
 
         Assert.Equal(0, player.Position.dimension);
-        Assert.Equal(new[] { "entering:gate", "arriving:gate" }, EventLog());
+        Assert.Equal(VetoAfterGenerationGate, EventLog());
 
         // PlayerArriving runs after EnsureRegion: the veto is too late to stop generation.
         var spawnColumn = new BlockPos(512, 3, 512, gateId);
@@ -74,9 +84,7 @@ public class TransitEventScenarios : ManifoldScenarioBase
         await Ok("/atlasfx teleport-player evt_faulty faulty");
         await LandedAt(player, faultyId, 512, 512);
 
-        Assert.Equal(
-            new[] { "entering:faulty", "arriving:faulty", "left:overworld->faulty", "entered:faulty" },
-            EventLog());
+        Assert.Equal(FullSequenceFaulty, EventLog());
     }
 
     [AtlasScenario]
@@ -88,7 +96,7 @@ public class TransitEventScenarios : ManifoldScenarioBase
 
         await Ok($"/atlasfx teleport-entity {chicken.EntityId} flat");
 
-        Assert.Equal(new[] { "entity:overworld->flat" }, EventLog());
+        Assert.Equal(EntityMoveOverworldToFlat, EventLog());
     }
 
     [AtlasScenario]
@@ -101,6 +109,6 @@ public class TransitEventScenarios : ManifoldScenarioBase
         CommandResult removed = await Ok("/atlasfx remove evtephemeral");
         Assert.Equal("removed", removed.Message);
 
-        Assert.Equal(new[] { "created:evtephemeral", "destroyed:evtephemeral" }, EventLog());
+        Assert.Equal(EphemeralCreatedThenDestroyed, EventLog());
     }
 }

@@ -251,12 +251,12 @@ public sealed class DimensionBuilderImplTests
     }
 
     /// <summary>
-    /// A builder whose completion callback captures the <see cref="DimensionBuildRequest"/> it was
-    /// given, for the many tests that only check what a builder method put on the request.
+    /// A builder whose completion callback captures the <see cref="DimensionImpl"/> template it was
+    /// given, for the many tests that only check what a builder method put on the template.
     /// </summary>
-    private static (DimensionBuilderImpl Builder, Func<DimensionBuildRequest> Request) Capturing(string code = "mod:a")
+    private static (DimensionBuilderImpl Builder, Func<DimensionImpl> Request) Capturing(string code = "mod:a")
     {
-        DimensionBuildRequest? captured = null;
+        DimensionImpl? captured = null;
         var builder = new DimensionBuilderImpl(Code(code), "mod", req =>
         {
             captured = req;

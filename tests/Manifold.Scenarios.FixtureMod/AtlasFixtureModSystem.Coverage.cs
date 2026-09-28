@@ -8,6 +8,7 @@ using Manifold.Api.Server;
 using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 /// <summary>
@@ -22,6 +23,13 @@ public sealed partial class AtlasFixtureModSystem
 
     /// <summary>Code of the manifest entry injected for the quarantine scenarios.</summary>
     internal const string OrphanCode = "atlasghost:orphan";
+
+    /// <summary>
+    /// Block the ColumnGenerated subscriber marks generated columns with in "colgen": distinct from
+    /// GraniteSlabWorldgen's granite so ColumnGeneratedEventScenarios can tell the marker apart from
+    /// ordinary generated terrain.
+    /// </summary>
+    internal const string ColumnMarkerBlockCode = "game:rock-basalt";
 
     private const int OrphanInternalId = 900;
 
@@ -66,6 +74,21 @@ public sealed partial class AtlasFixtureModSystem
             AppendEvent($"entity:{e.PreviousDimension.Code.Path}->{e.NewDimension.Code.Path}");
         _manifold.Registry.Created += (_, e) => AppendEvent($"created:{e.Dimension.Code.Path}");
         _manifold.Registry.Destroyed += (_, e) => AppendEvent($"destroyed:{e.Dimension.Code.Path}");
+
+        // Drives ColumnGeneratedEventScenarios: marks the center of every column ColumnGenerated
+        // fires for in "colgen" with a block GraniteSlabWorldgen never places, so the scenario can
+        // tell the marker apart from ordinary generated terrain.
+        _manifold.Registry.ColumnGenerated += (_, e) =>
+        {
+            if (e.Dimension.Code.Path != "colgen")
+            {
+                return;
+            }
+
+            int markerBlockId = _sapi.World.GetBlock(new AssetLocation(ColumnMarkerBlockCode))!.BlockId;
+            var markerPos = new BlockPos((e.ChunkX * 32) + 16, 10, (e.ChunkZ * 32) + 16, e.Dimension.InternalId);
+            e.BlockAccessor.SetBlock(markerBlockId, markerPos);
+        };
 
         new DimensionCommandBuilder()
             .Command("atlasgo")
@@ -154,7 +177,73 @@ public sealed partial class AtlasFixtureModSystem
             .BeginSubCommand("kick")
                 .WithArgs(parsers.Word("playername"))
                 .HandleWith(OnKick)
+            .EndSubCommand()
+            .BeginSubCommand("try-teleport-player")
+                .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
+                .HandleWith(OnTryTeleportPlayer)
+            .EndSubCommand()
+            .BeginSubCommand("players-in")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnPlayersIn)
+            .EndSubCommand()
+            .BeginSubCommand("dimension-of")
+                .WithArgs(parsers.Word("playername"))
+                .HandleWith(OnDimensionOf)
             .EndSubCommand();
+    }
+
+    /// <summary>Drives the public ITransitionService.TryTeleportPlayer and reports its bool result directly.</summary>
+    private TextCommandResult OnTryTeleportPlayer(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        var dimPath = (string)args[1];
+
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        var options = new TransitionOptions { OverridePosition = DefaultLanding(dimPath) };
+        try
+        {
+            bool moved = _manifold.Transitions.TryTeleportPlayer(player, ResolveTargetCode(dimPath), options);
+            return TextCommandResult.Success(moved ? "moved" : "cancelled");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Drives IManifoldServer.GetPlayersIn, reporting occupant names joined by comma, or "none".</summary>
+    private TextCommandResult OnPlayersIn(TextCommandCallingArgs args)
+    {
+        var dimPath = (string)args[0];
+        try
+        {
+            var players = _manifold.GetPlayersIn(ResolveTargetCode(dimPath));
+            return TextCommandResult.Success(
+                players.Count == 0 ? "none" : string.Join(",", players.Select(p => p.PlayerName)));
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Drives IDimensionRegistry.GetDimensionOf, reporting the dimension's code or "unregistered".</summary>
+    private TextCommandResult OnDimensionOf(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        IDimension? dimension = _manifold.Registry.GetDimensionOf(player.Entity);
+        return TextCommandResult.Success(dimension is null ? "unregistered" : dimension.Code.ToString());
     }
 
     private IServerPlayer? FindPlayer(string name) =>
