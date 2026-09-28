@@ -1,5 +1,687 @@
+/* ==========================================================================
+   Manifold docs theme — "the void between worlds"
+   Overrides the docfx "modern" template through Bootstrap 5 custom
+   properties and a handful of new classes used by the landing page.
+   ========================================================================== */
+
+/* Fonts are loaded as a real <link rel="stylesheet"> from layout/_master.tmpl
+   (preconnect + stylesheet), not an @import here, so they fetch in parallel
+   with main.css instead of after it. */
+
+:root {
+  /* Palette (see docs/assets/moddb for the source art direction) */
+  --mf-void: #0e1116;
+  --mf-void-2: #151618;
+  --mf-slate: #333f48;
+  --mf-slate-mid: #4b606c;
+  --mf-slate-light: #5c7b89;
+  --mf-salmon: #e28f70;
+  --mf-salmon-light: #e2a191;
+  --mf-salmon-soft: #f3d3c6;
+  --mf-ice: #d5edf0;
+  --mf-green: #8cb274;
+  --mf-green-light: #b7d6a4;
+  --mf-text: #d9e2e6;
+  --mf-muted: #a9bac2;
+  --mf-terracotta: #b5542e; /* light-mode link accent, WCAG AA on paper */
+  --mf-terracotta-deep: #a54b28; /* light-mode salmon-family text on tinted panels, AA on --bs-tertiary-bg */
+
+  --mf-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mf-font-heading: 'Sora', var(--mf-font-body);
+  --mf-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --mf-radius: 0.5rem;
+  --mf-transition: 180ms ease;
+}
+
 /* Constrain the navbar logo (the source SVG is 1024x1024). */
 #logo {
   height: 36px;
   width: auto;
+  border-radius: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Dark theme (default) — the void, with a faint nebula behind body text.
+   -------------------------------------------------------------------------- */
+:root[data-bs-theme='dark'] {
+  color-scheme: dark;
+  --bs-body-bg: var(--mf-void);
+  --bs-body-color: var(--mf-text);
+  --bs-emphasis-color: #f3f7f8;
+  --bs-secondary-color: var(--mf-muted);
+  --bs-border-color: #2a323b;
+  --bs-border-color-translucent: rgba(217, 226, 230, 0.12);
+  --bs-tertiary-bg: var(--mf-void-2);
+  --bs-secondary-bg: var(--mf-void-2);
+  --bs-link-color: var(--mf-salmon);
+  --bs-link-color-rgb: 226, 143, 112;
+  --bs-link-hover-color: var(--mf-salmon-light);
+  --bs-link-hover-color-rgb: 226, 161, 145;
+  --bs-code-color: var(--mf-salmon-light);
+
+  --bs-navbar-color: var(--mf-muted);
+  --bs-navbar-hover-color: var(--mf-text);
+  --bs-navbar-active-color: var(--mf-text);
+  --bs-navbar-brand-color: var(--mf-text);
+  --bs-navbar-brand-hover-color: var(--mf-text);
+
+  background-color: var(--bs-body-bg);
+  background-image:
+    radial-gradient(ellipse 900px 560px at 12% -8%, rgba(226, 143, 112, 0.10), transparent 60%),
+    radial-gradient(ellipse 1000px 640px at 96% 8%, rgba(75, 96, 108, 0.22), transparent 60%),
+    radial-gradient(ellipse 900px 700px at 50% 100%, rgba(92, 123, 137, 0.10), transparent 65%);
+  background-attachment: fixed;
+}
+
+/* --------------------------------------------------------------------------
+   Light theme — ice / paper, not an inverted afterthought.
+   -------------------------------------------------------------------------- */
+:root[data-bs-theme='light'] {
+  color-scheme: light;
+  --bs-body-bg: #f6fafb;
+  --bs-body-color: #232b31;
+  --bs-emphasis-color: var(--mf-slate);
+  --bs-secondary-color: #57666d;
+  --bs-border-color: #d7e2e5;
+  --bs-border-color-translucent: rgba(51, 63, 72, 0.12);
+  --bs-tertiary-bg: #eef4f5;
+  --bs-secondary-bg: #eef4f5;
+  --bs-link-color: var(--mf-terracotta);
+  --bs-link-color-rgb: 181, 84, 46;
+  --bs-link-hover-color: #96431f;
+  --bs-link-hover-color-rgb: 150, 67, 31;
+  --bs-code-color: #a0451f;
+
+  --bs-navbar-color: #57666d;
+  --bs-navbar-hover-color: var(--mf-slate);
+  --bs-navbar-active-color: var(--mf-slate);
+  --bs-navbar-brand-color: var(--mf-slate);
+  --bs-navbar-brand-hover-color: var(--mf-slate);
+
+  background-color: var(--bs-body-bg);
+  background-image:
+    radial-gradient(ellipse 900px 560px at 10% -10%, rgba(226, 143, 112, 0.09), transparent 60%),
+    radial-gradient(ellipse 1000px 640px at 100% 0%, rgba(92, 123, 137, 0.10), transparent 60%);
+  background-attachment: fixed;
+}
+
+body {
+  font-family: var(--mf-font-body);
+}
+
+h1, h2, h3, h4, h5, h6,
+.navbar-brand,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: var(--mf-font-heading);
+  letter-spacing: -0.01em;
+}
+
+article h1, article h2, article h3 { color: var(--bs-emphasis-color); }
+
+::selection {
+  background: var(--mf-salmon);
+  color: var(--mf-void);
+}
+
+/* --------------------------------------------------------------------------
+   Focus rings — visible everywhere, in the accent colour.
+   -------------------------------------------------------------------------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+.btn:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--mf-salmon);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbars.
+   -------------------------------------------------------------------------- */
+:root { scrollbar-color: var(--mf-slate-mid) transparent; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: var(--mf-slate-mid);
+  border-radius: 8px;
+  border: 3px solid var(--bs-body-bg);
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--mf-slate-light); }
+
+/* --------------------------------------------------------------------------
+   Navbar — translucent, blurred, salmon active indicator.
+   -------------------------------------------------------------------------- */
+header.border-bottom {
+  border-bottom-color: var(--bs-border-color) !important;
+  background-color: rgba(14, 17, 22, 0.72) !important;
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+:root[data-bs-theme='light'] header.border-bottom {
+  background-color: rgba(246, 250, 251, 0.78) !important;
+}
+
+#navbar .nav-item .nav-link,
+#navbar .nav-item a {
+  position: relative;
+  transition: color var(--mf-transition);
+}
+#navbar .nav-item .nav-link.active,
+#navbar .nav-item a.active {
+  color: var(--bs-navbar-active-color);
+}
+#navbar .nav-item .nav-link.active::after,
+#navbar .nav-item a.active::after {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: -2px;
+  height: 2px;
+  background: var(--mf-salmon);
+  border-radius: 2px;
+}
+
+#search .form-control,
+#search-query {
+  background-color: var(--bs-tertiary-bg);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+#search .bi-search { color: var(--bs-secondary-color); }
+
+/* Mobile menu (offcanvas / collapse) picks up the same translucent panel. */
+.navbar-collapse.collapse.show,
+.navbar-collapse.collapsing {
+  background-color: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+}
+
+/* --------------------------------------------------------------------------
+   Code.
+   -------------------------------------------------------------------------- */
+code, pre, kbd, samp, .code-action {
+  font-family: var(--mf-font-mono);
+}
+:not(pre) > code {
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-code-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.875em;
+}
+pre code.hljs {
+  background-color: var(--mf-void-2) !important;
+  color: var(--mf-text) !important;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--mf-radius);
+}
+:root[data-bs-theme='light'] pre code.hljs {
+  background-color: #eef4f5 !important;
+  color: #232b31 !important;
+}
+.code-action {
+  color: var(--bs-secondary-color);
+}
+.code-action:hover { color: var(--mf-salmon); }
+
+/* --------------------------------------------------------------------------
+   Callouts — docfx's own [!NOTE] [!TIP] [!IMPORTANT] [!WARNING] [!CAUTION]
+   blocks. docfx renders these as <div class="NOTE alert alert-info"> (TIP
+   also alert-info; IMPORTANT and CAUTION are both alert-danger; WARNING is
+   alert-warning) with an <h5> title — the uppercase class carries the icon
+   already (via .alert-info/-warning/-danger h5::before in docfx.min.css),
+   these rules only need to reset colour to the palette.
+   -------------------------------------------------------------------------- */
+.NOTE, .TIP, .IMPORTANT, .WARNING, .CAUTION {
+  --bs-alert-bg: var(--bs-tertiary-bg);
+  --bs-alert-color: var(--bs-body-color);
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--bs-border-color);
+  border-left-width: 4px;
+  padding: 0.85rem 1.1rem;
+  margin: 1.25rem 0;
+}
+.NOTE h5, .TIP h5, .IMPORTANT h5, .WARNING h5, .CAUTION h5 {
+  font-family: var(--mf-font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
+}
+.NOTE > :last-child, .TIP > :last-child, .IMPORTANT > :last-child,
+.WARNING > :last-child, .CAUTION > :last-child { margin-bottom: 0; }
+
+.NOTE { border-left-color: #6a8b99; }
+/* Text colour is a dedicated shade, not --mf-slate-light directly: the raw
+   token is 4.01:1 on --mf-void-2, just under AA (4.5:1) for body-size text. */
+.NOTE h5 { color: #6a8b99; }
+.TIP { border-left-color: var(--mf-green); }
+.TIP h5 { color: var(--mf-green); }
+.IMPORTANT { border-left-color: var(--mf-salmon); }
+.IMPORTANT h5 { color: var(--mf-salmon); }
+.WARNING { border-left-color: #d9a441; }
+.WARNING h5 { color: #d9a441; }
+.CAUTION { border-left-color: #d3654d; }
+.CAUTION h5 { color: #d3654d; }
+/* Light mode: --bs-tertiary-bg is much brighter than --mf-void-2, so every
+   title needs its own darker shade to clear 4.5:1 (checked against
+   #eef4f5); the dark-mode values above are already AA on --mf-void-2. */
+:root[data-bs-theme='light'] .NOTE h5 { color: var(--mf-slate); }
+:root[data-bs-theme='light'] .TIP h5 { color: #456b2e; }
+:root[data-bs-theme='light'] .IMPORTANT h5 { color: var(--mf-terracotta-deep); }
+:root[data-bs-theme='light'] .WARNING h5 { color: #7f5b16; }
+:root[data-bs-theme='light'] .CAUTION h5 { color: #b5442f; }
+
+/* --------------------------------------------------------------------------
+   Tables.
+   -------------------------------------------------------------------------- */
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.95em;
+}
+article table th,
+article table td {
+  border: 1px solid var(--bs-border-color);
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+}
+article table th {
+  background-color: var(--bs-tertiary-bg);
+  font-family: var(--mf-font-heading);
+  font-weight: 600;
+}
+article table tr:hover td { background-color: var(--bs-border-color-translucent); }
+
+/* API member sections (docfx "modern" reference pages). */
+article h4[id] {
+  border-top: 1px solid var(--bs-border-color);
+  padding-top: 1rem;
+  margin-top: 1.75rem;
+}
+.memberInfo, dl.parameters, dl.exceptions {
+  border-left: 2px solid var(--bs-border-color);
+  padding-left: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar / TOC — active item marked in salmon.
+   -------------------------------------------------------------------------- */
+#toc .nav-link,
+.affix .nav-link {
+  color: var(--bs-secondary-color);
+  border-radius: 4px;
+  transition: color var(--mf-transition), background-color var(--mf-transition);
+}
+#toc .nav-link:hover,
+.affix .nav-link:hover {
+  color: var(--bs-body-color);
+  background-color: var(--bs-tertiary-bg);
+}
+#toc .nav-link.active,
+.affix .nav-link.active {
+  color: var(--mf-salmon);
+  font-weight: 600;
+  background-color: rgba(226, 143, 112, 0.10);
+  border-left: 2px solid var(--mf-salmon);
+}
+#tocFilter, .tocFilter input {
+  background-color: var(--bs-tertiary-bg);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+
+/* --------------------------------------------------------------------------
+   Footer.
+   -------------------------------------------------------------------------- */
+footer.border-top {
+  border-top-color: var(--bs-border-color) !important;
+  color: var(--bs-secondary-color);
+}
+
+/* --------------------------------------------------------------------------
+   Landing page.
+   -------------------------------------------------------------------------- */
+.mf-hero {
+  margin: 0 -3rem 2.5rem;
+  padding: 0 3rem;
+}
+.mf-hero__banner {
+  display: block;
+  width: 100%;
+  max-width: 1200px;
+  height: auto;
+  border-radius: var(--mf-radius);
+  margin: 0 auto 1.5rem;
+}
+.mf-hero__title {
+  /* The banner artwork bakes in the wordmark; this heading stays for
+     accessibility and search engines without duplicating it visually. */
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.mf-hero__tagline {
+  max-width: 46rem;
+  margin: 0 auto 1.5rem;
+  text-align: center;
+  font-size: 1.15rem;
+  color: var(--bs-secondary-color);
+}
+.mf-hero__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+.mf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform var(--mf-transition), background-color var(--mf-transition), border-color var(--mf-transition), color var(--mf-transition);
+}
+.mf-btn:hover { transform: translateY(-1px); }
+.mf-btn--primary {
+  background-color: var(--mf-salmon);
+  color: var(--mf-void);
+}
+.mf-btn--primary:hover { background-color: var(--mf-salmon-light); color: var(--mf-void); }
+.mf-btn--ghost {
+  background-color: transparent;
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+.mf-btn--ghost:hover { border-color: var(--mf-salmon); color: var(--mf-salmon); }
+
+.mf-install {
+  max-width: 46rem;
+  margin: 0 auto 3rem;
+}
+
+.mf-section-title {
+  text-align: center;
+  margin-bottom: 0.4rem;
+}
+.mf-section-sub {
+  text-align: center;
+  color: var(--bs-secondary-color);
+  max-width: 40rem;
+  margin: 0 auto 2rem;
+}
+
+.mf-divider {
+  display: block;
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  margin: 3rem auto;
+  opacity: 0.7;
+}
+
+.mf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 3rem;
+}
+
+.mf-card {
+  position: relative;
+  display: block;
+  padding: 1.25rem;
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-tertiary-bg);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  transition: transform var(--mf-transition), border-color var(--mf-transition), box-shadow var(--mf-transition);
+}
+.mf-card::before {
+  content: '';
+  position: absolute;
+  inset: -40% -40% auto auto;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(226, 143, 112, 0.35), transparent 70%);
+  opacity: 0;
+  transition: opacity var(--mf-transition);
+  pointer-events: none;
+}
+.mf-card:hover,
+.mf-card:focus-visible {
+  border-color: var(--mf-salmon);
+  transform: translateY(-2px);
+}
+.mf-card:hover::before,
+.mf-card:focus-visible::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .mf-card, .mf-btn { transition: none; }
+  .mf-card:hover, .mf-card:focus-visible { transform: none; }
+  .mf-btn:hover { transform: none; }
+}
+
+.mf-feature-card img {
+  width: 72px;
+  height: auto;
+  margin-bottom: 0.75rem;
+}
+.mf-feature-card h3, .mf-doc-card h3, .mf-mod-card h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.35rem;
+}
+.mf-feature-card p, .mf-doc-card p, .mf-mod-card p {
+  color: var(--bs-secondary-color);
+  font-size: 0.92rem;
+  margin-bottom: 0;
+}
+
+.mf-whatsnew {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+.mf-whatsnew .mf-card {
+  padding: 1rem 1.1rem;
+  font-size: 0.92rem;
+}
+.mf-whatsnew .mf-card strong {
+  display: block;
+  color: var(--mf-salmon);
+  font-family: var(--mf-font-heading);
+  margin-bottom: 0.25rem;
+}
+/* Raw salmon on --bs-tertiary-bg is 2.25:1 in light mode; the deep shade clears AA. */
+:root[data-bs-theme='light'] .mf-whatsnew .mf-card strong { color: var(--mf-terracotta-deep); }
+
+.mf-mod-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.mf-mod-card img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+}
+
+.mf-why {
+  max-width: 42rem;
+  margin: 0 auto 3rem;
+  padding: 1.25rem 1.5rem;
+  border-left: 3px solid var(--mf-slate-light);
+  background-color: var(--bs-tertiary-bg);
+  border-radius: 0 var(--mf-radius) var(--mf-radius) 0;
+}
+.mf-why p { margin-bottom: 0.6rem; }
+.mf-why p:last-child { margin-bottom: 0; }
+
+@media (max-width: 768px) {
+  .mf-hero { margin-left: -1rem; margin-right: -1rem; padding: 0 1rem; }
+}
+
+/* ==========================================================================
+   Motion primitives — for the landing page (and anywhere else that wants
+   the dimension feel). Everything here is opt-in via a class; nothing runs
+   on a page that doesn't ask for it, and every animation is switched off
+   under prefers-reduced-motion instead of just slowed down.
+   ========================================================================== */
+
+/* .mf-floating: gentle vertical bob, for a drifting island or any prop that
+   should feel like it's hanging in the void. Stack with a delay/duration
+   modifier so a group of them don't bob in lockstep. */
+@keyframes mf-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.mf-floating {
+  animation: mf-float 6s ease-in-out infinite;
+}
+.mf-floating--slow { animation-duration: 9s; }
+.mf-floating--fast { animation-duration: 4.5s; }
+.mf-floating--delay-1 { animation-delay: -1.5s; }
+.mf-floating--delay-2 { animation-delay: -3s; }
+.mf-floating--delay-3 { animation-delay: -4.5s; }
+
+/* .mf-star: a single twinkling point for a CSS-only starfield (no canvas,
+   no image — a small dot with a radial-gradient glow, sized and positioned
+   by whoever places it). */
+@keyframes mf-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.mf-star {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--mf-ice) 55%, transparent 75%);
+  animation: mf-twinkle 3.2s ease-in-out infinite;
+}
+.mf-star--delay-1 { animation-delay: -0.8s; }
+.mf-star--delay-2 { animation-delay: -1.6s; }
+.mf-star--delay-3 { animation-delay: -2.4s; }
+
+/* .mf-portal-glow: a soft pulsing halo, for the hero portal art or any
+   "this is a threshold" marker. Apply to an absolutely-positioned element
+   sized by the caller; the class only supplies the glow and the pulse. */
+@keyframes mf-portal-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.mf-portal-glow {
+  background: radial-gradient(circle, rgba(226, 143, 112, 0.55), rgba(226, 143, 112, 0.08) 55%, transparent 75%);
+  animation: mf-portal-pulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* .mf-tilt: a light 3D hover tilt driven by --mf-tilt-x/--mf-tilt-y. The
+   custom properties default to 0deg (flat) so the class is inert without
+   JS; public/main.js's pointer handler updates them on hover for any
+   element carrying this class (card, island, badge, whatever). */
+.mf-tilt {
+  --mf-tilt-x: 0deg;
+  --mf-tilt-y: 0deg;
+  transform: perspective(900px) rotateX(var(--mf-tilt-x)) rotateY(var(--mf-tilt-y));
+  transition: transform var(--mf-transition);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mf-floating, .mf-star, .mf-portal-glow {
+    animation: none;
+  }
+  .mf-tilt {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Floating islands — a card variant that reads as a chunk of world rather
+   than a flat panel: a bright grassy seam along the top, a voxel dirt-and-
+   stone underside hanging below, gently bobbing. CSS-only (no extra markup
+   beyond the existing .mf-card), so the landing only has to add the class.
+   -------------------------------------------------------------------------- */
+.mf-card--island {
+  margin-bottom: 1.5rem;
+  overflow: visible; /* .mf-card clips by default; the dirt underside hangs past the card's own edge */
+  border-top: 3px solid var(--mf-green);
+  border-bottom: none;
+}
+.mf-card--island::after {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -12px;
+  height: 12px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #6b4a34 0, #6b4a34 12.5%,
+      #573d2b 12.5%, #573d2b 25%
+    );
+  clip-path: polygon(
+    0% 0%, 8% 100%, 16% 0%, 24% 100%, 32% 0%, 40% 100%, 48% 0%,
+    56% 100%, 64% 0%, 72% 100%, 80% 0%, 88% 100%, 96% 0%, 100% 100%,
+    100% 0%
+  );
+  opacity: 0.9;
+}
+:root[data-bs-theme='light'] .mf-card--island::after { opacity: 0.75; }
+.mf-card--island::before { display: none; } /* the hover glow blob assumes overflow:hidden; the island drops it for the dirt underside instead */
+.mf-card--island.mf-floating { animation-name: mf-float; }
+@media (prefers-reduced-motion: reduce) {
+  .mf-card--island.mf-floating { animation: none; }
+}
+
+/* ==========================================================================
+   Theme switch = dimension switch. The stock docfx theme dropdown still
+   drives everything (it sets data-bs-theme, we never touch that); this only
+   wraps the resulting flip in a portal-swirl view transition where the
+   browser supports it, and does nothing at all otherwise or when the reader
+   asked for less motion.
+   ========================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+::view-transition-old(root) { animation-name: mf-portal-close; }
+::view-transition-new(root) { animation-name: mf-portal-open; }
+@keyframes mf-portal-close {
+  to { clip-path: circle(0% at 94% 5%); opacity: 0.4; }
+}
+@keyframes mf-portal-open {
+  from { clip-path: circle(0% at 94% 5%); }
+  to { clip-path: circle(150% at 94% 5%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
 }
