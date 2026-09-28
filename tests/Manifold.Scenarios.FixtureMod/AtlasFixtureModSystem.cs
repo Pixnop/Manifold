@@ -122,6 +122,7 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         var config = api.LoadModConfig<AtlasFixtureConfig>("atlasfixture.json") ?? new();
         SeedPersistenceFixtures(config);
         StartCoverageFixtures(api, config);
+        StartSchemaFixtures(config);
     }
 
     private void PublishDimensionId(string path, int internalId)
