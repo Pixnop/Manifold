@@ -321,7 +321,7 @@ def divider_frame(t, line):
 # ---------------------------------------------------------------- 404
 
 def closed_gate_voxels(rng):
-    """The gate's stonework, with every glow dimmed to void and its drifting sparks dropped."""
+    """The gate's stonework, dimmed but still legible (not all the way to void), sparks dropped."""
     gate_vox, cells = gate(-1, -1, 0, 2, 4, rng, t=0.0)
     out = []
     for (i, j, k, color, alpha, size, emissive) in gate_vox:
@@ -330,7 +330,7 @@ def closed_gate_voxels(rng):
         elif size < 0.28:
             continue  # drifting sparks: none, the gate is shut
         else:
-            out.append(vox(i, j, k, mix(color, VOID, 0.75), alpha=110, size=size))
+            out.append(vox(i, j, k, mix(color, VOID, 0.4), alpha=190, size=size))
     return out
 
 
@@ -339,11 +339,13 @@ def not_found_scene(t):
     renders large (see NOT_FOUND_SIZE below) rather than at card thumbnail size."""
     scene = Scene(340, 260)
     perch_bob = bob(t, 0.2, 3.0)
-    scene.add(island(np.random.default_rng(283), 1, 1), 250, 175 + perch_bob, 8)
+    scene.add(island(np.random.default_rng(283), 1, 1), 215, 175 + perch_bob, 8)
     scene.add(closed_gate_voxels(np.random.default_rng(282)), 120, 138, 13)
     img = scene.render(bloom=6)
     fig = Scene(340, 260)
-    fig.add(traveller(0, -1.6, 1.3 + bob(t, 0.0, 1.9), size=1.3), 250, 175 + perch_bob, 8)
+    # size=1.3 rendered at roughly 10 page px and sat off to one side; 2.4 reads as a figure at
+    # this scene's own scale, closer to the gate so the composition centres as one group.
+    fig.add(traveller(0, -1.6, 1.3 + bob(t, 0.0, 1.9), size=2.4), 215, 175 + perch_bob, 8)
     img.alpha_composite(fig.render(bloom=0))
     return img
 

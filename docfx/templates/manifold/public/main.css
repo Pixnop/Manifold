@@ -1215,15 +1215,17 @@ article > h1:first-child::before {
   overflow: hidden;
 }
 /* Falling out of the world means falling into the void, in either theme: the backdrop stays the
-   dark hero art regardless of data-bs-theme, so this one page doesn't need a light variant. */
+   dark hero art regardless of data-bs-theme, so this one page doesn't need a light variant.
+   position: fixed + inset: 0, not an inset panel scoped to .mf-404's own 32rem column: a "full
+   scene" backdrop has to reach the actual edges of the viewport, not sit as a dark slab dropped
+   into the page (most visible in light mode, where it read as a failed embed). */
 .mf-404__void {
-  position: absolute;
-  inset: -4rem;
+  position: fixed;
+  inset: 0;
   z-index: -1;
   /* bottom 100%: hero-bg fades from a lit top to the void at its base; showing only that base
      keeps this page dark and the text readable, in either site theme. */
   background: var(--mf-void) url('../assets/site/hero-bg.webp') center bottom / cover;
-  border-radius: var(--mf-radius);
 }
 .mf-404__void::after {
   content: '';
@@ -1232,8 +1234,8 @@ article > h1:first-child::before {
   background: rgba(14, 17, 22, 0.35);
 }
 .mf-404__art {
-  width: 320px;
-  height: 233px;
+  width: 420px;
+  height: 306px;
   margin: 0 auto 1.5rem;
   animation: mf-float 7s ease-in-out infinite;
 }
