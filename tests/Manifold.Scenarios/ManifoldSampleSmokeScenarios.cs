@@ -243,6 +243,35 @@ public class ManifoldSampleSmokeScenarios : ManifoldScenarioBase
         Assert.Equal("unregistered", stateAfter.Message);
     }
 
+    [AtlasScenario]
+    public async Task TempDim_Should_AutoReap_When_LastOccupantLeavesNormally()
+    {
+        ITestPlayer player = await JoinSurvivalPlayer("sampletempreap");
+
+        CommandResult created = await player.ExecuteCommand("/createtempdim");
+        Assert.True(created.Ok, created.Message);
+
+        int tempId = await SampleDimensionId("tempdim");
+        await World.Until(() => player.Position.dimension == tempId, timeoutTicks: 600);
+
+        CommandResult left = await player.ExecuteCommand("/overworlddim");
+        Assert.True(left.Ok, left.Message);
+        await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
+
+        bool reaped = false;
+        for (int i = 0; i < 200 && !reaped; i++)
+        {
+            CommandResult state = await World.ExecuteCommand("/atlasfx state manifoldsample:tempdim");
+            reaped = !state.Ok && state.Message == "unregistered";
+            if (!reaped)
+            {
+                await World.Ticks(1);
+            }
+        }
+
+        Assert.True(reaped, "manifoldsample:tempdim is still registered after the last occupant left normally.");
+    }
+
     /// <summary>Reads a manifoldsample dimension's internal id from the fixture's state command.</summary>
     private async Task<int> SampleDimensionId(string path)
     {
