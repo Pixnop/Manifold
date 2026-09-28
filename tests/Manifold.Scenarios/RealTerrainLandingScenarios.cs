@@ -52,7 +52,7 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
         await Ok("/atlasfx2 teleport-player-plain atlas_ground terrain");
 
         await LandedExactlyAt(player, terrainId, OpenGroundX, GroundLandingY, ColumnZ);
-        AssertNotEmbedded(new BlockPos(OpenGroundX, GroundLandingY, ColumnZ, terrainId));
+        AssertNotEmbedded(player);
     }
 
     [AtlasScenario]
@@ -68,7 +68,7 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
         // Same landing Y as the open-ground column: the grass has no floor to stand on and is
         // walked through, same as air.
         await LandedExactlyAt(player, terrainId, TallGrassX, GroundLandingY, ColumnZ);
-        AssertNotEmbedded(new BlockPos(TallGrassX, GroundLandingY, ColumnZ, terrainId));
+        AssertNotEmbedded(player);
     }
 
     [AtlasScenario]
@@ -146,7 +146,15 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
         await Ok("/atlasfx2 teleport-player-plain atlas_empty terrain");
 
         await LandedExactlyAt(player, terrainId, EmptyColumnX, SourceY, ColumnZ);
-        AssertNotEmbedded(new BlockPos(EmptyColumnX, SourceY, ColumnZ, terrainId));
+        AssertNotEmbedded(player);
+
+        // Proves the chunk was actually generated (empty on purpose), not left ungenerated: an
+        // unloaded chunk also reads every block as null/air, which would pass the assertion above
+        // for the wrong reason. The open-ground column shares this chunk and its soil is only here
+        // if worldgen ran.
+        Assert.Equal(
+            "game:soil-medium-none",
+            World.BlockAt(new BlockPos(OpenGroundX, GroundLandingY - 1, ColumnZ, terrainId)).Code.ToString());
     }
 
     [AtlasScenario(RollbackWorld = true, StrictIsolation = true)]
@@ -175,11 +183,28 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
             World.BlockAt(new BlockPos(LakeX, LakeLandingY - 1, ColumnZ, terrainId)).Code.ToString());
     }
 
-    /// <summary>Asserts nothing solid occupies <paramref name="pos"/> (same floor test the resolver itself uses).</summary>
-    private void AssertNotEmbedded(BlockPos pos)
+    /// <summary>Asserts the player's actual feet and head blocks are both passable (not embedded).</summary>
+    private void AssertNotEmbedded(ITestPlayer player)
+    {
+        BlockPos feet = PlayerFeet(player);
+        AssertSolid(feet, expected: false);
+        AssertSolid(feet.UpCopy(), expected: false);
+    }
+
+    /// <summary>The player's actual position, rounded to the block it stands in (same floor test the resolver itself uses).</summary>
+    private static BlockPos PlayerFeet(ITestPlayer player) =>
+        new(
+            (int)Math.Round((double)player.Position.X),
+            (int)Math.Round((double)player.Position.Y),
+            (int)Math.Round((double)player.Position.Z),
+            player.Position.dimension);
+
+    private void AssertSolid(BlockPos pos, bool expected)
     {
         Block block = World.BlockAt(pos);
         bool solid = block.SideSolid[BlockFacing.UP.Index] || block.CollisionBoxes is { Length: > 0 };
-        Assert.False(solid, $"Expected {pos} (block {block.Code}) to be passable, found it solid.");
+        Assert.True(
+            solid == expected,
+            $"Expected {pos} (block {block.Code}) to be {(expected ? "solid" : "passable")}, found it {(solid ? "solid" : "passable")}.");
     }
 }
