@@ -18,7 +18,7 @@ using static AtlasFixture.TerrainProbeWorldgen;
 /// X/Y layout is TerrainProbeWorldgen's own constants (see its doc comment for the full picture),
 /// shared here at compile time rather than redeclared.
 ///
-/// Every scenario starts the player (or entity) at a distinct, deliberately-tall source Y
+/// Every scenario starts the player (or entity) at the same, deliberately-tall source Y
 /// (<see cref="SourceY"/>) in the overworld, at the target column's X/Z, then transits with no
 /// TransitionOptions at all (/atlasfx2 teleport-player-plain, /atlasfx teleport-entity-plain) so
 /// the destination's default SpawnBehavior.SameCoordinates picks the landing through the real
@@ -34,10 +34,12 @@ using static AtlasFixture.TerrainProbeWorldgen;
 public class RealTerrainLandingScenarios : ManifoldScenarioBase
 {
     /// <summary>
-    /// The overworld Y every scenario starts its player/entity at: tall enough that it can never
-    /// collide with the "terrain" dimension's own columns (all of which top out well below this),
-    /// so a fallback scenario that keeps the source Y unchanged is unambiguously proven to have
-    /// kept THIS Y, not coincided with one of the terrain columns' own blocks.
+    /// The overworld Y every scenario starts its player/entity at. The open-ground, tall-grass,
+    /// lake and empty columns all resolve well below this, so a scenario landing at one of those
+    /// Ys unambiguously proves the resolver moved the player, not a coincidence. The roof-gap,
+    /// water-pocket and fully-solid columns reach the real world ceiling, well above this Y, and
+    /// have no valid landing spot at all: their fallback keeps this same Y unchanged, which on the
+    /// real engine leaves the player embedded in that column's own rock (see AssertEmbedded).
     /// </summary>
     private const int SourceY = 200;
 
@@ -83,8 +85,10 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
 
         // The column is solid rock except one 1-block gap: room for feet but not head, so it
         // fails the two-block clearance check exactly like solid rock does, and nothing else in
-        // the column qualifies either. The source Y comes back unchanged.
+        // the column qualifies either. The source Y comes back unchanged, and this column's rock
+        // reaches all the way up past that Y, so the player ends up embedded in it.
         await LandedExactlyAt(player, terrainId, RoofGapX, SourceY, ColumnZ);
+        AssertEmbedded(player);
     }
 
     [AtlasScenario]
@@ -101,6 +105,7 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
         // underneath it: the lake's own surface is the landing spot, not the drier cave floor
         // several blocks lower.
         await LandedExactlyAt(player, terrainId, LakeX, LakeLandingY, ColumnZ);
+        AssertNotEmbedded(player);
         Assert.Equal(
             "game:water-still-7",
             World.BlockAt(new BlockPos(LakeX, LakeLandingY - 1, ColumnZ, terrainId)).Code.ToString());
@@ -118,8 +123,11 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
 
         // The water pocket has no room above it (capped by rock), so it is never a candidate; the
         // buried cave lower down is never reached either, because the scan already stopped at the
-        // capped liquid. Nothing in the column qualifies, so the source Y comes back unchanged.
+        // capped liquid. Nothing in the column qualifies, so the source Y comes back unchanged,
+        // and this column's rock reaches all the way up past that Y, so the player ends up
+        // embedded in it.
         await LandedExactlyAt(player, terrainId, WaterPocketX, SourceY, ColumnZ);
+        AssertEmbedded(player);
     }
 
     [AtlasScenario]
@@ -132,7 +140,10 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
 
         await Ok("/atlasfx2 teleport-player-plain atlas_solid terrain");
 
+        // No valid spot anywhere in the column, so the source Y comes back unchanged, and this
+        // column's rock reaches all the way up past that Y, so the player ends up embedded in it.
         await LandedExactlyAt(player, terrainId, FullySolidX, SourceY, ColumnZ);
+        AssertEmbedded(player);
     }
 
     [AtlasScenario]
@@ -190,6 +201,14 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
         AssertSolid(feet, expected: false);
         AssertSolid(feet.UpCopy(), expected: false);
     }
+
+    /// <summary>
+    /// Asserts the player's actual feet block is solid. The documented "keep source Y" fallback
+    /// returns the caller's Y unchanged without checking the target dimension at all, and for this
+    /// column that Y falls inside its own rock, so the player really is left embedded in it on the
+    /// real engine. Pinned here rather than left unchecked, so the behaviour stays visible.
+    /// </summary>
+    private void AssertEmbedded(ITestPlayer player) => AssertSolid(PlayerFeet(player), expected: true);
 
     /// <summary>The player's actual position, rounded to the block it stands in (same floor test the resolver itself uses).</summary>
     private static BlockPos PlayerFeet(ITestPlayer player) =>
