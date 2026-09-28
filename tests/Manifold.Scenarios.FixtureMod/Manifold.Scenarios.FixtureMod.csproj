@@ -19,6 +19,13 @@
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- EntityBehaviorSeatable, for the mount-player command (PlayerTransitScenarios): mounting a
+         player is base-game behavior, not Manifold's, so it belongs here rather than in Manifold
+         itself; the ModLoader provides this assembly too, same as VintagestoryAPI above. -->
+    <Reference Include="VSSurvivalMod">
+      <HintPath>$(VINTAGE_STORY)\Mods\VSSurvivalMod.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <ProjectReference Include="..\..\src\Manifold\Manifold.csproj">
       <Private>false</Private>
     </ProjectReference>

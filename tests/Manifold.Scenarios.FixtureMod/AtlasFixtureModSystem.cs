@@ -9,6 +9,7 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
+using Vintagestory.GameContent;
 
 /// <summary>Sample enum value for the "flat" fixture dimension's "fixture-tint" metadata entry.</summary>
 public enum FixtureTint
@@ -243,6 +244,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
                 .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"))
                 .HandleWith(OnTeleportPlayer)
             .EndSubCommand()
+            .BeginSubCommand("mount-player")
+                .WithArgs(parsers.Word("playername"), parsers.Word("entityid"))
+                .HandleWith(OnMountPlayer)
+            .EndSubCommand()
             .BeginSubCommand("pregen")
                 .WithArgs(parsers.Word("dimpath"))
                 .HandleWith(OnPregen)
@@ -322,6 +327,40 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         }
 
         return TextCommandResult.Success("ok");
+    }
+
+    /// <summary>
+    /// Mounts <c>playername</c> onto the seat of the already-spawned mountable entity
+    /// <c>entityid</c> (a boat, a saddled creature). Base-game mounting, not Manifold's - this is
+    /// only here so PlayerTransitScenarios can set up a rider to teleport, without the scenario
+    /// project itself needing a GameContent reference for one seat call.
+    /// </summary>
+    private TextCommandResult OnMountPlayer(TextCommandCallingArgs args)
+    {
+        var playerName = (string)args[0];
+        long entityId = long.Parse((string)args[1], CultureInfo.InvariantCulture);
+
+        IServerPlayer? player = FindPlayer(playerName);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {playerName}.");
+        }
+
+        Entity? mount = _sapi.World.GetEntityById(entityId);
+        if (mount is null)
+        {
+            return TextCommandResult.Error($"No entity with id {entityId}.");
+        }
+
+        EntityBehaviorSeatable? seatable = mount.GetBehavior<EntityBehaviorSeatable>();
+        if (seatable is null)
+        {
+            return TextCommandResult.Error($"Entity {entityId} has no seatable behavior.");
+        }
+
+        return seatable.TryMount(player.Entity)
+            ? TextCommandResult.Success("mounted")
+            : TextCommandResult.Error("The seat refused to mount the player.");
     }
 
     private TextCommandResult OnTeleportBlock(TextCommandCallingArgs args)
