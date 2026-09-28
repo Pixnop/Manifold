@@ -186,6 +186,9 @@ public class RealTerrainLandingScenarios : ManifoldScenarioBase
 
         Entity arrived = World.EntitiesIn(arrival.Area(16)).Single(e => e.EntityId == chicken.EntityId);
         Assert.Equal(terrainId, arrived.Pos.Dimension);
+
+        // A 1-block tolerance proves the entity did not go to the source Y or the buried cave; it
+        // is not tight enough to catch an off-by-one landing inside the water column itself.
         Assert.True(
             Math.Abs(arrived.Pos.Y - LakeLandingY) <= 1,
             $"Expected the entity within 1 block of the water surface (Y {LakeLandingY}), landed at Y {arrived.Pos.Y}.");
