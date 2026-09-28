@@ -69,7 +69,7 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 </div>
 
 <div class="mf-drift-zone" aria-hidden="true">
-<img class="mf-drift" src="assets/site/drift-1.png" width="140" height="96" style="left: 4%; top: -3rem;" data-drift-speed="0.1" alt="" loading="lazy">
+<img class="mf-drift" src="assets/site/drift-1.png" width="150" height="203" style="left: 4%; top: -3rem;" data-drift-speed="0.1" alt="" loading="lazy">
 </div>
 
 <h2 class="mf-section-title mf-build-heading no-anchor">What your mod gets</h2>
@@ -159,7 +159,7 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 </picture>
 
 <div class="mf-drift-zone" aria-hidden="true">
-<img class="mf-drift" src="assets/site/drift-2.png" width="130" height="90" style="right: 6%; top: -2.5rem;" data-drift-speed="-0.07" alt="" loading="lazy">
+<img class="mf-drift" src="assets/site/drift-2.png" width="150" height="131" style="right: 6%; top: -2.5rem;" data-drift-speed="-0.07" alt="" loading="lazy">
 </div>
 
 <h2 class="mf-section-title mf-build-heading no-anchor">Mods built on Manifold</h2>
@@ -197,7 +197,7 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 </picture>
 
 <div class="mf-drift-zone" aria-hidden="true">
-<img class="mf-drift" src="assets/site/drift-3.png" width="120" height="84" style="left: 46%; top: -2rem;" data-drift-speed="0.09" alt="" loading="lazy">
+<img class="mf-drift" src="assets/site/drift-3.png" width="150" height="140" style="left: 46%; top: -2rem;" data-drift-speed="0.09" alt="" loading="lazy">
 </div>
 
 <h2 class="mf-section-title mf-build-heading no-anchor">Browse the docs</h2>
