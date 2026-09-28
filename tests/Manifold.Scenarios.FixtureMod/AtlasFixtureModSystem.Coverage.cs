@@ -8,6 +8,7 @@ using Manifold.Api.Server;
 using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 /// <summary>
@@ -22,6 +23,13 @@ public sealed partial class AtlasFixtureModSystem
 
     /// <summary>Code of the manifest entry injected for the quarantine scenarios.</summary>
     internal const string OrphanCode = "atlasghost:orphan";
+
+    /// <summary>
+    /// Block the ColumnGenerated subscriber marks generated columns with in "colgen": distinct from
+    /// GraniteSlabWorldgen's granite so ColumnGeneratedEventScenarios can tell the marker apart from
+    /// ordinary generated terrain.
+    /// </summary>
+    internal const string ColumnMarkerBlockCode = "game:rock-basalt";
 
     private const int OrphanInternalId = 900;
 
@@ -66,6 +74,21 @@ public sealed partial class AtlasFixtureModSystem
             AppendEvent($"entity:{e.PreviousDimension.Code.Path}->{e.NewDimension.Code.Path}");
         _manifold.Registry.Created += (_, e) => AppendEvent($"created:{e.Dimension.Code.Path}");
         _manifold.Registry.Destroyed += (_, e) => AppendEvent($"destroyed:{e.Dimension.Code.Path}");
+
+        // Drives ColumnGeneratedEventScenarios: marks the center of every column ColumnGenerated
+        // fires for in "colgen" with a block GraniteSlabWorldgen never places, so the scenario can
+        // tell the marker apart from ordinary generated terrain.
+        _manifold.Registry.ColumnGenerated += (_, e) =>
+        {
+            if (e.Dimension.Code.Path != "colgen")
+            {
+                return;
+            }
+
+            int markerBlockId = _sapi.World.GetBlock(new AssetLocation(ColumnMarkerBlockCode))!.BlockId;
+            var markerPos = new BlockPos((e.ChunkX * 32) + 16, 10, (e.ChunkZ * 32) + 16, e.Dimension.InternalId);
+            e.BlockAccessor.SetBlock(markerBlockId, markerPos);
+        };
 
         new DimensionCommandBuilder()
             .Command("atlasgo")
