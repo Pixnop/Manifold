@@ -1,0 +1,13 @@
+{
+  "type": "code",
+  "modid": "manicompat",
+  "name": "Manifold Compat Fixture",
+  "version": "0.1.0",
+  "description": "Test fixture driving Manifold's 0.5.1 API surface only, for the upgrade/downgrade compatibility scenarios.",
+  "authors": ["Pixnop"],
+  "side": "Server",
+  "dependencies": {
+    "game": "",
+    "manifold": ""
+  }
+}
