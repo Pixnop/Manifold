@@ -42,6 +42,16 @@ public sealed class CompatFixtureModSystem : ModSystem
         _sapi = api;
         _manifold = api.GetManifoldServer(this);
 
+        // Snapshot the id this dimension was published under before this boot's own
+        // RegisterStatic below overwrites it, so a verifier scenario loading a save produced by
+        // a DIFFERENT Manifold build (dev vs. the 0.5.1 release) can assert identity was kept
+        // across the version change, not just across an ordinary restart.
+        byte[]? previous = _sapi.WorldManager.SaveGame.GetData($"{Domain}:dimid");
+        if (previous is not null)
+        {
+            _sapi.WorldManager.SaveGame.StoreData($"{Domain}:prevdimid", previous);
+        }
+
         IDimension compat = _manifold.Registry
             .Define(DimensionCode)
             .Persistent()
