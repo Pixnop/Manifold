@@ -94,14 +94,38 @@ public interface ITransitionService
     /// dimension is taken from <c>source.dimension</c>; the target dimension overrides
     /// <c>targetLocal.dimension</c>.
     /// </summary>
+    /// <remarks>
+    /// Refuses (returns <c>false</c>, without touching either position) when the source is one part
+    /// of a structure spanning several grid positions: a multiblock satellite or controller (this
+    /// also covers ordinary doors and trapdoors, which are two cells tall), or one half of a bed.
+    /// Moving only one such position with this method's plain block-plus-<c>BlockEntity</c> copy
+    /// would leave the structure broken both at the source and at the target. The refusal is logged
+    /// as a warning with the reason; call <see cref="IsMultiPositionBlock"/> beforehand to detect it
+    /// without attempting the move (for example to give a player a clearer message).
+    /// </remarks>
     /// <param name="source">Source position. <see cref="Vintagestory.API.MathTools.BlockPos.dimension"/> is the source dim.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="targetLocal">Target position; the dimension field is rewritten to the target.</param>
-    /// <returns><c>true</c> when a non-air block was moved; <c>false</c> when the source slot was air.</returns>
+    /// <returns>
+    /// <c>true</c> when a non-air block was moved; <c>false</c> when the source slot was air, or when
+    /// the source is part of a multi-position structure (see <see cref="IsMultiPositionBlock"/>).
+    /// </returns>
     /// <exception cref="System.ArgumentNullException">
     /// <paramref name="source"/>, <paramref name="targetDim"/>, or <paramref name="targetLocal"/> is null.
     /// </exception>
     /// <exception cref="DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="DimensionStateException">Target is not Active.</exception>
     bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal);
+
+    /// <summary>
+    /// True when the block at <paramref name="pos"/> is one part of a structure spanning several
+    /// grid positions - a multiblock satellite or controller (including a door or trapdoor cell
+    /// beyond its first), or one half of a bed - and would therefore be refused by
+    /// <see cref="TeleportBlock"/> rather than moved. Safe to call ahead of time; reads world state
+    /// only and does not require <c>pos.dimension</c> to be a registered, active dimension.
+    /// </summary>
+    /// <param name="pos">Dimension-encoded position to inspect.</param>
+    /// <returns><c>true</c> when <see cref="TeleportBlock"/> would refuse this position.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="pos"/> is null.</exception>
+    bool IsMultiPositionBlock(BlockPos pos);
 }

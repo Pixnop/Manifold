@@ -87,6 +87,15 @@ internal sealed class TransitService : ITransitionService
         ArgumentNullException.ThrowIfNull(targetLocal);
         var target = DimensionGate.RequireActive(_registry, targetDim);
 
+        if (_movers.Block.IsMultiPosition(source, out var reason))
+        {
+            // Refuse before touching either side: a plain block+BlockEntity copy of one position
+            // would leave the rest of the structure behind, broken, at the source, and drop an
+            // incomplete fragment of it at the target.
+            _sapi.Logger?.Warning("[Manifold] TeleportBlock refused at {0}: {1}", source, reason);
+            return false;
+        }
+
         var targetPos = targetLocal.Copy();
         targetPos.dimension = target.InternalId;
 
@@ -95,6 +104,13 @@ internal sealed class TransitService : ITransitionService
         _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(targetPos.X), ChunkMath.ToChunk(targetPos.Z), null);
 
         return _movers.Block.Move(source, targetPos);
+    }
+
+    /// <inheritdoc/>
+    public bool IsMultiPositionBlock(BlockPos pos)
+    {
+        ArgumentNullException.ThrowIfNull(pos);
+        return _movers.Block.IsMultiPosition(pos, out _);
     }
 
     /// <inheritdoc/>
