@@ -184,11 +184,6 @@ public class ManifoldSampleSmokeScenarios : ManifoldScenarioBase
             timeoutTicks: 600);
     }
 
-    // sendtestblock needs the caller to be looking at a block (IServerPlayer.CurrentBlockSelection),
-    // populated in the real game by the client's aim/raycast; Atlas's ITestPlayer exposes no
-    // aim/look-direction or raycast API to simulate that, only a direct teleport (see
-    // Manifold.Scenarios/README.md), so only the "nothing targeted" guard is reachable through
-    // a headless test player.
     [AtlasScenario]
     public async Task SendTestBlock_Should_RequireATargetedBlock_When_NothingIsAimedAt()
     {
@@ -197,6 +192,35 @@ public class ManifoldSampleSmokeScenarios : ManifoldScenarioBase
         CommandResult result = await player.ExecuteCommand("/sendtestblock");
         Assert.False(result.Ok, "sendtestblock succeeded without the caller looking at a block.");
         Assert.Equal("Look at a block first, then run /sendtestblock.", result.Message);
+    }
+
+    [AtlasScenario]
+    public async Task SendTestBlock_Should_MoveChestWithContents_When_TargetedBlockIsSet()
+    {
+        int flatId = await SampleDimensionId("flat");
+        ITestPlayer player = await JoinSurvivalPlayer("samplesendchest");
+        int px = (int)player.Position.X, pz = (int)player.Position.Z;
+
+        var chestPos = new BlockPos(px + 2, (int)player.Position.Y, pz, 0);
+        await PlaceChest(chestPos, "stick", 4);
+
+        // The client's aim/raycast populates IServerPlayer.CurrentBlockSelection, which is just
+        // Entity.BlockSelection (a public field): set it directly through the documented
+        // ITestPlayer.Entity escape hatch instead of simulating a raycast.
+        player.Entity.BlockSelection = new BlockSelection
+        {
+            Position = chestPos,
+            Face = BlockFacing.UP,
+            HitPosition = new Vec3d(0.5, 0.5, 0.5),
+        };
+
+        CommandResult result = await player.ExecuteCommand("/sendtestblock");
+        Assert.True(result.Ok, result.Message);
+        Assert.Equal("game:air", World.BlockAt(chestPos).Code.ToString());
+
+        var target = new BlockPos(px, 64, pz, flatId);
+        await BlockBecomes(target, "game:chest-east", timeoutTicks: 600);
+        AssertChestHolds(target, "stick", 4);
     }
 
     [AtlasScenario]
