@@ -302,6 +302,9 @@ pre code.hljs {
   color: var(--bs-secondary-color);
 }
 .code-action:hover { color: var(--mf-salmon); }
+/* Raw salmon (#E28F70) on the light-mode tinted backgrounds it sits on is 2.3-2.4:1, well under
+   the 4.5:1 AA floor; the deep terracotta shade already used for other light-mode text clears it. */
+:root[data-bs-theme='light'] .code-action:hover { color: var(--mf-terracotta-deep); }
 
 /* --------------------------------------------------------------------------
    Callouts: docfx's own [!NOTE] [!TIP] [!IMPORTANT] [!WARNING] [!CAUTION]
@@ -480,6 +483,7 @@ footer.border-top {
   color: var(--bs-body-color);
 }
 .mf-btn--ghost:hover { border-color: var(--mf-salmon); color: var(--mf-salmon); }
+:root[data-bs-theme='light'] .mf-btn--ghost:hover { border-color: var(--mf-terracotta-deep); color: var(--mf-terracotta-deep); }
 
 .mf-install {
   max-width: 46rem;
@@ -597,6 +601,14 @@ footer.border-top {
 }
 /* Raw salmon on --bs-tertiary-bg is 2.25:1 in light mode; the deep shade clears AA. */
 :root[data-bs-theme='light'] .mf-also .mf-card strong { color: var(--mf-terracotta-deep); }
+/* Links on top of --bs-tertiary-bg (cards, callouts, the closing strip): the ordinary light-mode
+   link colour (#B5542E) measures 4.42:1 there, just under the 4.5:1 AA floor for body text; the
+   deep shade already used elsewhere on this background clears it. */
+:root[data-bs-theme='light'] .mf-card a,
+:root[data-bs-theme='light'] .mf-close__col a,
+:root[data-bs-theme='light'] .NOTE a, :root[data-bs-theme='light'] .TIP a,
+:root[data-bs-theme='light'] .IMPORTANT a, :root[data-bs-theme='light'] .WARNING a,
+:root[data-bs-theme='light'] .CAUTION a { color: var(--mf-terracotta-deep); }
 
 .mf-mod-card {
   display: flex;
@@ -1136,9 +1148,15 @@ dialog.mf-secret-portal::backdrop {
   margin-bottom: 0.75rem;
   border-radius: var(--mf-radius);
 }
-/* The glowy art (bloom-lit voxels, dashed arcs) can wash out against a bright card; a soft dark
-   drop-shadow keeps it legible in light mode without touching every generated frame. */
+/* The glowy art (bloom-lit voxels, dashed ice/salmon arcs) was baked for a dark backdrop: its
+   near-white halos read as legible light on the void but turn into grey/pink smears on paper. A
+   drop-shadow keeps the silhouette legible; multiply blend removes most of that halo instead of
+   leaving it as a pale wash (a bloom pixel near-white multiplies against the light card
+   background to almost nothing, while the saturated voxel colours darken and gain definition) -
+   without touching every generated frame, which the "at least" half of this finding's fix asks
+   for as the fallback to full light-specific art. */
 :root[data-bs-theme='light'] .mf-feature-card img,
 :root[data-bs-theme='light'] .mf-doc-card img {
-  filter: drop-shadow(0 1px 3px rgba(35, 43, 49, 0.3));
+  filter: drop-shadow(0 1px 3px rgba(35, 43, 49, 0.3)) saturate(1.15);
+  mix-blend-mode: multiply;
 }
