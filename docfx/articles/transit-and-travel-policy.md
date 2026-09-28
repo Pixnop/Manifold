@@ -24,10 +24,12 @@ Must be called on the **main thread**. The method:
 Throws `DimensionNotFoundException` if the code is unknown, or `DimensionStateException` if the dimension is not `Active`.
 
 If the player is riding a mount (a boat, a saddled creature, any `IMountableSeat`), they are cleanly
-dismounted right before the move. The mount is left behind in the source dimension - it is never
+dismounted right before the move. The mount is left behind in the source dimension: it is never
 dragged along, and the player is never left flagged as mounted on an entity that never changed
 dimension with them. A transit a subscriber cancels at `PlayerEntering`/`PlayerArriving` leaves the
-player mounted, exactly as they were.
+player mounted, exactly as they were. If the mount's seat refuses to release them (for example a
+moving elevator seat mid-move), the whole transit is aborted before anything moves, the same as a
+cancellation; use `TryTeleportPlayer` to detect this.
 
 ```csharp
 var transitions = manifold.Transitions;
@@ -205,18 +207,24 @@ Per-player last-visited positions are persisted in the savegame and survive serv
 
 ### The default surface search
 
-`SameXZSurfaceY` (used by `SameCoordinates`, and as the fallback for `DimensionSpawn`/`LastVisited`
-when they have nothing to land on) scans down from the target dimension's ceiling and lands on the
-first solid, dry block that has two full blocks of clear space above it (feet, then head). This means:
+`SameXZSurfaceY` (used by `SameCoordinates`, as the fallback for `DimensionSpawn`/`LastVisited` when
+they have nothing to land on, and as `TeleportEntity`'s own default resolver) scans down from the
+target dimension's ceiling and lands on the first solid, dry block that has two full blocks of clear
+space above it (feet, then head). This means:
 
-- A one-block gap in a cave ceiling is skipped - there is no room to stand in it - and the search
+- A one-block gap in a cave ceiling is skipped (there is no room to stand in it), and the search
   keeps going for a spot with real clearance, above or below it.
-- A liquid surface (a lake, an ocean) is not landed on directly either; the search continues below it
-  for dry ground. The liquid's surface is only used as a landing spot if the column has no dry spot
-  at all.
-- If the column has no valid spot whatsoever - a fully solid column, an empty/void column, or one
-  outside the world's height range - the player's current Y is kept unchanged. This is the same
-  behavior a void dimension always had; it now also covers a solid column with no opening in it.
+- A plant, vine or torch with no floor to stand on is skipped too, the same as a one-block gap: the
+  search walks through it like air instead of landing on top of it.
+- The first liquid block found while scanning down is the top of that liquid body (a lake, an
+  ocean): the search never continues past it looking for dry ground underneath, since real terrain
+  never has open water floating over a cave, only the liquid's own bed and then solid ground. The
+  liquid's surface is used as a landing spot, with the same two-block clearance check, only if the
+  column has no dry spot above it.
+- If the column has no valid spot whatsoever (a fully solid column, an empty/void column, one outside
+  the world's height range, or a liquid body capped by solid ground with no clearance above it), the
+  player's current Y is kept unchanged. This is the same behavior a void dimension always had; it now
+  also covers a solid column with no opening in it.
 
 Positions the caller chose explicitly are never second-guessed by this search: `OverridePosition`, a
 custom `Resolver`, and a `DimensionSpawn`/`FixedSpawn` point are all used as-is.
