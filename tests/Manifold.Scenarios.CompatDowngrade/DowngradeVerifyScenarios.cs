@@ -44,7 +44,7 @@ public class DowngradeVerifyScenarios : CompatVerifyScenarioBase
         Assert.True(HotbarCount(player, "game:gear-rusty") >= 3, "The separate-inventory item did not survive the version change.");
 
         // The block a player placed: still there, not overwritten by a regeneration. This is the
-        // core downgrade risk named in the brief: an older build regenerating terrain it does
+        // core downgrade risk: an older build regenerating terrain it does
         // not recognize instead of loading what is already on disk.
         BlockPos placedAt = ReadPosition("placed", dimId);
         await World.Until(() => World.BlockAt(placedAt).Code?.ToString() != "game:air", timeoutTicks: 200);

@@ -9,7 +9,7 @@ are not one project with two classes.
 
 Loads the committed savegame fixture under `fixtures/` (built by
 `tests/Manifold.Scenarios.CompatFixtures`; see that project's README for how and why) and
-asserts everything the brief named survives: the same persistent dimension and internal id, its
+asserts that everything a world must keep survives: the same persistent dimension and internal id, its
 generated terrain intact including a block a player placed, the player's last-visited position,
 their separate-inventory profile, and their saved pre-forced game mode.
 
@@ -57,7 +57,7 @@ avoided.
 
 ## What Atlas could and could not do here
 
-Everything the brief asked for is covered by real, restartable, engine-backed assertions;
+Everything listed above is covered by real, restartable, engine-backed assertions;
 nothing was impossible. The one accommodation: `atlas fixture` (Atlas 0.15.0), not
 `[AtlasScenario(RestartWorld = true)]`, is what actually produces the fixture save; see
 `Manifold.Scenarios.CompatFixtures/README.md`'s "Why a separate project" section for why

@@ -10,7 +10,7 @@ dll, so each direction needs its own process, and `dotnet test` gives one proces
 
 Loads the savegame fixture under `fixtures/`, generated before each run by
 `tests/Manifold.Scenarios.CompatFixtures` (see that project's README for how and why) and
-asserts everything the brief named survives: the same persistent dimension and internal id, its
+asserts that everything a world must keep survives: the same persistent dimension and internal id, its
 generated terrain intact including a block a player placed, the player's last-visited position,
 their separate-inventory profile, and their saved pre-forced game mode. This direction
 additionally asserts the schema sidecar itself, something 0.5.1 has never heard of, survives

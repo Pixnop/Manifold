@@ -46,7 +46,7 @@ HostRegistry.ShutDownAndHarvestSavePathAsync`, "the harvest seam of atlas fixtur
 builder scenario just needs to do the setup and return; the CLI handles the save-then-copy.
 This is the officially documented way to build an Atlas fixture, so it is what this project
 uses; the version-crossing part (staging the 0.5.1 zip for one builder, the dev build for the
-other) is the only piece specific to this task.
+other) is the only piece specific to these fixtures.
 
 `upgrade-from-0.5.1.vcdbs` is committed: 0.5.1 is a frozen, published release, so a snapshot
 of a world it wrote never goes stale.
