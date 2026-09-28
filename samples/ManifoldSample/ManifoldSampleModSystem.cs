@@ -44,11 +44,6 @@ public sealed class ManifoldSampleModSystem : ModSystem
         base.StartServerSide(api);
 
         var manifold = api.GetManifoldServer(this);
-        if (!manifold.IsHealthy)
-        {
-            Mod.Logger.Warning("[ManifoldSample] Manifold is unhealthy; dimension features disabled.");
-            return;
-        }
 
         // Demonstrates the 0.4.0 transit events. These log lines make PlayerArriving (#37) and
         // EntityChangedDimension (#41) observable in the server console during testing.

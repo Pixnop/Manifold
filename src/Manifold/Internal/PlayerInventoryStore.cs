@@ -28,13 +28,6 @@ internal sealed class PlayerInventoryStore
     /// <param name="ownerKey">The new owner key.</param>
     public void SetCurrentKey(ManifoldInventory category, string ownerKey) => _currentKeys[category] = ownerKey;
 
-    /// <summary>Whether a snapshot exists for (category, owner key).</summary>
-    /// <param name="category">The inventory category.</param>
-    /// <param name="ownerKey">The owner key.</param>
-    /// <returns><c>true</c> if a snapshot is stored for this pair.</returns>
-    public bool HasSnapshot(ManifoldInventory category, string ownerKey) =>
-        _snapshots.ContainsKey(SnapshotKey(category, ownerKey));
-
     /// <summary>Returns the snapshot bytes for (category, owner key), or null.</summary>
     /// <param name="category">The inventory category.</param>
     /// <param name="ownerKey">The owner key.</param>

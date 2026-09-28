@@ -161,16 +161,6 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
-    public void TeleportPlayer_Should_Throw_When_Manifold_Unhealthy()
-    {
-        var (svc, _, _, _, _) = NewService();
-        var player = NewPlayer();
-        svc.MarkUnhealthy();
-        Assert.Throws<ManifoldUnhealthyException>(
-            () => svc.TeleportPlayer(player, Code("owner:target")));
-    }
-
-    [Fact]
     public void TeleportPlayer_Should_Throw_When_Target_Quarantined()
     {
         var (svc, registry, _, _, _) = NewService();
@@ -250,15 +240,6 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
-    public void TeleportEntity_Should_Throw_When_Unhealthy()
-    {
-        var (svc, _, _, _, _) = NewService();
-        svc.MarkUnhealthy();
-        var entity = Substitute.For<Entity>();
-        Assert.Throws<ManifoldUnhealthyException>(() => svc.TeleportEntity(entity, Code("owner:target")));
-    }
-
-    [Fact]
     public void TeleportEntity_Should_Call_Mover_With_Resolved_Position()
     {
         var (svc, registry, _, mover, _) = NewService();
@@ -320,16 +301,6 @@ public sealed class TransitServiceTests
         var src = new BlockPos(1, 64, 1, 0);
         var dst = new BlockPos(2, 64, 2, 0);
         Assert.Throws<DimensionStateException>(() => svc.TeleportBlock(src, qCode, dst));
-    }
-
-    [Fact]
-    public void TeleportBlock_Should_Throw_When_Unhealthy()
-    {
-        var (svc, _, _, _, _) = NewService();
-        svc.MarkUnhealthy();
-        var src = new BlockPos(1, 64, 1, 0);
-        var dst = new BlockPos(2, 64, 2, 0);
-        Assert.Throws<ManifoldUnhealthyException>(() => svc.TeleportBlock(src, Code("owner:target"), dst));
     }
 
     [Fact]

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Manifold.Api;
-using Manifold.Internal.Util;
 using Vintagestory.API.Common;
 
 namespace Manifold.Internal;
@@ -64,7 +63,8 @@ internal sealed class DimensionAllocator
     public void ReserveSpecific(AssetLocation code, int id)
     {
         ArgumentNullException.ThrowIfNull(code);
-        Guards.InRange(id, MinModId, MaxModId, nameof(id));
+        ArgumentOutOfRangeException.ThrowIfLessThan(id, MinModId);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(id, MaxModId);
 
         if (_byId.TryGetValue(id, out var existingCode))
         {

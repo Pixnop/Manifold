@@ -8,7 +8,6 @@ using Manifold.Api.Helpers;
 using Manifold.Api.Server;
 using Manifold.Api.Transitions;
 using Manifold.Internal;
-using Manifold.Internal.HarmonyPatches;
 using Manifold.Internal.Networking;
 using Manifold.Internal.Util;
 using Vintagestory.API.Client;
@@ -39,7 +38,6 @@ public sealed class ManifoldModSystem : ModSystem
     /// </summary>
     private const string AtlasRollbackRestoredEvent = "atlas:rollback:restored";
 
-    private HarmonyPatcher? _harmony;
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
@@ -61,37 +59,18 @@ public sealed class ManifoldModSystem : ModSystem
     public override double ExecuteOrder() => 0.05;
 
     /// <inheritdoc/>
-    public override void Start(ICoreAPI api)
-    {
-        // Manifold registers no block/item/entity/behaviour classes - pure dependency library.
-        base.Start(api);
-    }
-
-    /// <inheritdoc/>
     public override void StartServerSide(ICoreServerAPI api)
     {
         ArgumentNullException.ThrowIfNull(api);
         base.StartServerSide(api);
 
         _sapi = api;
-        _harmony = new HarmonyPatcher(Mod.Logger);
-        _harmony.Apply();
-
-        if (!_harmony.IsHealthy)
-        {
-            BuildUnhealthyServerFacade(api);
-            Mod.Logger.Error(
-                "[Manifold] Disabled - Harmony patches failed at boot. "
-                + "IsHealthy=false; dimension registration still succeeds (on a disconnected registry "
-                + "with no in-game effect), but transit and relight calls throw ManifoldUnhealthyException.");
-            return;
-        }
 
         var allocator = new DimensionAllocator();
         _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(
             _manifestStore,
-            new ModLoaderQuery(api.ModLoader),
+            api.ModLoader.IsModEnabled,
             Mod.Logger);
         _network = new ManifoldNetworkChannel();
         _network.RegisterServer(api);
@@ -130,8 +109,8 @@ public sealed class ManifoldModSystem : ModSystem
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, isHealthy: true);
-        ManifoldAccess.SetServerResolver(_ => ServerFacade);
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator);
+        ManifoldAccess.SetServerResolver(ServerFacade);
 
         RegisterManifoldCommand(api);
 
@@ -148,7 +127,7 @@ public sealed class ManifoldModSystem : ModSystem
         // Priority 0.6 > default 0.5: Manifold resyncs before consumer mods' restored-handlers (mirrors ExecuteOrder at boot).
         api.Event.RegisterEventBusListener(OnAtlasRollbackRestored, 0.6, AtlasRollbackRestoredEvent);
 
-        Mod.Logger.Notification("[Manifold] Initialized (healthy).");
+        Mod.Logger.Notification("[Manifold] Initialized.");
     }
 
     /// <inheritdoc/>
@@ -171,7 +150,7 @@ public sealed class ManifoldModSystem : ModSystem
         _network.RegisterClient(api);
 
         ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
-        ManifoldAccess.SetClientResolver(_ => ClientFacade);
+        ManifoldAccess.SetClientResolver(ClientFacade);
     }
 
     /// <inheritdoc/>
@@ -197,7 +176,6 @@ public sealed class ManifoldModSystem : ModSystem
             ManifoldAccess.SetClientResolver(null);
         }
 
-        _harmony?.Dispose();
         base.Dispose();
     }
 
@@ -234,26 +212,6 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         return (evacuated, remaining);
-    }
-
-    private void BuildUnhealthyServerFacade(ICoreServerAPI sapi)
-    {
-        // Allocator + registry + transit are still created so that consumers calling GetManifoldServer()
-        // see a coherent (but unhealthy) facade. Transit.MarkUnhealthy ensures TeleportPlayer throws.
-        var allocator = new DimensionAllocator();
-        var registry = new DimensionRegistry(allocator, logger: Mod.Logger);
-        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
-        var transit = new TransitService(
-            registry,
-            sapi,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(sapi), new BlockMover(sapi)),
-            TargetPositionResolvers.SameXZSurfaceY,
-            generator,
-            new PlayerPositionStore(),
-            new InventorySwapper(sapi));
-        transit.MarkUnhealthy();
-        ServerFacade = new ManifoldServerFacade(registry, transit, sapi, generator, isHealthy: false);
-        ManifoldAccess.SetServerResolver(_ => ServerFacade);
     }
 
     /// <summary>
@@ -643,11 +601,9 @@ public sealed class ManifoldModSystem : ModSystem
             return;
         }
 
-        var entries = new List<ManifestEntry>();
-        foreach (var dim in _registry.All)
-        {
-            entries.Add(new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId));
-        }
+        var entries = _registry.All
+            .Select(dim => new ManifestEntry(dim.Code, dim.InternalId, dim.Lifetime, dim.OwnerModId))
+            .ToList();
 
         _persistence.Save(entries);
 
@@ -744,22 +700,6 @@ public sealed class ManifoldModSystem : ModSystem
         Dispose();
     }
 
-    private int CountByState(DimensionState state)
-    {
-        if (_registry is null)
-        {
-            return 0;
-        }
-
-        int n = 0;
-        foreach (var dim in _registry.All)
-        {
-            if (dim.State == state)
-            {
-                n++;
-            }
-        }
-
-        return n;
-    }
+    private int CountByState(DimensionState state) =>
+        _registry?.All.Count(dim => dim.State == state) ?? 0;
 }

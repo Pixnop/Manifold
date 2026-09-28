@@ -206,8 +206,7 @@ manifold.RelightRegion(
 ```
 
 The call is synchronous and best-effort; its cost scales with the relit volume, so keep the region
-bounded to what you actually changed. Throws `DimensionNotFoundException` for unknown codes and
-`ManifoldUnhealthyException` if Manifold failed to initialize.
+bounded to what you actually changed. Throws `DimensionNotFoundException` for unknown codes.
 
 ### `/manifold relight` admin command
 

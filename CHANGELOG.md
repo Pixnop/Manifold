@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`IManifoldClient.LocalPlayerChangedDimension` fires when the local player transits.** Resolved client-side from the server's transit notification through the client dimension mirror, it carries `Source`, `Target` (both `IDimension`) and `TargetPosition` (`BlockPos`). Always raised on the client main thread, like every other mod channel message handler. Not raised for a transit naming a dimension the client mirror does not (yet) know. Resolves correctly even when the transit is the last occupant leaving an ephemeral dimension, which reaps (and removes from the mirror) the very source dimension the transit names: the transit notification is always sent to the client before that removal is.
 - **`IManifoldClient.GetDimensionOf(Entity)`** returns the mirrored dimension an entity is standing in, by its position's engine dimension id (0 is always the overworld), or `null` if that id is not yet known to the mirror.
 
+### Changed
+- **Manifold no longer references Harmony.** `IManifoldServer.IsHealthy` and `IManifoldClient.IsHealthy` are now always `true`, and `ManifoldUnhealthyException` is no longer thrown; both are kept only for binary compatibility with mods compiled against earlier versions.
+
 ### Deprecated
 - **`IManifoldClient.LocalPlayerTransited`** is now marked `[Obsolete]`: it was never raised (populating its event args needs an `IServerPlayer` the client does not have) and is kept only for binary compatibility with mods that subscribe to it. Use `LocalPlayerChangedDimension` instead.
 

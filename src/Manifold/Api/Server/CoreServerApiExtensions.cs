@@ -45,15 +45,10 @@ public static class CoreServerApiExtensions
         var shared = sapi.GetManifoldServer();
         var ownerModId = caller.Mod?.Info?.ModID
             ?? throw new ManifoldNotInitializedException("Caller ModSystem has no Mod info.");
-        if (shared.Registry is not DimensionRegistry sharedRegistry)
-        {
-            // Defensive fallback for a facade whose Registry is not the concrete DimensionRegistry -
-            // never happens today, healthy or not: both facades use one, and Define succeeds on
-            // either (even the unhealthy facade's registry is a real, if disconnected, one). Only
-            // Transitions and RelightRegion throw ManifoldUnhealthyException when unhealthy.
-            return shared;
-        }
 
+        // ManifoldAccess's server resolver only ever hands back a ManifoldServerFacade, whose
+        // Registry is always a DimensionRegistry.
+        var sharedRegistry = (DimensionRegistry)shared.Registry;
         return new OwnerScopedManifoldServer(shared, sharedRegistry, ownerModId);
     }
 }

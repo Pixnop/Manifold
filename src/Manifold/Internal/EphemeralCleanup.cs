@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using Manifold.Api;
 using Manifold.Api.Server;
 using Vintagestory.API.Common;
@@ -26,24 +26,11 @@ internal static class EphemeralCleanup
     {
         ArgumentNullException.ThrowIfNull(registry);
 
-        var ephemeralCodes = new List<AssetLocation>();
-        foreach (var dim in registry.All)
-        {
-            if (dim.Lifetime == DimensionLifetime.Ephemeral)
-            {
-                ephemeralCodes.Add(dim.Code);
-            }
-        }
+        var ephemeralCodes = registry.All
+            .Where(dim => dim.Lifetime == DimensionLifetime.Ephemeral)
+            .Select(dim => dim.Code)
+            .ToList();
 
-        int removed = 0;
-        foreach (var code in ephemeralCodes)
-        {
-            if (registry.TryRemove(code))
-            {
-                removed++;
-            }
-        }
-
-        return removed;
+        return ephemeralCodes.Count(registry.TryRemove);
     }
 }

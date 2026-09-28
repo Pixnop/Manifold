@@ -128,17 +128,10 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         Assert.Equal("manifold:overworld", toOverworldPacket.TargetCode);
     }
 
-    // Manifold bug: OnTransitPlayerEntered (ManifoldModSystem.cs:422-433) reads the entity's
-    // position synchronously off PlayerEntered, which TransitService raises right after calling
-    // PlayerTeleporter.Teleport (PlayerTeleporter.cs:22). That call is Entity.TeleportToDouble,
-    // whose own doc says the actual move is "delayed until target chunk is loaded" - so the
-    // packet's TargetX/Y/Z is captured before the delayed move applies and reports the player's
-    // PRE-transit (source dimension) coordinates instead of the documented target position.
-    // Observed: teleporting atlas_mspot from the overworld to flat (real landing 512,6,512, per
-    // player.Position once LandedAt settles) sent a PlayerTransitedPacket with TargetX/Y/Z equal
-    // to the player's overworld position instead. This scenario asserts the documented contract
-    // (TargetX/Y/Z is the actual landing position) and is skipped until the packet is sent from
-    // the settled position instead of synchronously with the event.
+    // Regression guard: the packet's TargetX/Y/Z must be the resolved landing position
+    // (TransitService resolves it and passes it through PlayerEnteredDimensionEventArgs before
+    // OnTransitPlayerEntered sends the packet), not the player's pre-transit, source-dimension
+    // coordinates.
     [AtlasScenario]
     public async Task PlayerTransited_Should_ReportLandingPosition_When_PlayerArrives()
     {

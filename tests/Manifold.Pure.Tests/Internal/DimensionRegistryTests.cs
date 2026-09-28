@@ -185,6 +185,23 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
+    public void Promoting_A_Pending_Entry_Should_Keep_Its_Owner_When_It_Was_Seeded_After_The_Builder()
+    {
+        // A rollback resync can seed the Pending entry between Define and RegisterStatic.
+        var registry = NewRegistry();
+        var builder = registry.DefineForOwner(Code("owner_a:dim"), "owner_b")
+            .WithWorldgen(new FakeWorldgenStrategy());
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner_a:dim"), 42, DimensionLifetime.Persistent, "owner_a"),
+            DimensionState.Pending);
+
+        var dim = builder.RegisterStatic();
+
+        Assert.Equal(42, dim.InternalId);
+        Assert.Equal("owner_a", dim.OwnerModId);
+    }
+
+    [Fact]
     public void GetByInternalId_Should_Return_Dim_Or_Null()
     {
         var registry = NewRegistry();

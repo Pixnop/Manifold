@@ -14,8 +14,7 @@ public sealed class DimensionPersistenceTests
     public void Save_Roundtrip_Should_Restore_Entries()
     {
         var store = new InMemoryManifestStore();
-        var query = new FakeModLoaderQuery { LoadedMods = { "mod" } };
-        var persistence = new DimensionPersistence(store, query);
+        var persistence = new DimensionPersistence(store, m => m == "mod");
 
         var entries = new[]
         {
@@ -33,7 +32,7 @@ public sealed class DimensionPersistenceTests
     public void Save_Should_Skip_Ephemeral_Entries()
     {
         var store = new InMemoryManifestStore();
-        var persistence = new DimensionPersistence(store, new FakeModLoaderQuery { LoadedMods = { "mod" } });
+        var persistence = new DimensionPersistence(store, m => m == "mod");
 
         persistence.Save(new[]
         {
@@ -50,7 +49,7 @@ public sealed class DimensionPersistenceTests
     public void Save_Should_Skip_BuiltIn_Entries()
     {
         var store = new InMemoryManifestStore();
-        var persistence = new DimensionPersistence(store, new FakeModLoaderQuery());
+        var persistence = new DimensionPersistence(store, _ => false);
 
         persistence.Save(new[]
         {
@@ -63,7 +62,7 @@ public sealed class DimensionPersistenceTests
     [Fact]
     public void LoadOrEmpty_Should_Return_Empty_When_Store_Has_No_Data()
     {
-        var persistence = new DimensionPersistence(new InMemoryManifestStore(), new FakeModLoaderQuery());
+        var persistence = new DimensionPersistence(new InMemoryManifestStore(), _ => false);
         Assert.Empty(persistence.LoadOrEmpty());
     }
 
@@ -72,7 +71,7 @@ public sealed class DimensionPersistenceTests
     {
         var store = new InMemoryManifestStore();
         store.Write(DimensionPersistence.ManifestKey, new byte[] { 0x00, 0xFF, 0xAB });
-        var persistence = new DimensionPersistence(store, new FakeModLoaderQuery());
+        var persistence = new DimensionPersistence(store, _ => false);
         Assert.Empty(persistence.LoadOrEmpty());
     }
 
@@ -85,7 +84,7 @@ public sealed class DimensionPersistenceTests
         // sequence makes TreeAttribute.FromBytes throw, exercising the actual catch block.
         store.Write(DimensionPersistence.ManifestKey, new byte[] { 0xFF, 0x01, 0x02 });
         var logger = Substitute.For<ILogger>();
-        var persistence = new DimensionPersistence(store, new FakeModLoaderQuery(), logger);
+        var persistence = new DimensionPersistence(store, _ => false, logger);
 
         // The corrupt manifest recovery (re-registration at boot) is otherwise silent; it must log.
         _ = new List<ManifestEntry>(persistence.LoadOrEmpty());
@@ -96,7 +95,7 @@ public sealed class DimensionPersistenceTests
     [Fact]
     public void Classify_Should_Mark_Entry_Quarantined_When_Owner_Mod_Absent()
     {
-        var persistence = new DimensionPersistence(new InMemoryManifestStore(), new FakeModLoaderQuery());
+        var persistence = new DimensionPersistence(new InMemoryManifestStore(), _ => false);
         var entry = new ManifestEntry(Code("ghost:dim"), 50, DimensionLifetime.Persistent, "ghost");
         Assert.Equal(DimensionState.Quarantined, persistence.Classify(entry));
     }
@@ -106,7 +105,7 @@ public sealed class DimensionPersistenceTests
     {
         var persistence = new DimensionPersistence(
             new InMemoryManifestStore(),
-            new FakeModLoaderQuery { LoadedMods = { "mod" } });
+            m => m == "mod");
         var entry = new ManifestEntry(Code("mod:dim"), 50, DimensionLifetime.Persistent, "mod");
         Assert.Equal(DimensionState.Pending, persistence.Classify(entry));
     }

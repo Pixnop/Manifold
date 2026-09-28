@@ -54,16 +54,9 @@ public override void StartServerSide(ICoreServerAPI sapi)
     base.StartServerSide(sapi);
 
     var manifold = sapi.GetManifoldServer(this);
-    if (!manifold.IsHealthy)
-    {
-        Mod.Logger.Warning("[MyMod] Manifold is unhealthy; dimension features disabled.");
-        return;
-    }
     // ...
 }
 ```
-
-`IsHealthy` is `true` when Manifold initialized successfully. Check it and bail out gracefully if it is `false`.
 
 ## 4. Register a Dimension
 
@@ -124,11 +117,6 @@ public sealed class MyModSystem : ModSystem
         base.StartServerSide(sapi);
 
         var manifold = sapi.GetManifoldServer(this);
-        if (!manifold.IsHealthy)
-        {
-            Mod.Logger.Warning("[MyMod] Manifold unhealthy; dimension features disabled.");
-            return;
-        }
 
         // Register a void (all-air) dimension.
         manifold.Registry

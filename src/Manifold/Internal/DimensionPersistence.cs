@@ -17,17 +17,17 @@ internal sealed class DimensionPersistence
     public const string ManifestKey = "manifold:manifest";
 
     private readonly IManifestStore _store;
-    private readonly IModLoaderQuery _modLoaderQuery;
+    private readonly System.Func<string, bool> _isModLoaded;
     private readonly ILogger? _logger;
 
     /// <summary>Initializes a new instance of the <see cref="DimensionPersistence"/> class.</summary>
     /// <param name="store">Manifest byte store.</param>
-    /// <param name="modLoaderQuery">Mod loader probe for orphan detection.</param>
+    /// <param name="isModLoaded">Mod loader probe for orphan detection (e.g. <c>sapi.ModLoader.IsModEnabled</c>).</param>
     /// <param name="logger">Optional logger used to report a corrupt manifest. <c>null</c> silences the report.</param>
-    public DimensionPersistence(IManifestStore store, IModLoaderQuery modLoaderQuery, ILogger? logger = null)
+    public DimensionPersistence(IManifestStore store, System.Func<string, bool> isModLoaded, ILogger? logger = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
-        _modLoaderQuery = modLoaderQuery ?? throw new ArgumentNullException(nameof(modLoaderQuery));
+        _isModLoaded = isModLoaded ?? throw new ArgumentNullException(nameof(isModLoaded));
         _logger = logger;
     }
 
@@ -120,7 +120,7 @@ internal sealed class DimensionPersistence
     /// <param name="entry">Entry to classify.</param>
     /// <returns><see cref="DimensionState.Pending"/> if owner loaded; otherwise <see cref="DimensionState.Quarantined"/>.</returns>
     public DimensionState Classify(ManifestEntry entry) =>
-        _modLoaderQuery.IsModLoaded(entry.OwnerModId)
+        _isModLoaded(entry.OwnerModId)
             ? DimensionState.Pending
             : DimensionState.Quarantined;
 }

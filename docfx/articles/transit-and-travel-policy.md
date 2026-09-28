@@ -21,7 +21,7 @@ Must be called on the **main thread**. The method:
 6. Teleports the player, then applies the target's game-mode policy (forces its mode, or restores the saved one) and swaps separated inventory categories.
 7. Raises `PlayerLeft` (source dimension) and `PlayerEntered` (target dimension).
 
-Throws `DimensionNotFoundException` if the code is unknown, `DimensionStateException` if the dimension is not `Active`, or `ManifoldUnhealthyException` if Manifold failed to initialize.
+Throws `DimensionNotFoundException` if the code is unknown, or `DimensionStateException` if the dimension is not `Active`.
 
 ```csharp
 var transitions = manifold.Transitions;
@@ -103,8 +103,7 @@ if (sel?.Position is { } src)
 }
 ```
 
-Throws the same `DimensionNotFoundException` / `DimensionStateException` / `ManifoldUnhealthyException`
-as `TeleportPlayer`.
+Throws the same `DimensionNotFoundException` / `DimensionStateException` as `TeleportPlayer`.
 
 ## Transit events
 

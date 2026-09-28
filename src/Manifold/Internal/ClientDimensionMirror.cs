@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Manifold.Api;
 using Manifold.Internal.Networking;
 using Vintagestory.API.Common;
@@ -33,19 +34,7 @@ internal sealed class ClientDimensionMirror
     public event Action<IDimension>? Removed;
 
     /// <summary>Current snapshot of mirrored dimensions.</summary>
-    public IReadOnlyCollection<IDimension> All
-    {
-        get
-        {
-            var list = new List<IDimension>(_snapshot.Count);
-            foreach (var dim in _snapshot.Values)
-            {
-                list.Add(dim);
-            }
-
-            return list.AsReadOnly();
-        }
-    }
+    public IReadOnlyCollection<IDimension> All => _snapshot.Values.Cast<IDimension>().ToList().AsReadOnly();
 
     /// <summary>Find a mirrored dimension by code.</summary>
     /// <param name="code">Asset code.</param>

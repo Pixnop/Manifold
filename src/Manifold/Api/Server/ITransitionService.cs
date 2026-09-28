@@ -46,7 +46,6 @@ public interface ITransitionService
     /// <exception cref="System.ArgumentNullException"><paramref name="player"/> or <paramref name="targetDim"/> is null.</exception>
     /// <exception cref="Manifold.Api.DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>
-    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
     void TeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
@@ -61,7 +60,6 @@ public interface ITransitionService
     /// <exception cref="System.ArgumentNullException"><paramref name="player"/> or <paramref name="targetDim"/> is null.</exception>
     /// <exception cref="Manifold.Api.DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>
-    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
     bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
@@ -76,7 +74,6 @@ public interface ITransitionService
     /// <exception cref="System.ArgumentException">The entity is a player.</exception>
     /// <exception cref="DimensionNotFoundException">No dimension with that code.</exception>
     /// <exception cref="DimensionStateException">The destination is not active.</exception>
-    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
     void TeleportEntity(Entity entity, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
@@ -97,6 +94,5 @@ public interface ITransitionService
     /// </exception>
     /// <exception cref="DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="DimensionStateException">Target is not Active.</exception>
-    /// <exception cref="Manifold.Api.ManifoldUnhealthyException">Manifold's Harmony patches failed at boot.</exception>
     bool TeleportBlock(BlockPos source, AssetLocation targetDim, BlockPos targetLocal);
 }

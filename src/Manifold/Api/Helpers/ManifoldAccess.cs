@@ -16,8 +16,8 @@ namespace Manifold.Api.Helpers;
 /// </remarks>
 public static class ManifoldAccess
 {
-    private static Func<ICoreServerAPI, IManifoldServer?>? _serverResolver;
-    private static Func<ICoreClientAPI, IManifoldClient?>? _clientResolver;
+    private static IManifoldServer? _server;
+    private static IManifoldClient? _client;
 
     /// <summary>
     /// Resolves the server-side Manifold facade for the supplied API.
@@ -28,7 +28,7 @@ public static class ManifoldAccess
     public static IManifoldServer? GetServer(ICoreServerAPI sapi)
     {
         ArgumentNullException.ThrowIfNull(sapi);
-        return _serverResolver?.Invoke(sapi);
+        return _server;
     }
 
     /// <summary>
@@ -40,20 +40,18 @@ public static class ManifoldAccess
     public static IManifoldClient? GetClient(ICoreClientAPI capi)
     {
         ArgumentNullException.ThrowIfNull(capi);
-        return _clientResolver?.Invoke(capi);
+        return _client;
     }
 
     /// <summary>
-    /// Installs the server resolver. Called by <c>ManifoldModSystem</c>; not for consumer use.
+    /// Installs the server facade. Called by <c>ManifoldModSystem</c>; not for consumer use.
     /// </summary>
-    /// <param name="resolver">Resolver delegate, or <c>null</c> to clear.</param>
-    internal static void SetServerResolver(Func<ICoreServerAPI, IManifoldServer?>? resolver) =>
-        _serverResolver = resolver;
+    /// <param name="server">The facade, or <c>null</c> to clear.</param>
+    internal static void SetServerResolver(IManifoldServer? server) => _server = server;
 
     /// <summary>
-    /// Installs the client resolver. Called by <c>ManifoldModSystem</c>; not for consumer use.
+    /// Installs the client facade. Called by <c>ManifoldModSystem</c>; not for consumer use.
     /// </summary>
-    /// <param name="resolver">Resolver delegate, or <c>null</c> to clear.</param>
-    internal static void SetClientResolver(Func<ICoreClientAPI, IManifoldClient?>? resolver) =>
-        _clientResolver = resolver;
+    /// <param name="client">The facade, or <c>null</c> to clear.</param>
+    internal static void SetClientResolver(IManifoldClient? client) => _client = client;
 }

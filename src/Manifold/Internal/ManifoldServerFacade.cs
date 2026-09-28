@@ -20,19 +20,16 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     /// <param name="transitions">Transit service.</param>
     /// <param name="sapi">Server API (used by <see cref="RelightRegion"/>).</param>
     /// <param name="generator">Dimension generator (used by <see cref="GenerateRegion"/>).</param>
-    /// <param name="isHealthy">Whether Harmony patches applied successfully.</param>
     public ManifoldServerFacade(
         IDimensionRegistry registry,
         ITransitionService transitions,
         ICoreServerAPI sapi,
-        DimensionGenerator generator,
-        bool isHealthy)
+        DimensionGenerator generator)
     {
         Registry = registry ?? throw new ArgumentNullException(nameof(registry));
         Transitions = transitions ?? throw new ArgumentNullException(nameof(transitions));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
-        IsHealthy = isHealthy;
     }
 
     /// <inheritdoc/>
@@ -42,7 +39,7 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     public ITransitionService Transitions { get; }
 
     /// <inheritdoc/>
-    public bool IsHealthy { get; }
+    public bool IsHealthy => true;
 
     /// <inheritdoc/>
     public void RelightRegion(AssetLocation dimension, BlockPos min, BlockPos max)
@@ -50,11 +47,6 @@ internal sealed class ManifoldServerFacade : IManifoldServer
         ArgumentNullException.ThrowIfNull(dimension);
         ArgumentNullException.ThrowIfNull(min);
         ArgumentNullException.ThrowIfNull(max);
-        if (!IsHealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; relight is disabled.");
-        }
 
         var dim = Registry.Get(dimension)
             ?? throw new DimensionNotFoundException($"No dimension registered with code '{dimension}'.");
@@ -68,11 +60,6 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     public bool ForceRemoveDimension(AssetLocation dimension)
     {
         ArgumentNullException.ThrowIfNull(dimension);
-        if (!IsHealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; dimension removal is disabled.");
-        }
 
         var dim = Registry.Get(dimension);
         if (dim is null)
@@ -100,11 +87,6 @@ internal sealed class ManifoldServerFacade : IManifoldServer
     {
         ArgumentNullException.ThrowIfNull(dimension);
         ArgumentNullException.ThrowIfNull(center);
-        if (!IsHealthy)
-        {
-            throw new ManifoldUnhealthyException(
-                "Manifold patches failed at boot; pregeneration is disabled.");
-        }
 
         var dim = DimensionGate.RequireActive(Registry, dimension);
         _generator.EnsureRegion(
