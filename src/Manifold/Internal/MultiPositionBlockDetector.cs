@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 
@@ -182,35 +184,33 @@ internal static class MultiPositionBlockDetector
     /// </summary>
     private static bool TryFindControlledSatellite(IBlockAccessor accessor, BlockPos pos, out BlockPos? satellitePos)
     {
-        var probe = pos.Copy();
+        satellitePos = Neighbourhood(pos).FirstOrDefault(probe => IsSatelliteOf(accessor, probe, pos));
+        return satellitePos is not null;
+    }
+
+    /// <summary>Every position in the bounded search box around <paramref name="pos"/>, except <paramref name="pos"/> itself.</summary>
+    private static IEnumerable<BlockPos> Neighbourhood(BlockPos pos)
+    {
         for (int dy = -VerticalSearchRadius; dy <= VerticalSearchRadius; dy++)
         {
             for (int dx = -HorizontalSearchRadius; dx <= HorizontalSearchRadius; dx++)
             {
                 for (int dz = -HorizontalSearchRadius; dz <= HorizontalSearchRadius; dz++)
                 {
-                    if (dx == 0 && dy == 0 && dz == 0)
+                    if (dx != 0 || dy != 0 || dz != 0)
                     {
-                        continue;
-                    }
-
-                    probe.Set(pos.X + dx, pos.Y + dy, pos.Z + dz);
-                    Block probeBlock = accessor.GetBlock(probe);
-                    if (!TryGetSatelliteControlPos(accessor, probeBlock, probe, out BlockPos? control) || control is null)
-                    {
-                        continue;
-                    }
-
-                    if (control.X == pos.X && control.Y == pos.Y && control.Z == pos.Z)
-                    {
-                        satellitePos = probe.Copy();
-                        return true;
+                        yield return new BlockPos(pos.X + dx, pos.Y + dy, pos.Z + dz, pos.dimension);
                     }
                 }
             }
         }
-
-        satellitePos = null;
-        return false;
     }
+
+    /// <summary>Whether the block at <paramref name="probe"/> is a live satellite whose controller is <paramref name="controller"/>.</summary>
+    private static bool IsSatelliteOf(IBlockAccessor accessor, BlockPos probe, BlockPos controller) =>
+        TryGetSatelliteControlPos(accessor, accessor.GetBlock(probe), probe, out BlockPos? control)
+        && control is not null
+        && control.X == controller.X
+        && control.Y == controller.Y
+        && control.Z == controller.Z;
 }
