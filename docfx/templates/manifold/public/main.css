@@ -962,20 +962,25 @@ footer.border-top {
    none). main.js writes --mf-drift-y from scroll position; inert until it
    does, and the property itself is dropped under reduced motion.
    -------------------------------------------------------------------------- */
+/* Landing content sits above the drift layer (z-index: 1) so a drifting island can never paint
+   over a card or a paragraph; the islands themselves stay behind at z-index: 0. Each also gets a
+   clamp() on its own translateY range (data-drift-range, defaulting to 40px) so a long scroll
+   can't carry one across a section it isn't meant to be near. */
 body[data-layout='landing'] article { position: relative; }
+body[data-layout='landing'] article > :not(.mf-drift-zone) { position: relative; z-index: 1; }
 .mf-drift-zone {
   position: relative;
+  z-index: 0;
   height: 0;
   overflow: visible;
 }
 .mf-drift {
   position: absolute;
-  z-index: 0;
   width: 110px;
   height: auto;
-  opacity: 0.5;
+  filter: blur(0.5px);
   pointer-events: none;
-  transform: translateY(var(--mf-drift-y, 0px));
+  transform: translateY(clamp(calc(-1 * var(--mf-drift-range, 40px)), var(--mf-drift-y, 0px), var(--mf-drift-range, 40px)));
 }
 @media (prefers-reduced-motion: reduce) {
   .mf-drift { transform: none; }
