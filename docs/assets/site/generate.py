@@ -73,11 +73,20 @@ def hero_background(light=False):
     clouds = moddb.nebula(rng, w, h, tile=False)
     if light:
         # nebula() is built around a dark ground; lift it toward the sky before tinting so the
-        # bottom stays a legible (if deep) blue instead of near-black.
-        clouds = clouds * 0.35 + np.array(mix(SLATE_LIGHT, ICE, 0.5), dtype=float) * 0.65
+        # bottom stays a legible (if deep) blue instead of near-black. Keeping more of the nebula
+        # texture (0.5 instead of 0.35) than the flat tint stops the sky reading as a uniform
+        # overcast gradient with no place in it.
+        clouds = clouds * 0.5 + np.array(mix(SLATE_LIGHT, ICE, 0.5), dtype=float) * 0.5
         top_tint = np.array(mix(ICE, WHITE, 0.5), dtype=float)
         fade = np.clip(1 - np.arange(h) / (h * 0.6), 0, 1)[:, None, None] ** 1.4
         clouds = clouds * (1 - fade * 0.7) + top_tint * (fade * 0.7)
+        # a warm patch centred where the portal island sits (roughly mid-height, mid-width):
+        # daylight with nowhere warm in it read as flat; this is the same "lit overworld" cue the
+        # dark variant gets from its portal glow, without needing the portal art itself here.
+        yy, xx = np.mgrid[0:h, 0:w]
+        portal_dist = np.sqrt(((xx - w * 0.5) / (w * 0.42)) ** 2 + ((yy - h * 0.56) / (h * 0.38)) ** 2)
+        warm = np.clip(1 - portal_dist, 0, 1)[:, :, None] ** 1.8
+        clouds = clouds * (1 - warm * 0.4) + np.array(SALMON_LIGHT, dtype=float) * (warm * 0.4)
     else:
         top_tint = np.array(mix(ICE, SALMON_LIGHT, 0.3), dtype=float)
         fade = np.clip(1 - np.arange(h) / (h * 0.5), 0, 1)[:, None, None] ** 1.6
@@ -118,7 +127,9 @@ def hero_mid(t):
         j = 3.0 - 3.6 * u
         alpha = int(255 * min(1.0, u / 0.15) * min(1.0, (1 - u) / 0.35))
         fig = Scene(w, h)
-        fig.add(traveller(0.3, j, 0.05, alpha=alpha, size=0.9), w / 2, oy, 15)
+        # size=0.9 rendered at roughly 7 page px, unreadable at hero scale even at the loop's
+        # midpoint; 2.4 reads as a small figure instead of a flicker.
+        fig.add(traveller(0.3, j, 0.05, alpha=alpha, size=2.4), w / 2, oy, 15)
         img.alpha_composite(fig.render(bloom=0))
     return img
 
@@ -421,7 +432,7 @@ def drift_island(seed, radius=2, trees=0):
 # renderer. It also folds the last few frames back toward frame 0 (xfade) so the loop point is a
 # blend instead of a jump, and can emit a half-size companion for srcset on narrow viewports.
 
-def save_animated(name, frame_at, still_t, frames, quality=76, crop=True, size=None, xfade=0.08, mobile=False):
+def save_animated(name, frame_at, still_t, frames, quality=76, crop=True, size=None, xfade=0.08, mobile=False, frame_ms=None):
     frame_imgs = [frame_at(n / frames) for n in range(frames)]
     if xfade:
         span = max(1, int(frames * xfade))
@@ -494,10 +505,13 @@ if __name__ == "__main__":
         bg.resize((bg.width // 2, bg.height // 2), Image.LANCZOS).convert("RGB").save(
             OUT / f"hero-bg{suffix}-720.webp", quality=82, method=6)
     # all three share HERO_FRAMES's period so the parallax layers stay in phase with each other
-    # over repeated loops
-    save_animated("hero-far", hero_far, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True)
-    save_animated("hero-mid", hero_mid, 0.0, frames=HERO_FRAMES, quality=40, crop=False, mobile=True)
-    save_animated("hero-near", hero_near, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True)
+    # over repeated loops. frame_ms=220 (not moddb's 70) stretches that same 22-frame loop to
+    # 4.84s: at 70ms the loop read as a jitter rather than a slow drift, and the traveller in
+    # hero-mid appeared and vanished within 1.5s.
+    HERO_MS = 220
+    save_animated("hero-far", hero_far, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True, frame_ms=HERO_MS)
+    save_animated("hero-mid", hero_mid, 0.0, frames=HERO_FRAMES, quality=40, crop=False, mobile=True, frame_ms=HERO_MS)
+    save_animated("hero-near", hero_near, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True, frame_ms=HERO_MS)
 
     save_animated("highlight-pregeneration", pregeneration_scene, 0.9, frames=36, quality=80)
     save_animated("highlight-column-generated", column_generated_scene, 0.6, frames=36)
