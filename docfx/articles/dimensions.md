@@ -1,6 +1,6 @@
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-dimensions.png">
-<img class="mf-article-header" src="../assets/site/header-dimensions.webp" width="220" height="160" alt="Two settled islands and a third, ephemeral one fading in and out" loading="lazy" decoding="async">
+<img class="mf-article-header" src="../assets/site/header-dimensions.webp" width="220" height="160" alt="Two settled islands and a third, ephemeral one fading in and out" loading="eager" fetchpriority="high" decoding="async">
 </picture>
 
 # Dimensions

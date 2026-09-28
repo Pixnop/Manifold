@@ -1,6 +1,6 @@
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-getting-started.png">
-<img class="mf-article-header" src="../assets/site/header-getting-started.webp" width="220" height="160" alt="A portal gate assembling itself stone by stone" loading="lazy" decoding="async">
+<img class="mf-article-header" src="../assets/site/header-getting-started.webp" width="220" height="160" alt="A portal gate assembling itself stone by stone" loading="eager" fetchpriority="high" decoding="async">
 </picture>
 
 # Getting Started

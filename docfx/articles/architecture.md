@@ -1,6 +1,6 @@
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-architecture.png">
-<img class="mf-article-header" src="../assets/site/header-architecture.webp" width="220" height="160" alt="Three islands linked by transit arcs" loading="lazy" decoding="async">
+<img class="mf-article-header" src="../assets/site/header-architecture.webp" width="220" height="160" alt="Three islands linked by transit arcs" loading="eager" fetchpriority="high" decoding="async">
 </picture>
 
 # Architecture

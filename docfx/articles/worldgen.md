@@ -1,6 +1,6 @@
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-worldgen.png">
-<img class="mf-article-header" src="../assets/site/header-worldgen.webp" width="220" height="160" alt="A chunk of terrain building itself, block by block" loading="lazy" decoding="async">
+<img class="mf-article-header" src="../assets/site/header-worldgen.webp" width="220" height="160" alt="A chunk of terrain building itself, block by block" loading="eager" fetchpriority="high" decoding="async">
 </picture>
 
 # Worldgen
