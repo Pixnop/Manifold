@@ -685,3 +685,211 @@ footer.border-top {
     animation: none !important;
   }
 }
+
+/* ==========================================================================
+   Landing hero — the dimension descent. Four stacked layers (opaque
+   background, three transparent animated ones) in one box; the animated
+   layers swap to a still PNG under prefers-reduced-motion via <picture> in
+   the markup. main.js writes --mf-hero-dx/--mf-hero-dy on the stage from
+   pointer position and scroll progress; each layer multiplies that by its
+   own --mf-depth, so the layers drift at different rates (parallax) — the
+   custom properties inherit from the stage to its children, no per-layer
+   JS needed. Everything here is inert without JS and off under reduced
+   motion or on a touch device (main.js gates on both; the transform itself
+   simply never changes from 0 if nothing writes to it).
+   ========================================================================== */
+.mf-hero--dimension { margin-bottom: 1rem; }
+.mf-hero__stage {
+  --mf-hero-dx: 0px;
+  --mf-hero-dy: 0px;
+  position: relative;
+  width: min(1440px, 100%);
+  aspect-ratio: 1440 / 640;
+  margin: 0 auto 1.5rem;
+  border-radius: var(--mf-radius);
+  overflow: hidden;
+  background: var(--mf-void);
+}
+.mf-hero__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: translate3d(calc(var(--mf-hero-dx) * var(--mf-depth)), calc(var(--mf-hero-dy) * var(--mf-depth)), 0);
+}
+.mf-hero__layer--bg { z-index: 1; --mf-depth: 0; }
+.mf-hero__layer--far { z-index: 2; --mf-depth: 0.3; }
+.mf-hero__layer--mid { z-index: 3; --mf-depth: 0.6; }
+.mf-hero__layer--near { z-index: 4; --mf-depth: 1; }
+.mf-hero__sparks {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.mf-hero__portal-link {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 16%;
+  height: 34%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  border-radius: 50%;
+  outline-offset: 6px;
+}
+.mf-hero__portal-glow { position: absolute; inset: -30%; z-index: -1; }
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .mf-hero__layer { transform: none !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Section headings that build themselves — a row of small blocks under the
+   heading fades and rises into place, staggered, the first time it scrolls
+   into view. main.js appends the block row and toggles .is-visible via an
+   IntersectionObserver; under reduced motion the blocks are simply shown
+   at rest (no observer runs).
+   -------------------------------------------------------------------------- */
+.mf-build-heading__blocks {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin: 0.5rem 0 0;
+}
+.mf-build-heading__blocks span {
+  width: 10px;
+  height: 10px;
+  background: var(--mf-green);
+  opacity: 0;
+  transform: translateY(6px) scale(0.6);
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+.mf-build-heading.is-visible .mf-build-heading__blocks span {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(1) { transition-delay: 0ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(2) { transition-delay: 55ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(3) { transition-delay: 110ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(4) { transition-delay: 165ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(5) { transition-delay: 220ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(6) { transition-delay: 275ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(7) { transition-delay: 330ms; }
+@media (prefers-reduced-motion: reduce) {
+  .mf-build-heading__blocks span { opacity: 1; transform: none; transition: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Console command snippets — /manifold purge, /miningdim, and friends,
+   styled like the game's own chat log rather than a generic code block
+   (which stays for C#). Deliberately dark in both site themes: it is a
+   picture of the game's UI, not themed prose.
+   -------------------------------------------------------------------------- */
+.mf-console {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--mf-font-mono);
+  font-size: 0.92rem;
+  background: var(--mf-void-2);
+  color: var(--mf-green-light);
+  border: 1px solid var(--bs-border-color);
+  border-left: 3px solid var(--mf-green);
+  border-radius: var(--mf-radius);
+  padding: 0.6rem 1rem;
+  margin: 0.9rem 0;
+}
+.mf-console__prompt { color: var(--mf-green); font-weight: 700; }
+.mf-console code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+
+/* --------------------------------------------------------------------------
+   Portal travel — clicking the hero gate plays a short expanding-circle
+   swirl centred on the gate, then navigates. Scoped to that one link by
+   main.js (not a site-wide view-transition), so the rest of the site keeps
+   ordinary instant navigation. Skipped entirely under reduced motion: the
+   click just navigates.
+   -------------------------------------------------------------------------- */
+.mf-portal-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--mf-portal-x, 50%) var(--mf-portal-y, 50%), var(--mf-salmon) 0%, var(--mf-void) 70%);
+  clip-path: circle(0% at var(--mf-portal-x, 50%) var(--mf-portal-y, 50%));
+  animation: mf-portal-travel 480ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+@keyframes mf-portal-travel {
+  to { clip-path: circle(150% at var(--mf-portal-x, 50%) var(--mf-portal-y, 50%)); }
+}
+
+/* --------------------------------------------------------------------------
+   Hidden portal — type "manifold" anywhere, or the Konami code, to open a
+   small overlay with a secret line. Reduced motion keeps the overlay
+   (content, not motion) and only drops the fade-in.
+   -------------------------------------------------------------------------- */
+.mf-secret-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(14, 17, 22, 0.82);
+  backdrop-filter: blur(4px);
+  animation: mf-secret-fade 200ms ease;
+}
+.mf-secret-portal__panel {
+  position: relative;
+  max-width: 26rem;
+  padding: 2rem 1.75rem;
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--mf-salmon);
+  background: var(--mf-void-2);
+  color: var(--mf-text);
+  text-align: center;
+}
+.mf-secret-portal__glow { position: absolute; inset: -40% -20% auto -20%; height: 140%; z-index: -1; }
+.mf-secret-portal__line {
+  font-family: var(--mf-font-heading);
+  font-size: 1.05rem;
+  margin-bottom: 1.25rem;
+}
+@keyframes mf-secret-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .mf-portal-transition { display: none; }
+  .mf-secret-portal { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Article header loops — a small looping illustration at the top of each
+   article, same still-swap treatment as the hero layers.
+   -------------------------------------------------------------------------- */
+.mf-article-header {
+  display: block;
+  width: 220px;
+  height: 160px;
+  margin: 0 0 1.5rem;
+  border-radius: var(--mf-radius);
+}
+
+/* --------------------------------------------------------------------------
+   404 — "you fell out of the world".
+   -------------------------------------------------------------------------- */
+.mf-404 {
+  max-width: 32rem;
+  margin: 3rem auto;
+  text-align: center;
+}
+.mf-404 img {
+  width: 220px;
+  height: 160px;
+  margin: 0 auto 1.5rem;
+}
+.mf-404 p {
+  color: var(--bs-secondary-color);
+  margin-bottom: 1.75rem;
+}
