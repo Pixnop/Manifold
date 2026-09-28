@@ -76,7 +76,7 @@ public class UpgradeVerifyScenarios : CompatVerifyScenarioBase
 
         // A second player's last-visited position: unlike the primary player above, this one
         // never transits during THIS verifier run before being checked, so nothing here can have
-        // overwritten its "compat" position-store entry - the entry read below was written
+        // overwritten its "compat" position-store entry: the entry read below was written
         // entirely by the 0.5.1 side (see UpgradeFixtureBuilderScenarios) and never touched since.
         BlockPos secondLastVisited = ReadPosition("secondlastvisited", dimId);
         ITestPlayer second = await World.JoinPlayer("compat051-second");

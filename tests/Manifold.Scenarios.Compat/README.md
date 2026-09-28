@@ -34,7 +34,7 @@ in it, regardless of what each class's own `[AtlasWorld(Mods = [...])]` says to 
 caught, not theorized: with both directions in one project, `DowngradeVerifyScenarios` kept
 passing while actually booting the dev build's `Manifold.dll` the entire time (it logs
 `"[Manifold] Initialized."`, the dev build's own message; the 0.5.1 release logs `"[Manifold]
-Initialized (healthy)."` and `"Harmony ready"`, neither of which ever appeared) - the assertions
+Initialized (healthy)."` and `"Harmony ready"`, neither of which ever appeared): the assertions
 happened to hold for the wrong build, because a same-schema save loads back fine regardless of
 which build reads it, so nothing failed loudly.
 

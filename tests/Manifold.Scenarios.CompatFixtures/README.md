@@ -14,7 +14,7 @@ project at all.
 `BuildTheDowngradeFixture` (this project) needs the dev build; `BuildTheUpgradeFixture`
 (`Manifold.Scenarios.CompatFixturesUpgrade`) needs the published 0.5.1 release instead. Both
 were originally two classes in this one project, staged against different builds of Manifold's
-frozen-identity dll (see `Directory.Build.props`) - which a single .NET process cannot actually
+frozen-identity dll (see `Directory.Build.props`), which a single .NET process cannot actually
 do: whichever build's dll a `ProjectReference` copies into the shared output directory wins
 default assembly probing for the WHOLE process, silently, no matter what each class's own
 `[AtlasWorld(Mods = [...])]` says to stage. `Manifold.Scenarios.Compat/README.md`'s "Why two
@@ -51,7 +51,7 @@ other) is the only piece specific to this task.
 
 Both output files are committed (about 2 MB each), so an ordinary contributor never needs to
 run either project just to get a working `Manifold.Scenarios.Compat` / `...CompatDowngrade`
-checkout. That commit is not, by itself, a staleness guard - it is the opposite: a committed
+checkout. That commit is not, by itself, a staleness guard: it is the opposite, a committed
 file is a frozen snapshot, and a snapshot goes stale the moment what it is a snapshot OF
 changes underneath it. `upgrade-from-0.5.1.vcdbs` cannot go stale, because 0.5.1 is a frozen,
 published release that will never change; a committed snapshot of it is exactly as fresh five
@@ -59,7 +59,7 @@ years from now as it is today. `downgrade-from-dev.vcdbs` has no such guarantee:
 snapshot of whatever this repo's dev persistence code (the manifest format, the sidecar, the
 player position/inventory blobs) happened to write on the day someone last regenerated it. Any
 later change to that code before 0.6.0 ships leaves `DowngradeVerifyScenarios` boot against, and
-pass against, an OLD dev save - not what the release will actually write - and nothing forces a
+pass against, an OLD dev save, not what the release will actually write, and nothing forces a
 contributor to notice and regenerate it; a stale-but-passing scenario is worse than no scenario,
 since it looks like coverage that is not actually there.
 
@@ -68,8 +68,8 @@ every run, right before the `Manifold.Scenarios.CompatDowngrade` step, overwriti
 out copy in the runner's own workspace (never committed back): CI's build-then-harvest step
 costs a few seconds and removes the staleness risk entirely for the direction that actually has
 one. The committed copy still ships in the repo purely for local convenience (a `dotnet test`
-right after cloning, no extra tool install), and still needs a manual re-run - see "Running it"
-below - whenever `CompatFixtureModSystem` or `DowngradeFixtureBuilderScenarios` changes, so a
+right after cloning, no extra tool install), and still needs a manual re-run (see "Running it"
+below) whenever `CompatFixtureModSystem` or `DowngradeFixtureBuilderScenarios` changes, so a
 local run without network access to rebuild it still has something recent to work from.
 `upgrade-from-0.5.1.vcdbs` stays purely committed, generated in CI, never: nothing about it can
 go stale, so regenerating it on every run would only cost time for no benefit.

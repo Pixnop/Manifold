@@ -33,7 +33,7 @@ public class DowngradeFixtureBuilderScenarios : CompatFixtureScenarioBase
 
         // An overworld-only marker: stashed into the "overworld" category of the per-dimension
         // inventory profile the moment the player enters below, so it never sits in the live
-        // hotbar at harvest time - only inside Manifold's own persisted moddata. The verifier's
+        // hotbar at harvest time, only inside Manifold's own persisted moddata. The verifier's
         // "leave" call has to actually read that persisted store (written by THIS build) back
         // correctly to make it reappear; the engine's own generic save/load of the live hotbar
         // cannot produce that on its own (see DowngradeVerifyScenarios).
@@ -68,7 +68,7 @@ public class DowngradeFixtureBuilderScenarios : CompatFixtureScenarioBase
         // this scenario returns).
 
         // A second player, distinct from the one that stays inside "compat" for the harvest:
-        // enters from its own known spot, moves, and leaves - ending up in the OVERWORLD at
+        // enters from its own known spot, moves, and leaves, ending up in the OVERWORLD at
         // harvest time, with a "compat" LastVisited entry that exists only in THIS build's
         // position store. The verifier joins the same player, teleports it elsewhere in the
         // overworld, and enters: landing back at the recorded spot proves the entry was read

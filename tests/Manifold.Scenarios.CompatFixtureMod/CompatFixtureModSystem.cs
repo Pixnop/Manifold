@@ -55,7 +55,7 @@ public sealed class CompatFixtureModSystem : ModSystem
 
         // On the first ever boot only (no prior dimid), reserve one EPHEMERAL filler dimension
         // before "compat" registers, so first-fit hands the filler the lower id and "compat" the
-        // next one up - never id 10 itself. Ephemeral dimensions are never written to the
+        // next one up, never id 10 itself. Ephemeral dimensions are never written to the
         // manifest, so this filler leaves a PERMANENT gap at its id: every later boot (including
         // every reload of a committed fixture) has nothing reserved there at all, because nothing
         // ever asks for it again. This is what makes the "same internal id" check below actually
@@ -65,8 +65,8 @@ public sealed class CompatFixtureModSystem : ModSystem
         // manifest entry lost, RegisterStatic falling through to Reserve() instead of recovering
         // its old id) would always land back on the exact same id "compat" already has, id 10,
         // since nothing else is ever reserved to skip past. With the gap in place, that same
-        // fresh-allocation fallback lands on the gap's id instead - different from "compat"'s
-        // real, manifest-preserved id - so a lost manifest entry now actually fails this
+        // fresh-allocation fallback lands on the gap's id instead, different from "compat"'s
+        // real, manifest-preserved id, so a lost manifest entry now actually fails this
         // assertion instead of passing it by coincidence.
         if (previous is null)
         {

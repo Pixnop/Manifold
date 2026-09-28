@@ -30,7 +30,7 @@ Scenario code here never touches Manifold types directly, the same rule `Manifol
 follows and for the same reason: the ModLoader loads its own copy of whichever Manifold.dll is
 staged, a different assembly identity than anything this project could reference at compile
 time even if it wanted to (this project in particular carries no `ProjectReference` to
-`src/Manifold` at all - see the csproj comment on why one would be actively harmful here).
+`src/Manifold` at all, see the csproj comment on why one would be actively harmful here).
 Everything that talks to Manifold's API lives in `Manifold.Scenarios.CompatFixtureMod` (see its
 own doc comment), reached through two `/manicompat` commands (`enter`, `leave`) and read back
 through `SaveGame` data, the same boundary `ManifoldScenarioBase` uses in `Manifold.Scenarios`.
