@@ -61,6 +61,14 @@ public class DowngradeVerifyScenarios : CompatVerifyScenarioBase
         await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
         Assert.Equal(EnumGameMode.Survival, player.Player.WorldData.CurrentGameMode);
 
+        // Separate-inventory profile, the real cross-version read: this "leave" transit swaps in
+        // whatever the "overworld" category holds, and that snapshot was written by the dev side
+        // (see DowngradeFixtureBuilderScenarios) into Manifold's persisted moddata, never into
+        // the live hotbar the engine's own save/load would carry over on its own. Landing back on
+        // the marker item here means THIS build (0.5.1) correctly deserialized THAT build's store.
+        await World.Until(() => HotbarCount(player, "game:stick") == 5, timeoutTicks: 200);
+        Assert.Equal(0, HotbarCount(player, "game:gear-rusty"));
+
         // Last-visited position: moving somewhere else first, THEN re-entering, still lands back
         // at the coordinates the dev side recorded (not the current position, and not the
         // dimension's own spawn): proof the memory is read from the persisted profile, not from
@@ -69,5 +77,20 @@ public class DowngradeVerifyScenarios : CompatVerifyScenarioBase
         await player.TeleportTo(World.Spawn.Offset(500, 0, 500));
         await Ok("/manicompat enter compatdev");
         await LandedAt(player, dimId, lastVisited.X, lastVisited.Z);
+
+        // Separate-inventory profile, the symmetric swap back: the "compat" category the leave
+        // step above just wrote (this build's own gear-rusty snapshot) round-trips cleanly.
+        await World.Until(() => HotbarCount(player, "game:gear-rusty") == 3, timeoutTicks: 200);
+        Assert.Equal(0, HotbarCount(player, "game:stick"));
+
+        // A second player's last-visited position: unlike the primary player above, this one
+        // never transits during THIS verifier run before being checked, so nothing here can have
+        // overwritten its "compat" position-store entry - the entry read below was written
+        // entirely by the dev side (see DowngradeFixtureBuilderScenarios) and never touched since.
+        BlockPos secondLastVisited = ReadPosition("secondlastvisited", dimId);
+        ITestPlayer second = await World.JoinPlayer("compatdev-second");
+        await second.TeleportTo(World.Spawn.Offset(-500, 0, -500));
+        await Ok("/manicompat enter compatdev-second");
+        await LandedAt(second, dimId, secondLastVisited.X, secondLastVisited.Z);
     }
 }

@@ -30,6 +30,14 @@ public class UpgradeFixtureBuilderScenarios : CompatFixtureScenarioBase
         BlockPos start = World.Spawn.Offset(40, 0, 40);
         await player.TeleportTo(start);
 
+        // An overworld-only marker: stashed into the "overworld" category of the per-dimension
+        // inventory profile the moment the player enters below, so it never sits in the live
+        // hotbar at harvest time - only inside Manifold's own persisted moddata. The verifier's
+        // "leave" call has to actually read that persisted store (written by THIS build) back
+        // correctly to make it reappear; the engine's own generic save/load of the live hotbar
+        // cannot produce that on its own (see DowngradeVerifyScenarios/UpgradeVerifyScenarios).
+        await player.GiveItem("game:stick", 5);
+
         // First visit: LastVisited has nothing recorded, so entry falls back to the pre-transit
         // X/Z; entry also forces Creative, saving Survival to restore later.
         await Ok("/manicompat enter compat051");
@@ -62,5 +70,25 @@ public class UpgradeFixtureBuilderScenarios : CompatFixtureScenarioBase
         await Ok("/manicompat enter compat051");
         await LandedAt(player, dimId, lastVisited.X, lastVisited.Z);
         Assert.Equal(EnumGameMode.Creative, player.Player.WorldData.CurrentGameMode);
+
+        // A second player, distinct from the one that stays inside "compat" for the harvest:
+        // enters from its own known spot, moves, and leaves - ending up in the OVERWORLD at
+        // harvest time, with a "compat" LastVisited entry that exists only in THIS build's
+        // position store. The verifier joins the same player, teleports it elsewhere in the
+        // overworld, and enters: landing back at the recorded spot proves the entry was read
+        // from the persisted store across the version change (see UpgradeVerifyScenarios's own
+        // primary-player LastVisited check, which the verifier's own "leave" call would
+        // otherwise silently overwrite before the verifier ever reads it back).
+        ITestPlayer second = await World.JoinPlayer("compat051-second");
+        BlockPos secondStart = World.Spawn.Offset(-60, 0, 60);
+        await second.TeleportTo(secondStart);
+        await Ok("/manicompat enter compat051-second");
+        await LandedAt(second, dimId, secondStart.X, secondStart.Z);
+
+        var secondLastVisited = new BlockPos(second.Position.X - 5, second.Position.Y, second.Position.Z - 5, dimId);
+        await second.TeleportTo(secondLastVisited);
+        await Ok("/manicompat leave compat051-second");
+        await World.Until(() => second.Position.dimension == 0, timeoutTicks: 600);
+        PublishPosition("secondlastvisited", secondLastVisited);
     }
 }
