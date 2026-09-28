@@ -1,5 +1,10 @@
 # Architecture
 
+<picture>
+<source media="(prefers-reduced-motion: reduce)" srcset="../assets/site/header-architecture.png">
+<img class="mf-article-header" src="../assets/site/header-architecture.webp" width="220" height="160" alt="Three islands linked by transit arcs" loading="lazy" decoding="async">
+</picture>
+
 This document gives an overview of Manifold's internal structure: how the components relate, the server/client split, and why no Harmony patches are used.
 
 ## Entry Point: ManifoldModSystem
