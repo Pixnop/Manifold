@@ -337,6 +337,56 @@ public sealed class TransitServiceTests
     }
 
     [Fact]
+    public void TeleportBlock_Should_Return_False_And_Not_Call_Mover_When_Source_Is_MultiPosition()
+    {
+        var (svc, _, _, _, blockMover, sapi) = NewServiceWithApi();
+        blockMover.IsMultiPosition(Arg.Any<BlockPos>(), out Arg.Any<string?>())
+            .Returns(x =>
+            {
+                x[1] = "one half of a two-block bed";
+                return true;
+            });
+        var src = new BlockPos(1, 64, 1, 0);
+        var dst = new BlockPos(2, 64, 2, 0);
+
+        bool moved = svc.TeleportBlock(src, Code("owner:target"), dst);
+
+        Assert.False(moved);
+        blockMover.DidNotReceive().Move(Arg.Any<BlockPos>(), Arg.Any<BlockPos>());
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
+    public void TeleportBlock_Should_Call_Mover_When_Source_Is_Not_MultiPosition()
+    {
+        var (svc, _, _, _, blockMover) = NewService();
+        blockMover.IsMultiPosition(Arg.Any<BlockPos>(), out Arg.Any<string?>()).Returns(false);
+        var src = new BlockPos(1, 64, 1, 0);
+        var dst = new BlockPos(2, 64, 2, 0);
+
+        svc.TeleportBlock(src, Code("owner:target"), dst);
+
+        blockMover.Received(1).Move(src, Arg.Any<BlockPos>());
+    }
+
+    [Fact]
+    public void IsMultiPositionBlock_Should_Delegate_To_BlockMover()
+    {
+        var (svc, _, _, _, blockMover) = NewService();
+        var pos = new BlockPos(1, 64, 1, 0);
+        blockMover.IsMultiPosition(pos, out Arg.Any<string?>()).Returns(true);
+
+        Assert.True(svc.IsMultiPositionBlock(pos));
+    }
+
+    [Fact]
+    public void IsMultiPositionBlock_Should_Throw_When_Pos_Is_Null()
+    {
+        var (svc, _, _, _, _) = NewService();
+        Assert.Throws<ArgumentNullException>(() => svc.IsMultiPositionBlock(null!));
+    }
+
+    [Fact]
     public void TeleportBlock_Should_Throw_When_Source_Is_Null()
     {
         var (svc, _, _, _, _) = NewService();
