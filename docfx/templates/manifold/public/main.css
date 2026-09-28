@@ -223,6 +223,9 @@ header.border-bottom {
    -------------------------------------------------------------------------- */
 code, pre, kbd, samp, .code-action {
   font-family: var(--mf-font-mono);
+  /* JetBrains Mono ligates => into a single arrow glyph; in a C# sample that can read as a
+     literal character a reader might copy by eye, so code stays letter-for-letter. */
+  font-variant-ligatures: none;
 }
 :not(pre) > code {
   background-color: var(--bs-tertiary-bg);
@@ -377,11 +380,29 @@ article table th {
 }
 article table tr:hover td { background-color: var(--bs-border-color-translucent); }
 
-/* API member sections (docfx "modern" reference pages). */
+/* API member sections (docfx "modern" reference pages): the member name (h3) and its Returns /
+   Parameters / Exceptions / Remarks sub-headings (h4.section) rendered at nearly the same size,
+   so the member hierarchy was weak. The h3 stays a real heading in the mono font (this is a
+   symbol, not prose); the h4 labels shrink to small-caps muted tags. */
 article h4[id] {
   border-top: 1px solid var(--bs-border-color);
   padding-top: 1rem;
   margin-top: 1.75rem;
+}
+article h3[data-uid] {
+  font-family: var(--mf-font-mono);
+  font-size: 1.15rem;
+  color: var(--mf-salmon);
+}
+:root[data-bs-theme='light'] article h3[data-uid] { color: var(--mf-terracotta-deep); }
+article h4.section {
+  font-family: var(--mf-font-heading);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bs-secondary-color);
+  margin-top: 1.1rem;
 }
 .memberInfo, dl.parameters, dl.exceptions {
   border-left: 2px solid var(--bs-border-color);
@@ -391,24 +412,29 @@ article h4[id] {
 /* --------------------------------------------------------------------------
    Sidebar / TOC: active item marked in salmon.
    -------------------------------------------------------------------------- */
-#toc .nav-link,
-.affix .nav-link {
+/* docfx's runtime toc/affix builder renders plain <a> tags, not Bootstrap .nav-link: the toc
+   marks the current page with .active on the <li>, and the affix ("In this article") list uses
+   Bootstrap's own .link-body-emphasis class with no active state of its own. Targeting the
+   .nav-link class these never carry left both the active marker and the affix colour dead,
+   falling through to the browser default (pure black/white, off-palette in both themes). */
+#toc li > a,
+.affix a.link-body-emphasis {
   color: var(--bs-secondary-color);
   border-radius: 4px;
   transition: color var(--mf-transition), background-color var(--mf-transition);
 }
-#toc .nav-link:hover,
-.affix .nav-link:hover {
+#toc li > a:hover,
+.affix a.link-body-emphasis:hover {
   color: var(--bs-body-color);
   background-color: var(--bs-tertiary-bg);
 }
-#toc .nav-link.active,
-.affix .nav-link.active {
+#toc li.active > a {
   color: var(--mf-salmon);
   font-weight: 600;
   background-color: rgba(226, 143, 112, 0.10);
   border-left: 2px solid var(--mf-salmon);
 }
+:root[data-bs-theme='light'] #toc li.active > a { color: var(--mf-terracotta-deep); }
 #tocFilter, .tocFilter input {
   background-color: var(--bs-tertiary-bg);
   border-color: var(--bs-border-color);
