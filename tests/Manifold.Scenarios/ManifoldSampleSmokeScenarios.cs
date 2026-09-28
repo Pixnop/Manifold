@@ -152,15 +152,22 @@ public class ManifoldSampleSmokeScenarios : ManifoldScenarioBase
         await player.GiveItem("game:stick", 3);
         Assert.Equal(3, HotbarCount(player, "game:stick"));
 
+        int overworldX = player.Position.X, overworldZ = player.Position.Z;
+
         int vaultId = await SampleDimensionId("vault");
         CommandResult toVault = await player.ExecuteCommand("/vaultdim");
         Assert.True(toVault.Ok, toVault.Message);
         await World.Until(() => player.Position.dimension == vaultId, timeoutTicks: 600);
         Assert.Equal(0, HotbarCount(player, "game:stick"));
 
+        // Walk away from the vault's own entry point first: only if /overworlddim's
+        // SpawnBehavior.LastVisited actually recalls the pre-vault overworld position does the
+        // player land back at overworldX/Z instead of wherever they wandered off to in the vault.
+        await player.TeleportTo(new BlockPos(player.Position.X + 32, player.Position.Y, player.Position.Z + 32, vaultId));
+
         CommandResult back = await player.ExecuteCommand("/overworlddim");
         Assert.True(back.Ok, back.Message);
-        await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
+        await LandedAt(player, 0, overworldX, overworldZ);
         Assert.Equal(3, HotbarCount(player, "game:stick"));
     }
 
