@@ -59,19 +59,31 @@ def traveller(i, j, k, cloak=SALMON_LIGHT, facing=1.0, alpha=255, size=1.0):
 # ---------------------------------------------------------------- hero (parallax layers)
 
 HERO = (1440, 640)
-HERO_FRAMES = 36
+HERO_FRAMES = 22
 
 
-def hero_background():
-    """Opaque nebula, lighter near the top (the lit overworld) fading to void at the bottom."""
+def hero_background(light=False):
+    """Opaque nebula: lighter near the top (the lit overworld) fading to void at the bottom.
+
+    light=True is the overworld daylight variant used in light mode: sky-blue at the top instead
+    of a dim void, so the hero reads as a place, not a black rectangle, on a pale page.
+    """
     w, h = HERO
-    rng = np.random.default_rng(101)
+    rng = np.random.default_rng(101 if not light else 102)
     clouds = moddb.nebula(rng, w, h, tile=False)
-    top_tint = np.array(mix(ICE, SALMON_LIGHT, 0.3), dtype=float)
-    fade = np.clip(1 - np.arange(h) / (h * 0.5), 0, 1)[:, None, None] ** 1.6
-    clouds = clouds * (1 - fade * 0.55) + top_tint * (fade * 0.55)
+    if light:
+        # nebula() is built around a dark ground; lift it toward the sky before tinting so the
+        # bottom stays a legible (if deep) blue instead of near-black.
+        clouds = clouds * 0.35 + np.array(mix(SLATE_LIGHT, ICE, 0.5), dtype=float) * 0.65
+        top_tint = np.array(mix(ICE, WHITE, 0.5), dtype=float)
+        fade = np.clip(1 - np.arange(h) / (h * 0.6), 0, 1)[:, None, None] ** 1.4
+        clouds = clouds * (1 - fade * 0.7) + top_tint * (fade * 0.7)
+    else:
+        top_tint = np.array(mix(ICE, SALMON_LIGHT, 0.3), dtype=float)
+        fade = np.clip(1 - np.arange(h) / (h * 0.5), 0, 1)[:, None, None] ** 1.6
+        clouds = clouds * (1 - fade * 0.55) + top_tint * (fade * 0.55)
     bg = np.asarray(moddb.to_image(clouds).resize((w * R, h * R), Image.BICUBIC), dtype=float).copy()
-    moddb.sprinkle_stars(rng, bg, 420, wrap=False)
+    moddb.sprinkle_stars(rng, bg, 90 if light else 420, wrap=False)
     return moddb.to_image(bg).convert("RGBA")
 
 
@@ -83,7 +95,7 @@ def hero_far(t):
              (1260, 110, 3, 0.80), (60, 220, 3, 0.15), (700, 40, 3, 0.65)]
     for n, (x, y, radius, phase) in enumerate(spots):
         rng = np.random.default_rng(300 + n)
-        scene.add(island(rng, radius, 1, trees=rng.integers(0, 2)), x, y + bob(t, phase, 3.0), 5)
+        scene.add(island(rng, radius, 1, trees=rng.integers(0, 2)), x, y + bob(t, phase, 2.0), 5)
     return scene.render(bloom=5, strength=0.5)
 
 
@@ -94,7 +106,7 @@ def hero_mid(t):
     gate_vox, cells = gate(-3, -2, 0, 4, 6, rng, t=t)
     base = island(np.random.default_rng(3), 6, 3, keep_clear=cells,
                   light=((0, -1), SALMON_LIGHT, 5), tree_cells=[(-4, -4), (4, -3), (4, 4)])
-    oy = 330 + bob(t, 0.0, 3.0)
+    oy = 330 + bob(t, 0.0, 2.0)
     scene = Scene(w, h)
     scene.add(base + gate_vox, w / 2, oy, 15)
     img = scene.render(bloom=15, strength=0.7)
@@ -115,8 +127,8 @@ def hero_near(t):
     """One or two large islands, cropped by the frame, drifting a little closer to the viewer."""
     w, h = HERO
     scene = Scene(w, h)
-    scene.add(island(np.random.default_rng(401), 7, 3, trees=2), -60, 520 + bob(t, 0.1, 4.0), 20)
-    scene.add(island(np.random.default_rng(402), 5, 3, trees=1), 1330, -40 + bob(t, 0.5, 3.5), 17)
+    scene.add(island(np.random.default_rng(401), 7, 3, trees=2), -60, 520 + bob(t, 0.1, 2.5), 20)
+    scene.add(island(np.random.default_rng(402), 5, 3, trees=1), 1330, -40 + bob(t, 0.5, 2.2), 17)
     return scene.render(bloom=8, strength=0.55)
 
 
@@ -139,7 +151,7 @@ def pregeneration_scene(t):
         if a < 6:
             continue
         out.append(vox(i, j, k + rise * 2.2, color, alpha=a, size=size, emissive=emissive))
-    scene.add(out, 130, 110, 11)
+    scene.add(out, 130, 120, 11)  # +10 page px of headroom so the risen terrain clears the canvas top
     return scene.render(bloom=7)
 
 
@@ -161,6 +173,19 @@ def column_generated_scene(t):
     return scene.render(bloom=9)
 
 
+def visible_arcs(w, h, arcs, t=0.0, travellers=0):
+    """arcs_layer(), with a soft dark halo behind it so the dashes and travellers still read
+    against a light card background (the arcs' own ice/salmon tints are close to white)."""
+    layer = arcs_layer(w, h, arcs, t=t, travellers=travellers)
+    shadow_alpha = (np.asarray(layer, dtype=float)[..., 3:4] * 0.6)
+    shadow = np.dstack([np.zeros(shadow_alpha.shape[:2] + (3,)), shadow_alpha])
+    shadow_img = Image.fromarray(shadow.astype(np.uint8), "RGBA").filter(ImageFilter.GaussianBlur(2 * R))
+    out = Image.new("RGBA", layer.size)
+    out.alpha_composite(shadow_img)
+    out.alpha_composite(layer)
+    return out
+
+
 def client_metadata_scene(t):
     """A tagged packet travelling along an arc from a server island to a client island."""
     scene = Scene(260, 220)
@@ -168,7 +193,7 @@ def client_metadata_scene(t):
     scene.add(island(np.random.default_rng(222), 2, 1, trees=1), 190, 70, 8)
     img = scene.render(bloom=6)
     arcs = [((78, 118), (182, 78), 34, ICE + (170,))]
-    under = arcs_layer(260, 220, arcs, t=t, travellers=1)
+    under = visible_arcs(260, 220, arcs, t=t, travellers=1)
     under.alpha_composite(img)
     return under
 
@@ -225,7 +250,7 @@ def getting_started_scene(t):
         if a < 6:
             continue
         out.append(vox(i, j, k + rise * 2.2, color, alpha=a, size=size, emissive=emissive))
-    scene.add(ground + out, 130, 120, 11)
+    scene.add(ground + out, 130, 130, 11)  # +10 page px of headroom so the gate top clears the canvas
     return scene.render(bloom=10)
 
 
@@ -240,7 +265,7 @@ def dimensions_scene(t):
            for (i, j, k, color, alpha, size, emissive) in ephemeral]
     scene.add(eph, 130, 188, 6)
     img = scene.render(bloom=8)
-    under = arcs_layer(260, 220, [((80, 120), (128, 178), 18, ICE + (140,))], t=t)
+    under = visible_arcs(260, 220, [((80, 120), (128, 178), 18, ICE + (140,))], t=t)
     under.alpha_composite(img)
     return under
 
@@ -257,7 +282,7 @@ def architecture_scene(t):
         ((156, 68), (206, 140), 20, SALMON_LIGHT + (160,)),
         ((66, 120), (206, 140), 30, ICE + (110,)),
     ]
-    under = arcs_layer(260, 220, arcs, t=t, travellers=1)
+    under = visible_arcs(260, 220, arcs, t=t, travellers=1)
     under.alpha_composite(img)
     return under
 
@@ -310,16 +335,71 @@ def closed_gate_voxels(rng):
 
 
 def not_found_scene(t):
-    """A lone figure drifting in the void near a closed gate."""
-    scene = Scene(260, 220)
-    perch_bob = bob(t, 0.2, 2.5)
-    scene.add(island(np.random.default_rng(283), 1, 1), 190, 150 + perch_bob, 6)
-    scene.add(closed_gate_voxels(np.random.default_rng(282)), 90, 118, 10)
-    img = scene.render(bloom=5)
-    fig = Scene(260, 220)
-    fig.add(traveller(0, -1.6, 1.3 + bob(t, 0.0, 1.6)), 190, 150 + perch_bob, 6)
+    """A lone figure drifting in the void near a closed gate: the 404 page's whole scene, so it
+    renders large (see NOT_FOUND_SIZE below) rather than at card thumbnail size."""
+    scene = Scene(340, 260)
+    perch_bob = bob(t, 0.2, 3.0)
+    scene.add(island(np.random.default_rng(283), 1, 1), 250, 175 + perch_bob, 8)
+    scene.add(closed_gate_voxels(np.random.default_rng(282)), 120, 138, 13)
+    img = scene.render(bloom=6)
+    fig = Scene(340, 260)
+    fig.add(traveller(0, -1.6, 1.3 + bob(t, 0.0, 1.9), size=1.3), 250, 175 + perch_bob, 8)
     img.alpha_composite(fig.render(bloom=0))
     return img
+
+
+NOT_FOUND_SIZE = (320 * R, 233 * R)
+
+
+# ---------------------------------------------------------------- island underside strip
+
+def island_underside(seed=51, cells=4):
+    """A small tileable isometric strip: a grass lip over one or two hanging dirt/stone blocks,
+    for the floating island cards' ::after (background-repeat: repeat-x in main.css)."""
+    rng = np.random.default_rng(seed)
+    scene = Scene(cells * 4, 14)
+    voxels = []
+    for i in range(cells):
+        for j in range(2):
+            voxels.append(vox(i, j, 0, GREEN))
+        under = 1 + int(rng.integers(0, 2))
+        for k in range(1, under + 1):
+            color = EARTH if k == 1 else STONE
+            for j in range(2):
+                voxels.append(vox(i, j, -k, color))
+    scene.add(voxels, 2, 3, 3.2)
+    img = scene.render(bloom=0)
+    box = img.getbbox()
+    return img.crop(box) if box else img
+
+
+# ---------------------------------------------------------------- API reference card art
+
+def api_reference_art():
+    """A book on a stand, on its own small island - the "browse the docs" grid's odd one out."""
+    scene = Scene(260, 220)
+    ground = island(np.random.default_rng(291), 3, 2, keep_clear={(0, 0), (0, 1)})
+    book = [
+        vox(0, 0, 1, EARTH, size=0.85),
+        vox(0, 0.3, 1.2, mix(EARTH, (60, 42, 32), 0.5), size=0.5),
+        vox(0, 0, 1.55, mix(ICE, WHITE, 0.25), size=0.95),
+        vox(0.32, -0.05, 1.85, SALMON_LIGHT, size=0.3, emissive=True),
+    ]
+    scene.add(ground + book, 130, 118, 11)
+    img = scene.render(bloom=8)
+    box = img.getbbox()
+    return card(img, box) if box else img
+
+
+# ---------------------------------------------------------------- drifting background islands
+
+def drift_island(seed, radius=2, trees=0):
+    """A small standalone island for the landing's between-section scroll parallax."""
+    scene = Scene(160, 120)
+    scene.add(island(np.random.default_rng(seed), radius, 1, trees=trees), 80, 55, 9)
+    img = scene.render(bloom=4, strength=0.5)
+    box = img.getbbox()
+    return img.crop(box) if box else img
 
 
 # ---------------------------------------------------------------- driver
@@ -327,46 +407,80 @@ def not_found_scene(t):
 # animated() (reused from moddb) is a fine fit for the card-sized loops at its own defaults, but
 # the hero layers and a couple of the busier card loops need a lower quality/frame budget to stay
 # inside the file-weight limits, so this local saver adds that knob without touching the shared
-# renderer.
+# renderer. It also folds the last few frames back toward frame 0 (xfade) so the loop point is a
+# blend instead of a jump, and can emit a half-size companion for srcset on narrow viewports.
 
-def save_animated(name, frame_at, still_t, frames, quality=82, crop=True):
+def save_animated(name, frame_at, still_t, frames, quality=76, crop=True, size=None, xfade=0.08, mobile=False):
     frame_imgs = [frame_at(n / frames) for n in range(frames)]
+    if xfade:
+        span = max(1, int(frames * xfade))
+        for k in range(span):
+            idx = frames - span + k
+            weight = 0.75 * (k + 1) / span
+            frame_imgs[idx] = Image.blend(frame_imgs[idx].convert("RGBA"), frame_imgs[0].convert("RGBA"), weight)
     if crop:
         box = union_box(frame_imgs)
-        frame_imgs = [card(f, box) for f in frame_imgs]
-        still = card(frame_at(still_t), box)
+        size = size or CARD
+        frame_imgs = [card_sized(f, box, size) for f in frame_imgs]
+        still = card_sized(frame_at(still_t), box, size)
     else:
         still = frame_at(still_t)
     still.save(OUT / f"{name}.png", optimize=True)
     frame_imgs[0].save(OUT / f"{name}.webp", save_all=True, append_images=frame_imgs[1:],
                        duration=moddb.FRAME_MS, loop=0, quality=quality, method=6)
+    if mobile:
+        half = [f.resize((f.width // 2, f.height // 2), Image.LANCZOS) for f in frame_imgs]
+        half[0].save(OUT / f"{name}-720.webp", save_all=True, append_images=half[1:],
+                     duration=moddb.FRAME_MS, loop=0, quality=quality, method=6)
+
+
+def card_sized(art, box, size):
+    """Same crop-and-centre as moddb.card(), on a caller-chosen canvas instead of the fixed
+    220x160 CARD (the 404 scene and a couple of others want a bigger frame)."""
+    left, top, right, bottom = box
+    m = 6 * R
+    art = art.crop((max(0, left - m), max(0, top - m), min(art.width, right + m), min(art.height, bottom + m)))
+    out = Image.new("RGBA", size)
+    out.alpha_composite(art, ((size[0] - art.width) // 2, (size[1] - art.height) // 2))
+    return out
 
 
 if __name__ == "__main__":
-    # hero: four aligned layers at HERO size, no cropping, so they stack without drifting
-    hero_background().save(OUT / "hero-bg.png", optimize=True)
-    # all three share HERO_FRAMES's period (22 frames, matching hero-mid) so the parallax layers
-    # stay in phase with each other over repeated loops
-    save_animated("hero-far", hero_far, 0.0, frames=22, quality=50, crop=False)
-    save_animated("hero-mid", hero_mid, 0.0, frames=22, quality=48, crop=False)
-    save_animated("hero-near", hero_near, 0.0, frames=22, quality=50, crop=False)
+    # hero: four aligned layers at HERO size, no cropping, so they stack without drifting.
+    # The opaque background is fully covered every frame, so a lossy webp costs far less than
+    # the old PNG for the same look; a half-size companion covers the hero's phone crop.
+    for light, suffix in ((False, ""), (True, "-light")):
+        bg = hero_background(light=light)
+        bg.convert("RGB").save(OUT / f"hero-bg{suffix}.webp", quality=82, method=6)
+        bg.resize((bg.width // 2, bg.height // 2), Image.LANCZOS).convert("RGB").save(
+            OUT / f"hero-bg{suffix}-720.webp", quality=82, method=6)
+    # all three share HERO_FRAMES's period so the parallax layers stay in phase with each other
+    # over repeated loops
+    save_animated("hero-far", hero_far, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True)
+    save_animated("hero-mid", hero_mid, 0.0, frames=HERO_FRAMES, quality=40, crop=False, mobile=True)
+    save_animated("hero-near", hero_near, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True)
 
-    save_animated("highlight-pregeneration", pregeneration_scene, 0.9, frames=36)
+    save_animated("highlight-pregeneration", pregeneration_scene, 0.9, frames=36, quality=80)
     save_animated("highlight-column-generated", column_generated_scene, 0.6, frames=36)
     save_animated("highlight-client-metadata", client_metadata_scene, 0.5, frames=36)
     save_animated("highlight-safe-landing", safe_landing_scene, 0.7, frames=36)
     save_animated("highlight-schema-saves", schema_saves_scene, 0.25, frames=36)
 
-    save_animated("header-getting-started", getting_started_scene, 0.9, frames=36)
-    save_animated("header-dimensions", dimensions_scene, 0.25, frames=36)
+    save_animated("header-getting-started", getting_started_scene, 0.9, frames=36, quality=78)
+    save_animated("header-dimensions", dimensions_scene, 0.25, frames=36, quality=78)
     save_animated("header-worldgen", moddb.worldgen_scene, 0.8, frames=42)
     save_animated("header-transit-and-travel-policy", moddb.transit_scene, 0.3, frames=36, quality=74)
     save_animated("header-architecture", architecture_scene, 0.4, frames=30, quality=74)
 
     line = divider_line()
-    save_animated("divider", lambda t: divider_frame(t, line), 0.4, frames=30, crop=False)
+    save_animated("divider", lambda t: divider_frame(t, line), 0.4, frames=30, crop=False, xfade=0)
 
-    save_animated("not-found", not_found_scene, 0.5, frames=32)
+    save_animated("not-found", not_found_scene, 0.5, frames=32, size=NOT_FOUND_SIZE)
+
+    island_underside().save(OUT / "island-underside.png", optimize=True)
+    api_reference_art().save(OUT / "api-reference.png", optimize=True)
+    for n, (seed, radius, trees) in enumerate(((61, 2, 1), (62, 1, 0), (63, 2, 0))):
+        drift_island(seed, radius, trees).save(OUT / f"drift-{n + 1}.png", optimize=True)
 
     for f in sorted(OUT.glob("*.png")) + sorted(OUT.glob("*.webp")):
         img = Image.open(f)
