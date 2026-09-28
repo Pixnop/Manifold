@@ -11,7 +11,7 @@ public sealed class ExceptionContractTests
     public void ManifoldException_Should_Inherit_From_System_Exception()
     {
         var ex = new TestException("msg");
-        Assert.IsAssignableFrom<System.Exception>(ex);
+        Assert.IsType<System.Exception>(ex, exactMatch: false);
         Assert.Equal("msg", ex.Message);
     }
 
