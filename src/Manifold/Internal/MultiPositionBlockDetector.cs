@@ -189,22 +189,12 @@ internal static class MultiPositionBlockDetector
     }
 
     /// <summary>Every position in the bounded search box around <paramref name="pos"/>, except <paramref name="pos"/> itself.</summary>
-    private static IEnumerable<BlockPos> Neighbourhood(BlockPos pos)
-    {
-        for (int dy = -VerticalSearchRadius; dy <= VerticalSearchRadius; dy++)
-        {
-            for (int dx = -HorizontalSearchRadius; dx <= HorizontalSearchRadius; dx++)
-            {
-                for (int dz = -HorizontalSearchRadius; dz <= HorizontalSearchRadius; dz++)
-                {
-                    if (dx != 0 || dy != 0 || dz != 0)
-                    {
-                        yield return new BlockPos(pos.X + dx, pos.Y + dy, pos.Z + dz, pos.dimension);
-                    }
-                }
-            }
-        }
-    }
+    private static IEnumerable<BlockPos> Neighbourhood(BlockPos pos) =>
+        from dy in Enumerable.Range(-VerticalSearchRadius, (2 * VerticalSearchRadius) + 1)
+        from dx in Enumerable.Range(-HorizontalSearchRadius, (2 * HorizontalSearchRadius) + 1)
+        from dz in Enumerable.Range(-HorizontalSearchRadius, (2 * HorizontalSearchRadius) + 1)
+        where dx != 0 || dy != 0 || dz != 0
+        select new BlockPos(pos.X + dx, pos.Y + dy, pos.Z + dz, pos.dimension);
 
     /// <summary>Whether the block at <paramref name="probe"/> is a live satellite whose controller is <paramref name="controller"/>.</summary>
     private static bool IsSatelliteOf(IBlockAccessor accessor, BlockPos probe, BlockPos controller) =>
