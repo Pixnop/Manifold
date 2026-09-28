@@ -45,6 +45,7 @@ public sealed class ManifoldModSystem : ModSystem
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
     private SaveGameManifestStore? _manifestStore;
+    private SchemaSidecar? _schemaSidecar;
     private ManifoldNetworkChannel? _network;
     private ICoreServerAPI? _sapi;
     private bool _disposed;
@@ -501,7 +502,8 @@ public sealed class ManifoldModSystem : ModSystem
     /// the capture, including id reservations and generator state;
     /// (2) re-seed manifest entries memory lacks (a removal undone by the rollback), Pending or
     /// Quarantined exactly as at boot;
-    /// (3) reload the generated-columns and player-position stores from the SaveGame blobs.
+    /// (3) reload the generated-columns and player-position stores from the SaveGame blobs, each
+    /// guided by the schema version <see cref="SchemaSidecar"/> records for it.
     /// Registrations matching the manifest keep their in-memory record untouched: it carries
     /// worldgen configuration the manifest does not persist, and an owner-promoted Active state
     /// remains coherent with the restored world.
@@ -515,8 +517,10 @@ public sealed class ManifoldModSystem : ModSystem
             return (0, 0);
         }
 
+        _schemaSidecar = SchemaSidecar.Load(_manifestStore.Read(SchemaSidecar.Key));
+
         var manifest = new Dictionary<AssetLocation, ManifestEntry>();
-        foreach (var entry in _persistence.LoadOrEmpty())
+        foreach (var entry in _persistence.LoadOrEmpty(_schemaSidecar.GetVersion(DimensionPersistence.ManifestKey)))
         {
             manifest[entry.Code] = entry;
         }
@@ -526,10 +530,54 @@ public sealed class ManifoldModSystem : ModSystem
 
         // Restore the persisted set of generated columns so revisits LOAD (preserving player
         // modifications) instead of regenerating over them, and the per-player last positions.
-        _generatedColumns.LoadFromBytes(_manifestStore.Read(GeneratedColumnsKey));
-        _positionStore.LoadFromBytes(_manifestStore.Read(PlayerPositionsKey), Mod.Logger);
+        LoadStoreOrPreserveUnrecognized(_generatedColumns, GeneratedColumnsKey);
+        LoadStoreOrPreserveUnrecognized(_positionStore, PlayerPositionsKey);
 
         return (dropped, reseeded);
+    }
+
+    /// <summary>
+    /// Loads a savegame-level store's blob under the version <see cref="_schemaSidecar"/> records
+    /// for its key, and if the load refuses an unrecognized newer version, logs it (naming the key
+    /// and both versions) and copies the raw blob to <c>"{key}.unrecognized"</c> so it is never
+    /// lost - the store only latches its own <c>IsVersionRefused</c> flag, it does not hold the key
+    /// it was read from or log with it, so that is done here instead.
+    /// </summary>
+    private void LoadStoreOrPreserveUnrecognized(GeneratedColumnStore store, string key)
+    {
+        int version = _schemaSidecar!.GetVersion(key);
+        var raw = _manifestStore!.Read(key);
+        store.LoadFromBytes(raw, version);
+        if (store.IsVersionRefused)
+        {
+            PreserveUnrecognized(key, raw, version, GeneratedColumnStore.SchemaVersion);
+        }
+    }
+
+    /// <summary>See <see cref="LoadStoreOrPreserveUnrecognized(GeneratedColumnStore, string)"/>.</summary>
+    private void LoadStoreOrPreserveUnrecognized(PlayerPositionStore store, string key)
+    {
+        int version = _schemaSidecar!.GetVersion(key);
+        var raw = _manifestStore!.Read(key);
+        store.LoadFromBytes(raw, Mod.Logger, version);
+        if (store.IsVersionRefused)
+        {
+            PreserveUnrecognized(key, raw, version, PlayerPositionStore.SchemaVersion);
+        }
+    }
+
+    /// <summary>Logs an unrecognized-schema-version refusal naming the key and both versions, and copies the raw blob to a recovery key.</summary>
+    private void PreserveUnrecognized(string key, byte[]? raw, int version, int supported)
+    {
+        Mod.Logger.Error(
+            "[Manifold] '{0}' is schema version {1}, this build supports up to {2}. The original blob is preserved under '{0}.unrecognized' and this key will not be re-saved.",
+            key,
+            version,
+            supported);
+        if (raw is { Length: > 0 })
+        {
+            _manifestStore!.Write(key + ".unrecognized", raw);
+        }
     }
 
     /// <summary>
@@ -628,19 +676,36 @@ public sealed class ManifoldModSystem : ModSystem
             .ToList();
 
         _persistence.Save(entries);
+        if (!_persistence.IsVersionRefused)
+        {
+            _schemaSidecar?.SetVersion(DimensionPersistence.ManifestKey, DimensionPersistence.SchemaVersion);
+        }
 
         // Persist the generated-columns set so revisits after restart load instead of regenerate.
-        if (_generatedColumns is { IsDirty: true } && _manifestStore is not null)
+        // Skipped while IsVersionRefused: a newer, unrecognized-version blob is on disk (preserved
+        // under its own ".unrecognized" key), and this session's set is not a reliable replacement
+        // for it - its sidecar entry is left exactly as loaded too (never downgraded).
+        if (_generatedColumns is { IsDirty: true, IsVersionRefused: false } && _manifestStore is not null)
         {
             _manifestStore.Write(GeneratedColumnsKey, _generatedColumns.ToBytes());
             _generatedColumns.ClearDirty();
+            _schemaSidecar?.SetVersion(GeneratedColumnsKey, GeneratedColumnStore.SchemaVersion);
         }
 
-        // Persist per-player last positions for the LastVisited spawn behavior.
-        if (_positionStore is { IsDirty: true } && _manifestStore is not null)
+        // Persist per-player last positions for the LastVisited spawn behavior. Same refusal skip.
+        if (_positionStore is { IsDirty: true, IsVersionRefused: false } && _manifestStore is not null)
         {
             _manifestStore.Write(PlayerPositionsKey, _positionStore.ToBytes());
             _positionStore.ClearDirty();
+            _schemaSidecar?.SetVersion(PlayerPositionsKey, PlayerPositionStore.SchemaVersion);
+        }
+
+        // Written whenever any of the blobs above is (re-)written, so the sidecar always matches
+        // what is actually on disk for each key it names; also keeps a refused key's entry exactly
+        // as loaded, since only the branches above ever advance it.
+        if (_schemaSidecar is not null && _manifestStore is not null)
+        {
+            _manifestStore.Write(SchemaSidecar.Key, _schemaSidecar.ToBytes());
         }
     }
 

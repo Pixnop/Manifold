@@ -16,6 +16,12 @@ internal sealed class DimensionPersistence
     /// <summary>Storage key for the manifest in the savegame.</summary>
     public const string ManifestKey = "manifold:manifest";
 
+    /// <summary>Current schema version this build writes and reads via <see cref="Save"/>/<see cref="LoadOrEmpty"/>.</summary>
+    public const int SchemaVersion = 1;
+
+    /// <summary>Key a refused, unrecognized-version manifest blob is copied to, so it is never lost.</summary>
+    public const string UnrecognizedManifestKey = ManifestKey + ".unrecognized";
+
     private readonly IManifestStore _store;
     private readonly System.Func<string, bool> _isModLoaded;
     private readonly ILogger? _logger;
@@ -31,11 +37,29 @@ internal sealed class DimensionPersistence
         _logger = logger;
     }
 
-    /// <summary>Persist the supplied manifest entries (skipping Ephemeral and BuiltIn).</summary>
+    /// <summary>
+    /// Whether the last <see cref="LoadOrEmpty"/> refused a schema version newer than this build
+    /// supports. Latched until the next call to <see cref="LoadOrEmpty"/>. While <c>true</c>,
+    /// <see cref="Save"/> is a no-op: this session's registrations are incomplete (not every
+    /// consumer mod has necessarily re-registered yet), so writing them now would overwrite the
+    /// newer manifest already preserved under <see cref="UnrecognizedManifestKey"/> with a partial
+    /// (in the extreme, empty) one.
+    /// </summary>
+    public bool IsVersionRefused { get; private set; }
+
+    /// <summary>
+    /// Persist the supplied manifest entries (skipping Ephemeral and BuiltIn). A no-op while
+    /// <see cref="IsVersionRefused"/> is set (see its remarks).
+    /// </summary>
     /// <param name="entries">Entries to persist.</param>
     public void Save(IEnumerable<ManifestEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        if (IsVersionRefused)
+        {
+            return;
+        }
+
         var tree = new TreeAttribute();
         var list = new TreeAttribute();
         int idx = 0;
@@ -61,13 +85,36 @@ internal sealed class DimensionPersistence
         _store.Write(ManifestKey, bytes);
     }
 
-    /// <summary>Load all manifest entries, or an empty sequence on corruption / missing data.</summary>
+    /// <summary>
+    /// Load all manifest entries, or an empty sequence on corruption, missing data, or a
+    /// <paramref name="version"/> newer than <see cref="SchemaVersion"/>. A corrupt manifest is
+    /// refused the way it always was: logged, dropped, consumers re-register at boot. An
+    /// unrecognized-version manifest is refused the same way, but is also copied verbatim to
+    /// <see cref="UnrecognizedManifestKey"/> and latches <see cref="IsVersionRefused"/>, which
+    /// makes <see cref="Save"/> a no-op for the rest of the session - unlike the corrupt case,
+    /// this data is not gone, so it must not be overwritten by an incomplete re-registration pass.
+    /// </summary>
+    /// <param name="version">The schema version recorded for the manifest (from the sidecar; 1 if it has none).</param>
     /// <returns>Manifest entries (zero or more).</returns>
-    public IEnumerable<ManifestEntry> LoadOrEmpty()
+    public IEnumerable<ManifestEntry> LoadOrEmpty(int version = SchemaVersion)
     {
+        IsVersionRefused = false;
         var raw = _store.Read(ManifestKey);
         if (raw is null || raw.Length == 0)
         {
+            yield break;
+        }
+
+        if (version > SchemaVersion)
+        {
+            IsVersionRefused = true;
+            _store.Write(UnrecognizedManifestKey, raw);
+            _logger?.Error(
+                "[Manifold] '{0}' is schema version {1}, this build supports up to {2}. Persistent dimension ids will be re-allocated this session; the original blob is preserved under '{3}' and this key will not be re-saved.",
+                ManifestKey,
+                version,
+                SchemaVersion,
+                UnrecognizedManifestKey);
             yield break;
         }
 
