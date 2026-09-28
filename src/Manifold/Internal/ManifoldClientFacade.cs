@@ -60,8 +60,8 @@ internal sealed class ManifoldClientFacade : IManifoldClient
     /// <inheritdoc/>
     public event EventHandler<LocalPlayerDimensionChangedEventArgs>? LocalPlayerChangedDimension;
 
-    /// <summary>Gets a value indicating whether Manifold loaded healthily on the server. Settable internally by ModSystem.</summary>
-    public bool IsHealthy { get; internal set; } = true;
+    /// <inheritdoc/>
+    public bool IsHealthy => true;
 
     /// <inheritdoc/>
     public IReadOnlyCollection<IDimension> Dimensions => _mirror.All;
