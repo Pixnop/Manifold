@@ -27,7 +27,6 @@ internal sealed class TransitService : ITransitionService
     private readonly DimensionGenerator _generator;
     private readonly PlayerPositionStore _positionStore;
     private readonly IInventorySwapper _inventory;
-    private readonly IPlayerDismounter _dismounter;
     private readonly HashSet<int> _warnedMissingSpawnPoint = new();
 
     /// <summary>Initializes a new instance of the <see cref="TransitService"/> class.</summary>
@@ -38,7 +37,6 @@ internal sealed class TransitService : ITransitionService
     /// <param name="generator">Dimension generator for pre-generating destination chunks.</param>
     /// <param name="positionStore">Per-player per-dimension last-position memory (for LastVisited behavior).</param>
     /// <param name="inventory">Inventory swapper for per-dimension inventory separation.</param>
-    /// <param name="dismounter">Dismounts a player from a mount before a player transit.</param>
     internal TransitService(
         DimensionRegistry registry,
         ICoreServerAPI sapi,
@@ -46,8 +44,7 @@ internal sealed class TransitService : ITransitionService
         ITargetPositionResolver defaultResolver,
         DimensionGenerator generator,
         PlayerPositionStore positionStore,
-        IInventorySwapper inventory,
-        IPlayerDismounter dismounter)
+        IInventorySwapper inventory)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
@@ -55,12 +52,12 @@ internal sealed class TransitService : ITransitionService
         ArgumentNullException.ThrowIfNull(movers.Player);
         ArgumentNullException.ThrowIfNull(movers.Entity);
         ArgumentNullException.ThrowIfNull(movers.Block);
+        ArgumentNullException.ThrowIfNull(movers.Dismounter);
         _movers = movers;
         _defaultResolver = defaultResolver ?? throw new ArgumentNullException(nameof(defaultResolver));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _positionStore = positionStore ?? throw new ArgumentNullException(nameof(positionStore));
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
-        _dismounter = dismounter ?? throw new ArgumentNullException(nameof(dismounter));
     }
 
     /// <inheritdoc/>
@@ -191,7 +188,7 @@ internal sealed class TransitService : ITransitionService
         // treated like a PlayerArriving cancellation: nothing has moved yet, so it is safe to
         // abort here instead of teleporting a player the engine would then drag their mount along
         // with (in the source dimension) for.
-        if (!_dismounter.Dismount(player))
+        if (!_movers.Dismounter.Dismount(player))
         {
             _sapi.Logger?.Notification(
                 "[Manifold] Transit of {0} to {1} cancelled: could not dismount them.",

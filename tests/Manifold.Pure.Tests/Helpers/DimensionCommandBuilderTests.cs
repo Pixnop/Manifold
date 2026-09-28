@@ -120,12 +120,12 @@ public sealed class DimensionCommandBuilderTests
             new TransitMovers(
                 Substitute.For<IPlayerTeleporter>(),
                 Substitute.For<IEntityMover>(),
-                Substitute.For<IBlockMover>()),
+                Substitute.For<IBlockMover>(),
+                Substitute.For<IPlayerDismounter>()),
             positionResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
-            Substitute.For<IInventorySwapper>(),
-            Substitute.For<IPlayerDismounter>());
+            Substitute.For<IInventorySwapper>());
         transit.PlayerEntering += (_, e) => e.Cancel = true;
 
         var manifold = Substitute.For<IManifoldServer>();

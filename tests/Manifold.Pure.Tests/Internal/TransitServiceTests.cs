@@ -423,12 +423,11 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             positionResolver,
             generator,
             new PlayerPositionStore(),
-            swapper,
-            NewDismounter());
+            swapper);
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -461,12 +460,11 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             positionResolver,
             generator,
             new PlayerPositionStore(),
-            Substitute.For<IInventorySwapper>(),
-            NewDismounter());
+            Substitute.For<IInventorySwapper>());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -572,12 +570,11 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(teleporter, Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             defaultResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
-            Substitute.For<IInventorySwapper>(),
-            NewDismounter());
+            Substitute.For<IInventorySwapper>());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -608,12 +605,11 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>()),
+            new TransitMovers(Substitute.For<IPlayerTeleporter>(), Substitute.For<IEntityMover>(), Substitute.For<IBlockMover>(), NewDismounter()),
             defaultResolver,
             new DimensionGenerator(registry, new GeneratedColumnStore()),
             new PlayerPositionStore(),
-            Substitute.For<IInventorySwapper>(),
-            NewDismounter());
+            Substitute.For<IInventorySwapper>());
 
         var player = Substitute.For<IServerPlayer>();
         player.Entity.Returns(Substitute.For<EntityPlayer>());
@@ -738,12 +734,11 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, entityMover, blockMover),
+            new TransitMovers(teleporter, entityMover, blockMover, NewDismounter()),
             positionResolver,
             generator,
             new PlayerPositionStore(),
-            new InventorySwapper(sapi),
-            NewDismounter());
+            new InventorySwapper(sapi));
 
         return (svc, registry, teleporter, entityMover, blockMover, sapi);
     }
@@ -779,12 +774,11 @@ public sealed class TransitServiceTests
         var svc = new TransitService(
             registry,
             sapi,
-            new TransitMovers(teleporter, entityMover, blockMover),
+            new TransitMovers(teleporter, entityMover, blockMover, dismounter),
             positionResolver,
             generator,
             new PlayerPositionStore(),
-            new InventorySwapper(sapi),
-            dismounter);
+            new InventorySwapper(sapi));
 
         return (svc, registry, teleporter, entityMover, blockMover, dismounter);
     }
