@@ -48,10 +48,10 @@ internal sealed class GeneratedColumnStore
 
     /// <summary>
     /// Returns <c>true</c> if the column has already been generated and persisted, or if
-    /// <see cref="IsVersionRefused"/> is set - a refused load has no reliable record of which
-    /// columns were generated, so every column is treated as already generated (loaded from disk,
-    /// never regenerated) rather than risk overwriting player modifications made under the newer
-    /// version.
+    /// <see cref="IsVersionRefused"/> is set (a refused load has no reliable record of which
+    /// columns were generated, so every column is treated as already generated: loaded from disk,
+    /// never regenerated, rather than risk overwriting player modifications made under the newer
+    /// version).
     /// </summary>
     /// <param name="dim">Engine dimension id.</param>
     /// <param name="cx">Chunk X.</param>
@@ -89,15 +89,18 @@ internal sealed class GeneratedColumnStore
     /// <summary>
     /// Replaces the set from a byte array produced by <see cref="ToBytes"/>. Clears the dirty
     /// flag. The blob format itself never changed by versioning: a <paramref name="version"/>
-    /// newer than <see cref="SchemaVersion"/> is refused - the data is not parsed, and
-    /// <see cref="IsVersionRefused"/> is set (see its remarks) instead of misreading it.
+    /// newer than <see cref="SchemaVersion"/> is refused (the data is not parsed, and
+    /// <see cref="IsVersionRefused"/> is set, see its remarks, instead of misreading it), unless
+    /// <paramref name="data"/> is absent or empty: an unrecognized version with nothing to refuse
+    /// (for example a future release that moved this data to another key) instead reads as an
+    /// empty set, same as an absent blob at a recognized version.
     /// </summary>
     /// <param name="data">Serialised bytes, or <c>null</c>/empty for an empty set.</param>
     /// <param name="version">The schema version recorded for this blob (from the sidecar; 1 if it has none).</param>
     public void LoadFromBytes(byte[]? data, int version = SchemaVersion)
     {
         _keys.Clear();
-        IsVersionRefused = version > SchemaVersion;
+        IsVersionRefused = version > SchemaVersion && data is { Length: > 0 };
         if (!IsVersionRefused && data is not null && data.Length >= sizeof(long))
         {
             int count = data.Length / sizeof(long);

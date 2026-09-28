@@ -115,18 +115,40 @@ public sealed class GeneratedColumnStoreTests
         // A refused load has no reliable record of which columns were generated: every column
         // must read as already generated (loaded from disk, never regenerated) so nothing
         // regenerates over player modifications made under the newer version.
+        var seed = new GeneratedColumnStore();
+        seed.MarkGenerated(10, 5, 7);
+
         var store = new GeneratedColumnStore();
-        store.LoadFromBytes(null, version: 99);
+        store.LoadFromBytes(seed.ToBytes(), version: 99);
 
         Assert.True(store.IsGenerated(1, 2, 3));
         Assert.True(store.IsGenerated(999, -1, -1));
     }
 
     [Fact]
-    public void LoadFromBytes_Should_Clear_IsVersionRefused_On_A_Later_Accepted_Load()
+    public void LoadFromBytes_Should_Not_Refuse_An_Unrecognized_Version_When_The_Blob_Is_Absent()
     {
+        // An unrecognized version with nothing to refuse (e.g. a future release that moved this
+        // data to another key) must not fail every column closed for the rest of the session.
         var store = new GeneratedColumnStore();
         store.LoadFromBytes(null, version: 99);
+
+        Assert.False(store.IsVersionRefused);
+        Assert.False(store.IsGenerated(1, 2, 3));
+
+        store.LoadFromBytes(System.Array.Empty<byte>(), version: 99);
+
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Clear_IsVersionRefused_On_A_Later_Accepted_Load()
+    {
+        var seed = new GeneratedColumnStore();
+        seed.MarkGenerated(10, 5, 7);
+
+        var store = new GeneratedColumnStore();
+        store.LoadFromBytes(seed.ToBytes(), version: 99);
         Assert.True(store.IsVersionRefused);
 
         store.LoadFromBytes(null);

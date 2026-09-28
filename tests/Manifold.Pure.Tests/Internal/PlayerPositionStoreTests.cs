@@ -138,10 +138,28 @@ public sealed class PlayerPositionStoreTests
     }
 
     [Fact]
-    public void LoadFromBytes_Should_Clear_IsVersionRefused_On_A_Later_Accepted_Load()
+    public void LoadFromBytes_Should_Not_Refuse_An_Unrecognized_Version_When_The_Blob_Is_Absent()
     {
+        // An unrecognized version with nothing to refuse (e.g. a future release that moved this
+        // data to another key) must not latch a refusal for the rest of the session.
         var store = new PlayerPositionStore();
         store.LoadFromBytes(null, version: 99);
+
+        Assert.False(store.IsVersionRefused);
+
+        store.LoadFromBytes(System.Array.Empty<byte>(), version: 99);
+
+        Assert.False(store.IsVersionRefused);
+    }
+
+    [Fact]
+    public void LoadFromBytes_Should_Clear_IsVersionRefused_On_A_Later_Accepted_Load()
+    {
+        var seed = new PlayerPositionStore();
+        seed.Record("alice", 10, 1, 2, 3);
+
+        var store = new PlayerPositionStore();
+        store.LoadFromBytes(seed.ToBytes(), version: 99);
         Assert.True(store.IsVersionRefused);
 
         store.LoadFromBytes(null);
