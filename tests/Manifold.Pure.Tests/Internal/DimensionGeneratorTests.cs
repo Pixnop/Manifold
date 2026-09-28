@@ -256,6 +256,30 @@ public sealed class DimensionGeneratorTests
         Assert.Equal(0, fired);
     }
 
+    /// <summary>
+    /// A throwing <see cref="Manifold.Api.Server.IDimensionRegistry.ColumnGenerated"/> subscriber
+    /// must not stop the others or abort <see cref="DimensionGenerator.EnsureColumn"/>.
+    /// </summary>
+    [Fact]
+    public void EnsureColumn_Should_Isolate_A_Throwing_ColumnGenerated_Subscriber()
+    {
+        var registry = new DimensionRegistry(new DimensionAllocator());
+        var dim = registry.DefineForOwner(Code("owner:colgen3"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
+        var sapi = Substitute.For<ICoreServerAPI>();
+
+        bool goodRan = false;
+        registry.ColumnGenerated += (_, _) => throw new InvalidOperationException("rogue subscriber");
+        registry.ColumnGenerated += (_, _) => goodRan = true;
+
+        bool generated = generator.EnsureColumn(sapi, dim.InternalId, 0, 0);
+
+        Assert.True(generated);
+        Assert.True(goodRan);
+    }
+
     [Fact]
     public void RelightBlockBounds_Should_Return_True_On_Success()
     {
