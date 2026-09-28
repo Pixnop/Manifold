@@ -77,6 +77,7 @@ self-sufficient in any order.
 | Persistence and quarantine across a real restart | `DimensionPersistenceScenarios`, `QuarantineScenarios` |
 | Landing position on real terrain (`TargetPositionResolvers.SameXZSurfaceY`) | `RealTerrainLandingScenarios` |
 | The sample consumer mod (`samples/ManifoldSample`), staged as a real Atlas mod | `ManifoldSampleMiningScenarios`, `ManifoldSampleSmokeScenarios` |
+| Cross-version save compatibility (0.5.1 <-> dev) | `UpgradeVerifyScenarios` (project `Manifold.Scenarios.Compat`), `DowngradeVerifyScenarios` (project `Manifold.Scenarios.CompatDowngrade`) |
 
 `ClientMirrorScenarios` decodes Manifold's own network packets through
 Atlas's client observations (`player.Client.Packets<T>`), deserialized into
@@ -113,6 +114,13 @@ boot scenario also asserts the portal block itself resolves
 asset staging (the `StageAtlasFolderMods` target had to learn to copy
 `samples/ManifoldSample/assets/` too, since neither the fixture nor
 Manifold itself ships assets).
+
+Cross-version compatibility (a world moving between the published 0.5.1 release and this
+dev build, in both directions) is a separate concern from this project's restart coverage
+above, which only ever restarts within ONE Manifold build: see `Manifold.Scenarios.Compat`
+and `Manifold.Scenarios.CompatDowngrade` (verifier scenarios, one project per direction) and
+`Manifold.Scenarios.CompatFixtures` and `Manifold.Scenarios.CompatFixturesUpgrade` (the
+savegame fixtures they load, also split one project per direction, and for the same reason).
 
 Two Manifold bugs were found this way and fixed in the same release: a forced
 game mode leaking out of its dimension, and the transit packet carrying the

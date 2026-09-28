@@ -97,9 +97,43 @@ jobs:
             --logger "trx;LogFileName=scenarios.trx" \
             --results-directory TestResults
 
+      # Cross-version compatibility (0.5.1 release <-> this dev build, both directions), one
+      # project per direction (see Manifold.Scenarios.Compat/README.md's "Why two projects
+      # instead of one"): a process can only bind ONE physical build of Manifold's
+      # frozen-identity dll, so each direction needs its own dotnet test invocation (its own
+      # process) rather than being two classes sharing one project. The upgrade direction loads
+      # its committed savegame fixture as-is (see below for why); the downgrade direction's is
+      # regenerated fresh first.
+      - name: E2E compat scenarios (0.5.1 -> dev)
+        run: |
+          dotnet test tests/Manifold.Scenarios.Compat \
+            -c Release \
+            --logger "trx;LogFileName=compat-upgrade.trx" \
+            --results-directory TestResults
+
+      # downgrade-from-dev.vcdbs is a snapshot of this repo's own dev persistence code, so it is
+      # not committed but generated here on every run (see Manifold.Scenarios.CompatFixtures/README.md).
+      - name: Regenerate downgrade-from-dev.vcdbs
+        run: |
+          dotnet tool install --global Pixnop.Atlas.Cli --version 0.15.0
+          dotnet build tests/Manifold.Scenarios.CompatFixtures -c Release
+          atlas fixture tests/Manifold.Scenarios.CompatFixtures/bin/Release/net10.0/Manifold.Scenarios.CompatFixtures.dll \
+            --scenario BuildTheDowngradeFixture \
+            --out tests/Manifold.Scenarios.CompatDowngrade/fixtures/downgrade-from-dev.vcdbs --force
+
+      - name: E2E compat scenarios (dev -> 0.5.1)
+        run: |
+          dotnet test tests/Manifold.Scenarios.CompatDowngrade \
+            -c Release \
+            --logger "trx;LogFileName=compat-downgrade.trx" \
+            --results-directory TestResults
+
       - name: Upload E2E results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: scenarios-trx
-          path: TestResults/scenarios.trx
+          path: |
+            TestResults/scenarios.trx
+            TestResults/compat-upgrade.trx
+            TestResults/compat-downgrade.trx
