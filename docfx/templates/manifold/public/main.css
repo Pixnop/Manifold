@@ -893,3 +893,19 @@ footer.border-top {
   color: var(--bs-secondary-color);
   margin-bottom: 1.75rem;
 }
+
+/* --------------------------------------------------------------------------
+   Card thumbnails — the nine "what your mod gets" cards and the docs grid
+   use full 220x160 illustrations, not the 72px icon .mf-feature-card was
+   originally sized for; this overrides that rule (same selector, later in
+   the cascade) so the artwork reads as the card's picture, not a bullet
+   icon. .mf-doc-card never had an image rule at all.
+   -------------------------------------------------------------------------- */
+.mf-feature-card img,
+.mf-doc-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-bottom: 0.75rem;
+  border-radius: var(--mf-radius);
+}
