@@ -41,10 +41,10 @@ desync-gone proof: re-creating a dimension whose first incarnation only a
 rollback removed. Boot-time mini-dimension terrain no longer disqualifies
 rollback; the fixture still generates terrain on demand only
 (`/atlasfx pregen <dimpath>` or a transit) purely to keep snapshots small.
-Classes with joined players cannot roll back yet. Five of them
+Classes with joined players cannot roll back yet. Six of them
 (`MultiPlayerScenarios`, `PlayerInventoryScenarios`, `TransitEventScenarios`,
-`PlayerTransitScenarios`, `StreamingWorldgenScenarios`) carry a
-`rollback-stage2-candidate` comment stating what a future rollback stage
+`PlayerTransitScenarios`, `StreamingWorldgenScenarios`, `RealTerrainLandingScenarios`)
+carry a `rollback-stage2-candidate` comment stating what a future rollback stage
 would need; the others that join players (`ClientMirrorScenarios`,
 `CommandBuilderScenarios`, `InventoryAccessScenarios`, `QuarantineScenarios`,
 `ReconnectScenarios`, `TeardownScenarios`, `TravelPolicyScenarios`) do not
@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-68 scenarios, one class per area:
+102 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
@@ -75,6 +75,7 @@ self-sufficient in any order.
 | Metadata, id recycling | `DimensionMetadataScenarios`, `RecyclingScenarios` |
 | What the client receives (Manifold's packets) | `ClientMirrorScenarios` |
 | Persistence and quarantine across a real restart | `DimensionPersistenceScenarios`, `QuarantineScenarios` |
+| Landing position on real terrain (`TargetPositionResolvers.SameXZSurfaceY`) | `RealTerrainLandingScenarios` |
 | The sample consumer mod (`samples/ManifoldSample`), staged as a real Atlas mod | `ManifoldSampleMiningScenarios`, `ManifoldSampleSmokeScenarios` |
 
 `ClientMirrorScenarios` decodes Manifold's own network packets through
