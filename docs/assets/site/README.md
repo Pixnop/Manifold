@@ -27,12 +27,14 @@ needed to line them up.
 | File | Display size | Loop | Use |
 | --- | --- | --- | --- |
 | `hero-bg.png` | 1440x640 | - | Opaque nebula and stars, lighter near the top (the lit overworld) fading to void at the bottom. No animation: this is the page background colour, effectively. |
-| `hero-far.webp` / `.png` | 1440x640 | 22 frames, 1.54s | Small, distant islands drifting on their own slow bob. Transparent. |
-| `hero-mid.webp` / `.png` | 1440x640 | 22 frames, 1.54s | The portal island: gate, spinning vortex membrane, drifting sparks, and a traveller who climbs up from the grass and fades into the opening partway through the loop. Transparent. |
-| `hero-near.webp` / `.png` | 1440x640 | 22 frames, 1.54s | One or two larger islands, each cropped by the frame edge, drifting a little closer to the viewer than the mid layer. Transparent. |
+| `hero-far.webp` / `.png` | 1440x640 | 22 frames, 4.84s | Small, distant islands drifting on their own slow bob. Transparent. |
+| `hero-mid.webp` / `.png` | 1440x640 | 22 frames, 4.84s | The portal island: gate, spinning vortex membrane, drifting sparks, and a traveller who climbs up from the grass and fades into the opening partway through the loop. Transparent. |
+| `hero-near.webp` / `.png` | 1440x640 | 22 frames, 4.84s | One or two larger islands, each cropped by the frame edge, drifting a little closer to the viewer than the mid layer. Transparent. |
 
-The three animated layers use the same 22-frame, 70ms-per-frame timing as the Mod DB banner, so
-they stay in phase with each other over repeated loops. `.png` stills (one frame each) are for
+The three animated layers share the same 22 frames as the Mod DB banner, so they stay in phase
+with each other over repeated loops, but play back at 220ms/frame (`HERO_MS` in `generate.py`)
+instead of the Mod DB banner's 70ms: at 70ms the loop read as a jitter rather than a slow drift,
+and hero-mid's traveller appeared and vanished within 1.5s. `.png` stills (one frame each) are for
 `prefers-reduced-motion`.
 
 Combined weight for a motion-enabled visit: `hero-bg.png` + the three `.webp` files, about
@@ -67,7 +69,21 @@ Same 220x160 card format, one per docfx article, named after the article file:
 | File | Display size | Use |
 | --- | --- | --- |
 | `divider.webp` / `.png` | 800x28 | The Mod DB divider line, with a single spark travelling its length; fades in and out at the ends so the loop has no visible seam. |
-| `not-found.webp` / `.png` | 220x160 | A lone figure drifting near a closed gate (dim membrane, no sparks, no keystone glow), for the 404 page. |
+| `not-found.webp` / `.png` | 320x233 (`NOT_FOUND_SIZE`, not the card format) | A lone figure drifting near a closed gate (dimmed stonework, still legible; no sparks, no keystone glow), for the 404 page, which draws it full-bleed and scaled up further in CSS. |
+
+## Island underside (`docs/assets/site/island-underside.png`)
+
+One full-width band per floating-island card (`.mf-card--island` in `main.css`), not a repeat-x
+tile: a grass lip over dirt and stone that tapers shallower at both ends and deepest in the
+middle, so it reads as the hanging root of one island. `UNDERSIDE_SIZE` in `generate.py` is the
+image's exact canvas (no bbox crop), so `main.css`'s `aspect-ratio` on the `::after` that draws it
+always matches.
+
+## Mod page icons (`docs/assets/site/mod-icons/`)
+
+The "Mods built on Manifold" strip's six icons, downloaded once from their Mod DB pages and
+resized to 88x88 (2x for a 44px display size) instead of hotlinked from `moddbcdn.vintagestory.at`
+at their original (up to 480x480) size - not generated, so `generate.py` doesn't touch them.
 
 ## File weight
 
@@ -75,3 +91,9 @@ Every card loop (`highlight-*`, `header-*`) is under 270 KB; most are well under
 404 loops are under 90 KB. The hero layers are covered above. Where a scene needed a smaller
 quality/frame budget than the Mod DB defaults to stay inside those limits, that is set per call in
 `save_animated(...)` at the bottom of `generate.py`, not by editing the shared renderer.
+
+`card_sized(...)` (the shared crop-and-centre for every header/highlight loop) scales oversized
+content down to fit its target canvas instead of letting it overflow past the edges, and every
+frame it produces is checked by `assert_edges_clear(...)`: row/column 0 and the last row/column
+must be fully transparent, so a scene that silently grows into its own frame border fails loudly
+instead of shipping a clipped image.
