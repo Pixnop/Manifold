@@ -114,6 +114,12 @@ asset staging (the `StageAtlasFolderMods` target had to learn to copy
 `samples/ManifoldSample/assets/` too, since neither the fixture nor
 Manifold itself ships assets).
 
+Cross-version compatibility (a world moving between the published 0.5.1 release and this
+dev build, in both directions) is a separate concern from this project's restart coverage
+above, which only ever restarts within ONE Manifold build: see
+`Manifold.Scenarios.Compat` (verifier scenarios) and `Manifold.Scenarios.CompatFixtures`
+(the savegame fixtures they load).
+
 Two Manifold bugs were found this way and fixed in the same release: a forced
 game mode leaking out of its dimension, and the transit packet carrying the
 position the player left instead of the landing position.
