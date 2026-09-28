@@ -916,7 +916,12 @@ footer.border-top {
   filter: brightness(1.12) saturate(0.92);
 }
 @media (max-width: 768px) {
-  .mf-hero__stage { aspect-ratio: 4 / 3; }
+  /* 3/2, not 4/3: object-fit: cover scales a 1440x640 (2.25:1) source to match the box's height,
+     then crops width symmetrically around object-position's horizontal centre - at 4:3 (1.33:1)
+     that keeps only the middle 59% of the source width, well short of hero-near's two islands at
+     its extreme left/right edges. 3/2 (1.5:1) widens that to 67%: still a crop, but a smaller one,
+     without a separate narrow-format render of the layer art. */
+  .mf-hero__stage { aspect-ratio: 3 / 2; }
   .mf-hero__layer { object-position: 50% 45%; }
 }
 .mf-hero__sparks {
