@@ -331,7 +331,7 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
 
     /// <summary>
     /// Mounts <c>playername</c> onto the seat of the already-spawned mountable entity
-    /// <c>entityid</c> (a boat, a saddled creature). Base-game mounting, not Manifold's - this is
+    /// <c>entityid</c> (a boat, a saddled creature). Base-game mounting, not Manifold's, this is
     /// only here so PlayerTransitScenarios can set up a rider to teleport, without the scenario
     /// project itself needing a GameContent reference for one seat call.
     /// </summary>

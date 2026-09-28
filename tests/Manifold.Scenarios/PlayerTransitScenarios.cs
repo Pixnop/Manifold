@@ -55,7 +55,12 @@ public class PlayerTransitScenarios : ManifoldScenarioBase
 
         CommandResult result = await World.ExecuteCommand($"/atlasfx teleport-player {playerName} flat");
         Assert.True(result.Ok, "teleport-player reported failure.");
-        await World.Until(() => player.Position.dimension == flatId, timeoutTicks: 600);
+
+        // Wait for the actual landing column (the "flat" dimension's fixed spawn at 512,512, same
+        // as every other scenario landing there), not just the dimension flip: TryUnmount's own
+        // DidUnmount runs a second, unrelated teleport of the player next to the mount's free-exit
+        // spot near boatSpot, and this must not be mistaken for the transit having landed.
+        await LandedAt(player, flatId, 512, 512);
 
         // The player was released from the seat before moving on ...
         Assert.Null(player.Entity.MountedOn);
