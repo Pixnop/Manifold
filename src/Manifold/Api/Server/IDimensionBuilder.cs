@@ -17,11 +17,19 @@ public interface IDimensionBuilder
     /// <returns>This builder, for chaining.</returns>
     IDimensionBuilder WithWorldgen(IWorldgenStrategy strategy);
 
-    /// <summary>Marks the dimension as persistent. Mutually exclusive with <see cref="Ephemeral"/>.</summary>
+    /// <summary>
+    /// Marks the dimension as persistent. Mutually exclusive with <see cref="Ephemeral"/>.
+    /// </summary>
     /// <returns>This builder, for chaining.</returns>
     /// <exception cref="System.InvalidOperationException">
     /// Lifetime was already set to <see cref="Ephemeral"/>, or the builder was already finalised.
     /// </exception>
+    /// <remarks>
+    /// If this call finalises a builder that promotes an existing <see cref="DimensionState.Pending"/>
+    /// entry (the code was previously registered under a different lifetime, most often
+    /// <see cref="Ephemeral"/>), the entry's original lifetime wins and this call has no effect on it;
+    /// Manifold logs a warning naming the code and both lifetimes, since the mismatch is usually a bug.
+    /// </remarks>
     IDimensionBuilder Persistent();
 
     /// <summary>
@@ -35,6 +43,13 @@ public interface IDimensionBuilder
     /// <exception cref="System.InvalidOperationException">
     /// Lifetime was already set to <see cref="Persistent"/>, or the builder was already finalised.
     /// </exception>
+    /// <remarks>
+    /// If this call finalises a builder that promotes an existing <see cref="DimensionState.Pending"/>
+    /// entry (the code was previously registered under a different lifetime, most often
+    /// <see cref="Persistent"/>), the entry's original lifetime wins and this call has no effect on
+    /// it; Manifold logs a warning naming the code and both lifetimes, since the mismatch is usually a
+    /// bug.
+    /// </remarks>
     IDimensionBuilder Ephemeral();
 
     /// <summary>

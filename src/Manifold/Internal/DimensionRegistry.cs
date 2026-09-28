@@ -225,7 +225,20 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         if (_snapshot.TryGetValue(template.Code, out var existing) &&
             existing.State == DimensionState.Pending)
         {
-            // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is new.
+            // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is
+            // new. A builder that requested a different lifetime than the entry it is promoting is
+            // most likely a bug (a code that used to be Persistent now built with Ephemeral(), or
+            // vice versa) - the kept lifetime wins silently, but we warn so it does not go unnoticed.
+            if (template.Lifetime != existing.Lifetime)
+            {
+                _logger?.Warning(
+                    "[Manifold] Dimension '{0}' was requested as {1} but is being promoted from a "
+                    + "Pending entry seeded as {2}; the Pending entry's lifetime wins.",
+                    template.Code,
+                    template.Lifetime,
+                    existing.Lifetime);
+            }
+
             var promoted = template with
             {
                 InternalId = existing.InternalId,

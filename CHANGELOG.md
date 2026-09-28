@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Manifold no longer references Harmony.** `IManifoldServer.IsHealthy` and `IManifoldClient.IsHealthy` are now always `true`, and `ManifoldUnhealthyException` is no longer thrown; both are kept only for binary compatibility with mods compiled against earlier versions.
+- **Promoting a Pending entry with a mismatched lifetime now logs a warning.** Completing a manifest-seeded Pending entry (always Persistent) with a builder that requested a different lifetime (for example `Create().Ephemeral()` on a code that used to be Persistent) already kept the entry's original lifetime silently; it still does, but Manifold now logs a warning naming the code, the requested lifetime, and the one kept, since the mismatch is usually a bug rather than an intentional lifetime change.
 
 ### Deprecated
 - **`IManifoldClient.LocalPlayerTransited`** is now marked `[Obsolete]`: it was never raised (populating its event args needs an `IServerPlayer` the client does not have) and is kept only for binary compatibility with mods that subscribe to it. Use `LocalPlayerChangedDimension` instead.
