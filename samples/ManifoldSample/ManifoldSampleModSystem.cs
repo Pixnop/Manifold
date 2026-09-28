@@ -254,7 +254,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
     /// Handles <c>/sendtestitem</c>: spawns a stick item entity at the caller and sends it to the
     /// sample flat dimension via <see cref="ITransitionService.TeleportEntity"/>.
     /// </summary>
-    internal TextCommandResult HandleSendTestItem(ICoreServerAPI api, IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
+    internal static TextCommandResult HandleSendTestItem(ICoreServerAPI api, IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
     {
         if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
         {
@@ -288,7 +288,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
     /// Handles <c>/sendtestblock</c>: teleports the block the caller is looking at - with its
     /// BlockEntity contents (e.g. a chest's inventory) - to the flat dimension.
     /// </summary>
-    internal TextCommandResult HandleSendTestBlock(IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
+    internal static TextCommandResult HandleSendTestBlock(IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
     {
         if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
         {
@@ -318,7 +318,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
     /// Handles <c>/createtempdim</c>: creates the ephemeral manifoldsample:tempdim (if not already
     /// registered) and teleports the caller into it.
     /// </summary>
-    internal TextCommandResult HandleCreateTempDim(IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
+    internal static TextCommandResult HandleCreateTempDim(IManifoldServer manifold, TextCommandCallingArgs cmdArgs)
     {
         if (cmdArgs.Caller.Player is not IServerPlayer serverPlayer)
         {
@@ -342,7 +342,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
     }
 
     /// <summary>Handles <c>/destroytempdim</c>: force-evacuates and removes manifoldsample:tempdim.</summary>
-    internal TextCommandResult HandleDestroyTempDim(IManifoldServer manifold)
+    internal static TextCommandResult HandleDestroyTempDim(IManifoldServer manifold)
     {
         // Force teardown: ForceRemoveDimension evacuates any occupants to the overworld, then
         // removes the dim. The plain Registry.TryRemove would refuse while you are inside.
@@ -355,7 +355,7 @@ public sealed class ManifoldSampleModSystem : ModSystem
     }
 
     /// <summary>Handles <c>/miningreset</c>: wipes the mining dimension so the next visit regenerates it.</summary>
-    internal TextCommandResult HandleMiningReset(IManifoldServer manifold, AssetLocation miningCode)
+    internal static TextCommandResult HandleMiningReset(IManifoldServer manifold, AssetLocation miningCode)
     {
         if (manifold.Registry.Get(miningCode) is null)
         {
