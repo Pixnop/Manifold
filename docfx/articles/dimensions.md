@@ -133,11 +133,12 @@ strategy and policies, or it stays `Pending` forever and every transit into it t
 `State == DimensionState.Pending && OwnerModId == yourModId`.
 
 Promotion also keeps the Pending entry's **lifetime**, ignoring `Persistent()`/`Ephemeral()` on the
-builder that completes it: a code that was `Persistent` in an earlier session stays `Persistent` even
-if you build it with `Ephemeral()` this time (and the reverse). This is deliberate - a Pending entry
-already has occupants and saved chunks riding on its original lifetime - but a mismatch is usually a
-bug (the wrong builder call, or a code reused for a different dimension), so Manifold logs a warning
-naming the code, the requested lifetime, and the one actually kept.
+builder that completes it: a Pending entry is always `Persistent` (only `Persistent` dimensions are
+written to the manifest), so it stays `Persistent` even if you build it with `Ephemeral()` this time.
+This is deliberate - a Pending entry already has occupants and saved chunks riding on its original
+lifetime - but building it with `Ephemeral()` is usually a bug (the wrong builder call, or a code
+reused for a different dimension), so Manifold logs a warning naming the code, the requested
+lifetime, and the one actually kept.
 
 If you reinstall a mod whose dimension was `Quarantined`, that dimension does not become `Active` on
 its own either: it becomes `Pending` at the next boot (the owner is loaded again), and then `Active`

@@ -25,10 +25,9 @@ public interface IDimensionBuilder
     /// Lifetime was already set to <see cref="Ephemeral"/>, or the builder was already finalised.
     /// </exception>
     /// <remarks>
-    /// If this call finalises a builder that promotes an existing <see cref="DimensionState.Pending"/>
-    /// entry (the code was previously registered under a different lifetime, most often
-    /// <see cref="Ephemeral"/>), the entry's original lifetime wins and this call has no effect on it;
-    /// Manifold logs a warning naming the code and both lifetimes, since the mismatch is usually a bug.
+    /// A <see cref="DimensionState.Pending"/> entry is always seeded as <see cref="DimensionLifetime.Persistent"/>
+    /// (only Persistent dimensions are written to the manifest), so completing one after this call
+    /// never conflicts with its kept lifetime.
     /// </remarks>
     IDimensionBuilder Persistent();
 
@@ -44,11 +43,10 @@ public interface IDimensionBuilder
     /// Lifetime was already set to <see cref="Persistent"/>, or the builder was already finalised.
     /// </exception>
     /// <remarks>
-    /// If this call finalises a builder that promotes an existing <see cref="DimensionState.Pending"/>
-    /// entry (the code was previously registered under a different lifetime, most often
-    /// <see cref="Persistent"/>), the entry's original lifetime wins and this call has no effect on
-    /// it; Manifold logs a warning naming the code and both lifetimes, since the mismatch is usually a
-    /// bug.
+    /// If <see cref="Create"/> then promotes an existing
+    /// <see cref="DimensionState.Pending"/> entry (always <see cref="DimensionLifetime.Persistent"/>,
+    /// seeded from the manifest), the Persistent lifetime is kept and this call has no effect on it;
+    /// Manifold logs a warning naming the code, since the mismatch is usually a bug.
     /// </remarks>
     IDimensionBuilder Ephemeral();
 
