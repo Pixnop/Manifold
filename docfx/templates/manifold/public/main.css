@@ -505,19 +505,30 @@ footer.border-top {
   margin: 3rem auto;
   opacity: 0.7;
 }
+/* Same multiply treatment as the card art above: the divider's blur halo (baked for the void) is
+   a soft pink smear on paper without it. */
+:root[data-bs-theme='light'] .mf-divider {
+  opacity: 0.85;
+  mix-blend-mode: multiply;
+}
 
 .mf-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr), not 1fr: 1fr alone has an implicit min of auto, so an unbreakable child (a
+     long inline code identifier) forces the column past the viewport instead of wrapping. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.25rem;
   margin-bottom: 3rem;
 }
 @media (max-width: 900px) {
-  .mf-grid { grid-template-columns: repeat(2, 1fr); }
+  .mf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* 9 cards in 2 columns orphans the 9th next to an empty cell; spanning it keeps every row full. */
+  .mf-grid:has(> :nth-child(9):last-child) > :nth-child(9) { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) {
-  .mf-grid { grid-template-columns: 1fr; }
+  .mf-grid { grid-template-columns: minmax(0, 1fr); }
 }
+.mf-card code { overflow-wrap: anywhere; }
 
 .mf-card {
   position: relative;
@@ -567,7 +578,10 @@ footer.border-top {
    didn't earn a full island card, still true and still worth a line each. */
 .mf-also {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* minmax(380px, 1fr): at 1440 this settles on 3 wide columns instead of auto-fit's 5-6 at a
+     narrower minimum, which packed each card too tight for an inline identifier like
+     DimensionCommandBuilder to sit on one line. */
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 1rem;
   margin-bottom: 3rem;
 }
