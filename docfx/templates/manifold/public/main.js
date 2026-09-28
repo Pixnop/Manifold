@@ -355,6 +355,18 @@ function initPortalTravel() {
 // --------------------------------------------------------------------------
 function initHiddenPortal() {
   const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  // KMP failure function: on a mismatch at konamiPos, fall back to the longest prefix of KONAMI
+  // that is also a suffix of what has matched so far, instead of resetting to 0 (which drops a
+  // repeated leading key, e.g. "Up Up Up Down Down...", back to needing a fresh "Up Up").
+  const KONAMI_FAIL = (() => {
+    const fail = [0];
+    for (let i = 1, k = 0; i < KONAMI.length; i++) {
+      while (k > 0 && KONAMI[i] !== KONAMI[k]) k = fail[k - 1];
+      if (KONAMI[i] === KONAMI[k]) k++;
+      fail.push(k);
+    }
+    return fail;
+  })();
   const WORD = 'manifold';
   let konamiPos = 0;
   let typed = '';
@@ -394,7 +406,8 @@ function initHiddenPortal() {
     const target = event.target;
     if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
 
-    konamiPos = event.key === KONAMI[konamiPos] ? konamiPos + 1 : (event.key === KONAMI[0] ? 1 : 0);
+    while (konamiPos > 0 && event.key !== KONAMI[konamiPos]) konamiPos = KONAMI_FAIL[konamiPos - 1];
+    if (event.key === KONAMI[konamiPos]) konamiPos++;
     if (konamiPos === KONAMI.length) {
       konamiPos = 0;
       openPortal();

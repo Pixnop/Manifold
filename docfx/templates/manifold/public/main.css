@@ -1108,6 +1108,9 @@ dialog.mf-secret-portal::backdrop {
 }
 .mf-secret-portal__panel {
   position: relative;
+  isolation: isolate; /* opens a stacking context here, so the glow's z-index: -1 lands between
+                          this panel's own background and its content instead of behind the
+                          whole page (where an opaque ancestor background hid it entirely) */
   max-width: 26rem;
   padding: 2rem 1.75rem;
   border-radius: var(--mf-radius);
@@ -1119,11 +1122,13 @@ dialog.mf-secret-portal::backdrop {
 }
 .mf-secret-portal__glow { position: absolute; inset: -20%; z-index: -1; border-radius: 50%; }
 .mf-secret-portal__vortex {
-  width: 2.5rem;
-  height: 2.5rem;
-  margin: 0 auto 1rem;
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  margin: 0 auto 1.25rem;
   border-radius: 50%;
   background: conic-gradient(from 0deg, var(--mf-salmon), var(--mf-ice), var(--mf-salmon-light), var(--mf-salmon));
+  box-shadow: 0 0 2rem rgba(226, 143, 112, 0.5);
   animation: mf-vortex-spin 3s linear infinite;
 }
 @keyframes mf-vortex-spin { to { transform: rotate(360deg); } }
