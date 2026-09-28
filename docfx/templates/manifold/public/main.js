@@ -229,6 +229,34 @@ function initHeroSparks() {
 }
 
 // --------------------------------------------------------------------------
+// The descent: fades .mf-descent's ambient glow out over the first
+// one-and-a-bit viewport heights of scroll, so the reader passes from the
+// lit hero into the plain void beneath it once, rather than the glow
+// tracking the whole page height (a reader on a very long page would barely
+// see it move). Off under reduced motion: the glow stays at its static
+// default (main.css).
+// --------------------------------------------------------------------------
+function initDescent() {
+  const el = document.querySelector('.mf-descent');
+  if (!el || reducedMotion()) return;
+
+  const FADE_VH = 1.3;
+  let pending = null;
+  function apply() {
+    pending = null;
+    const span = Math.max(1, window.innerHeight * FADE_VH);
+    const fade = Math.max(0, 1 - window.scrollY / span);
+    document.documentElement.style.setProperty('--mf-descent-fade', fade.toFixed(3));
+  }
+  function schedule() {
+    if (!pending) pending = requestAnimationFrame(apply);
+  }
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule, { passive: true });
+  schedule();
+}
+
+// --------------------------------------------------------------------------
 // Drifting islands between sections: a handful of small islands (see
 // .mf-drift-zone in index.md) parallax at their own slow rate as the page
 // scrolls past them, each rate read from data-drift-speed so the landing can
@@ -386,6 +414,7 @@ function initHiddenPortal() {
 function initAll() {
   initTilt();
   initThemeSwirl();
+  initDescent();
   initHeroParallax();
   initHeroSparks();
   initSectionDrift();

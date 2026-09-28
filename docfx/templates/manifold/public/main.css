@@ -849,6 +849,27 @@ footer.border-top {
 }
 
 /* ==========================================================================
+   The descent: a fixed backdrop behind the whole landing page (not just the
+   boxed hero above) whose warm ambient glow fades out as the reader scrolls
+   down, read as passing from the lit overworld into the void. main.js drives
+   --mf-descent-fade (1 at the top, ->0 past the hero) from scroll position;
+   with no JS, or under reduced motion where the updater never runs, it
+   simply stays at its default (1): a static glow, not an absence of one.
+   ========================================================================== */
+.mf-descent { display: none; }
+:root[data-bs-theme='dark'] body[data-layout='landing'] .mf-descent {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 1400px 900px at 50% -10%, rgba(226, 143, 112, 0.18), transparent 60%),
+    radial-gradient(ellipse 1000px 700px at 50% 6%, rgba(213, 237, 240, 0.09), transparent 65%);
+  opacity: var(--mf-descent-fade, 1);
+}
+
+/* ==========================================================================
    Landing hero: the dimension descent. Four stacked layers (opaque
    background, three transparent animated ones) in one box; the animated
    layers swap to a still PNG under prefers-reduced-motion via <picture> in
