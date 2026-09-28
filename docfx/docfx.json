@@ -31,6 +31,11 @@
         "files": ["assets/moddb/**"],
         "exclude": ["assets/moddb/generate.py", "assets/moddb/README.md"],
         "src": "../docs"
+      },
+      {
+        "files": ["assets/site/**"],
+        "exclude": ["assets/site/generate.py", "assets/site/README.md"],
+        "src": "../docs"
       }
     ],
     "output": "_site",
