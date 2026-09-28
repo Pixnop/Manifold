@@ -107,6 +107,20 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .RegisterStatic();
         PublishDimensionId("colgen", colgen.InternalId);
 
+        // Real vanilla terrain for RealTerrainLandingScenarios: seven known columns built by
+        // TerrainProbeWorldgen (see its class doc for the layout), proving
+        // TargetPositionResolvers.SameXZSurfaceY against the actual engine. Generation radius 0
+        // keeps it to the single chunk the columns live in, same as "pregenerated" above; no
+        // WithFixedSpawn, so it keeps the default SpawnBehavior.SameCoordinates the columns are
+        // built to exercise.
+        IDimension terrain = _manifold.Registry
+            .Define(new AssetLocation(Domain, "terrain"))
+            .Persistent()
+            .WithWorldgen(new TerrainProbeWorldgen())
+            .WithGenerationRadius(0)
+            .RegisterStatic();
+        PublishDimensionId("terrain", terrain.InternalId);
+
         // Exercises IManifoldServer.GenerateRegion called synchronously right here, right after
         // RegisterStatic, with no player and no transit (issue #69: a statically registered
         // dimension otherwise has no terrain until something visits it). Radius 0 keeps this to a
@@ -225,6 +239,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
                 .WithArgs(parsers.Word("entityid"), parsers.Word("dimpath"))
                 .HandleWith(OnTeleportEntity)
             .EndSubCommand()
+            .BeginSubCommand("teleport-entity-plain")
+                .WithArgs(parsers.Word("entityid"), parsers.Word("dimpath"))
+                .HandleWith(OnTeleportEntityPlain)
+            .EndSubCommand()
             .BeginSubCommand("teleport-block")
                 .WithArgs(
                     parsers.Int("x"),
@@ -309,6 +327,34 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
         try
         {
             _manifold.Transitions.TeleportEntity(entity, ResolveTargetCode(dimPath), options);
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+
+        return TextCommandResult.Success("ok");
+    }
+
+    /// <summary>
+    /// Entity transit with no options at all, so the default resolver
+    /// (TargetPositionResolvers.SameXZSurfaceY) decides the landing, same as OnTeleportEntity
+    /// but without the OverridePosition that masks it. Drives RealTerrainLandingScenarios.
+    /// </summary>
+    private TextCommandResult OnTeleportEntityPlain(TextCommandCallingArgs args)
+    {
+        long entityId = long.Parse((string)args[0], CultureInfo.InvariantCulture);
+        var dimPath = (string)args[1];
+
+        Entity? entity = _sapi.World.GetEntityById(entityId);
+        if (entity is null)
+        {
+            return TextCommandResult.Error($"No entity with id {entityId}.");
+        }
+
+        try
+        {
+            _manifold.Transitions.TeleportEntity(entity, ResolveTargetCode(dimPath));
         }
         catch (ManifoldException ex)
         {

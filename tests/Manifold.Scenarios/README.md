@@ -41,10 +41,10 @@ desync-gone proof: re-creating a dimension whose first incarnation only a
 rollback removed. Boot-time mini-dimension terrain no longer disqualifies
 rollback; the fixture still generates terrain on demand only
 (`/atlasfx pregen <dimpath>` or a transit) purely to keep snapshots small.
-Classes with joined players cannot roll back yet. Five of them
+Classes with joined players cannot roll back yet. Six of them
 (`MultiPlayerScenarios`, `PlayerInventoryScenarios`, `TransitEventScenarios`,
-`PlayerTransitScenarios`, `StreamingWorldgenScenarios`) carry a
-`rollback-stage2-candidate` comment stating what a future rollback stage
+`PlayerTransitScenarios`, `StreamingWorldgenScenarios`, `RealTerrainLandingScenarios`)
+carry a `rollback-stage2-candidate` comment stating what a future rollback stage
 would need; the others that join players (`ClientMirrorScenarios`,
 `CommandBuilderScenarios`, `InventoryAccessScenarios`, `QuarantineScenarios`,
 `ReconnectScenarios`, `TeardownScenarios`, `TravelPolicyScenarios`) do not
@@ -62,13 +62,14 @@ self-sufficient in any order.
 
 ## What is covered
 
-63 scenarios, one class per area:
+88 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
 | Boot, registration, per-dimension worldgen, streaming, dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
 | Lifecycle, teardown, admin commands | `DimensionLifecycleScenarios`, `EphemeralDimensionScenarios`, `TeardownScenarios`, `AdminCommandScenarios` |
 | Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
+| Landing position on real terrain (`TargetPositionResolvers.SameXZSurfaceY`) | `RealTerrainLandingScenarios` |
 | Transit events: order, vetoes, a throwing subscriber | `TransitEventScenarios` |
 | Travel policy, forced game mode, command builders | `TravelPolicyScenarios`, `CommandBuilderScenarios` |
 | Per-dimension inventory, concurrent players, reconnection | `PlayerInventoryScenarios`, `MultiPlayerScenarios`, `ReconnectScenarios` |
