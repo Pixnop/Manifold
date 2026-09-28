@@ -6,6 +6,10 @@
 <html {{#_lang}}lang="{{_lang}}"{{/_lang}}>
   <head>
     <meta charset="utf-8">
+    {{! Manifold: GitHub Pages serves 404.html unchanged at whatever nested URL missed, so its
+        relative asset paths resolve against the wrong directory unless a fixed base is set.
+        404.md carries _baseHref in its front matter; every other page leaves it unset. }}
+    {{#_baseHref}}<base href="{{_baseHref}}">{{/_baseHref}}
     {{#redirect_url}}
       <meta http-equiv="refresh" content="0;URL='{{redirect_url}}'">
     {{/redirect_url}}
