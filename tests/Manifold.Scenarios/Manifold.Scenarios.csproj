@@ -37,6 +37,11 @@
     <ProjectReference Include="..\Manifold.Scenarios.FixtureMod\Manifold.Scenarios.FixtureMod.csproj">
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
+    <!-- The sample consumer mod itself: never exercised by the scenario suite before this,
+         so its commands (/miningdim, /miningreset, /voiddim, ...) had no automated coverage. -->
+    <ProjectReference Include="..\..\samples\ManifoldSample\ManifoldSample.csproj">
+      <AtlasMod>true</AtlasMod>
+    </ProjectReference>
   </ItemGroup>
 
   <!-- Atlas 0.3.0 fixed issue 22 (a tagged reference with a sibling modinfo.json is staged
