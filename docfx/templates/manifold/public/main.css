@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Manifold docs theme — "the void between worlds"
+   Manifold docs theme: "the void between worlds"
    Overrides the docfx "modern" template through Bootstrap 5 custom
    properties and a handful of new classes used by the landing page.
    ========================================================================== */
@@ -39,10 +39,11 @@
   height: 36px;
   width: auto;
   border-radius: 6px;
+  margin-right: 0.5rem;
 }
 
 /* --------------------------------------------------------------------------
-   Dark theme (default) — the void, with a faint nebula behind body text.
+   Dark theme (default): the void, with a faint nebula behind body text.
    -------------------------------------------------------------------------- */
 :root[data-bs-theme='dark'] {
   color-scheme: dark;
@@ -50,6 +51,8 @@
   --bs-body-color: var(--mf-text);
   --bs-emphasis-color: #f3f7f8;
   --bs-secondary-color: var(--mf-muted);
+  --bs-secondary-rgb: 169, 186, 194;
+  --bs-focus-ring-color: rgba(226, 143, 112, 0.6);
   --bs-border-color: #2a323b;
   --bs-border-color-translucent: rgba(217, 226, 230, 0.12);
   --bs-tertiary-bg: var(--mf-void-2);
@@ -75,7 +78,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Light theme — ice / paper, not an inverted afterthought.
+   Light theme: ice / paper, not an inverted afterthought.
    -------------------------------------------------------------------------- */
 :root[data-bs-theme='light'] {
   color-scheme: light;
@@ -83,6 +86,8 @@
   --bs-body-color: #232b31;
   --bs-emphasis-color: var(--mf-slate);
   --bs-secondary-color: #57666d;
+  --bs-secondary-rgb: 87, 102, 109;
+  --bs-focus-ring-color: rgba(181, 84, 46, 0.6);
   --bs-border-color: #d7e2e5;
   --bs-border-color-translucent: rgba(51, 63, 72, 0.12);
   --bs-tertiary-bg: #eef4f5;
@@ -108,6 +113,7 @@
 
 body {
   font-family: var(--mf-font-body);
+  overflow-x: clip;
 }
 
 h1, h2, h3, h4, h5, h6,
@@ -125,13 +131,23 @@ article h1, article h2, article h3 { color: var(--bs-emphasis-color); }
 }
 
 /* --------------------------------------------------------------------------
-   Focus rings — visible everywhere, in the accent colour.
+   Focus rings: visible everywhere, in the accent colour.
    -------------------------------------------------------------------------- */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 .btn:focus-visible,
 [tabindex]:focus-visible {
+  outline: 2px solid var(--mf-salmon);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+/* Bootstrap's own .nav-link/.dropdown-item focus-visible rule (outline: 0 plus a 25% blue
+   box-shadow) has higher specificity than the generic rule above and wins on the navbar. */
+.nav-link:focus-visible,
+.navbar-brand:focus-visible,
+.dropdown-item:focus-visible,
+.dropdown-toggle:focus-visible {
   outline: 2px solid var(--mf-salmon);
   outline-offset: 2px;
   box-shadow: none;
@@ -151,7 +167,7 @@ input:focus-visible,
 ::-webkit-scrollbar-thumb:hover { background-color: var(--mf-slate-light); }
 
 /* --------------------------------------------------------------------------
-   Navbar — translucent, blurred, salmon active indicator.
+   Navbar: translucent, blurred, salmon active indicator.
    -------------------------------------------------------------------------- */
 header.border-bottom {
   border-bottom-color: var(--bs-border-color) !important;
@@ -226,16 +242,72 @@ pre code.hljs {
   background-color: #eef4f5 !important;
   color: #232b31 !important;
 }
+/* highlight.js token colours, themed from the palette instead of the stock scheme (whose light
+   .hljs-attr #FF0000 and .hljs-meta #2B91AF both fail 4.5:1 on the code background); each group
+   below is checked against its own theme's code background. */
+:root[data-bs-theme='dark'] .hljs-keyword,
+:root[data-bs-theme='dark'] .hljs-selector-tag,
+:root[data-bs-theme='dark'] .hljs-built_in,
+:root[data-bs-theme='dark'] .hljs-name,
+:root[data-bs-theme='dark'] .hljs-tag,
+:root[data-bs-theme='dark'] .hljs-literal,
+:root[data-bs-theme='dark'] .hljs-symbol,
+:root[data-bs-theme='dark'] .hljs-bullet,
+:root[data-bs-theme='dark'] .hljs-link,
+:root[data-bs-theme='dark'] .hljs-attr { color: var(--mf-salmon-light); }
+:root[data-bs-theme='dark'] .hljs-string,
+:root[data-bs-theme='dark'] .hljs-title,
+:root[data-bs-theme='dark'] .hljs-section,
+:root[data-bs-theme='dark'] .hljs-attribute,
+:root[data-bs-theme='dark'] .hljs-template-tag,
+:root[data-bs-theme='dark'] .hljs-template-variable,
+:root[data-bs-theme='dark'] .hljs-type,
+:root[data-bs-theme='dark'] .hljs-addition { color: var(--mf-green-light); }
+:root[data-bs-theme='dark'] .hljs-comment,
+:root[data-bs-theme='dark'] .hljs-quote,
+:root[data-bs-theme='dark'] .hljs-variable,
+:root[data-bs-theme='dark'] .hljs-doctag { color: var(--mf-muted); }
+:root[data-bs-theme='dark'] .hljs-deletion,
+:root[data-bs-theme='dark'] .hljs-selector-attr,
+:root[data-bs-theme='dark'] .hljs-selector-pseudo,
+:root[data-bs-theme='dark'] .hljs-meta { color: var(--mf-ice); }
+
+:root[data-bs-theme='light'] .hljs-keyword,
+:root[data-bs-theme='light'] .hljs-selector-tag,
+:root[data-bs-theme='light'] .hljs-built_in,
+:root[data-bs-theme='light'] .hljs-name,
+:root[data-bs-theme='light'] .hljs-tag,
+:root[data-bs-theme='light'] .hljs-literal,
+:root[data-bs-theme='light'] .hljs-symbol,
+:root[data-bs-theme='light'] .hljs-bullet,
+:root[data-bs-theme='light'] .hljs-link { color: var(--mf-slate); }
+:root[data-bs-theme='light'] .hljs-string,
+:root[data-bs-theme='light'] .hljs-title,
+:root[data-bs-theme='light'] .hljs-section,
+:root[data-bs-theme='light'] .hljs-attribute,
+:root[data-bs-theme='light'] .hljs-template-tag,
+:root[data-bs-theme='light'] .hljs-template-variable,
+:root[data-bs-theme='light'] .hljs-type,
+:root[data-bs-theme='light'] .hljs-addition { color: #456b2e; } /* same shade as the light-mode TIP heading */
+:root[data-bs-theme='light'] .hljs-comment,
+:root[data-bs-theme='light'] .hljs-quote,
+:root[data-bs-theme='light'] .hljs-variable,
+:root[data-bs-theme='light'] .hljs-doctag { color: var(--mf-slate-mid); }
+:root[data-bs-theme='light'] .hljs-deletion,
+:root[data-bs-theme='light'] .hljs-selector-attr,
+:root[data-bs-theme='light'] .hljs-selector-pseudo,
+:root[data-bs-theme='light'] .hljs-meta,
+:root[data-bs-theme='light'] .hljs-attr { color: var(--mf-terracotta-deep); }
 .code-action {
   color: var(--bs-secondary-color);
 }
 .code-action:hover { color: var(--mf-salmon); }
 
 /* --------------------------------------------------------------------------
-   Callouts — docfx's own [!NOTE] [!TIP] [!IMPORTANT] [!WARNING] [!CAUTION]
+   Callouts: docfx's own [!NOTE] [!TIP] [!IMPORTANT] [!WARNING] [!CAUTION]
    blocks. docfx renders these as <div class="NOTE alert alert-info"> (TIP
    also alert-info; IMPORTANT and CAUTION are both alert-danger; WARNING is
-   alert-warning) with an <h5> title — the uppercase class carries the icon
+   alert-warning) with an <h5> title: the uppercase class carries the icon
    already (via .alert-info/-warning/-danger h5::before in docfx.min.css),
    these rules only need to reset colour to the palette.
    -------------------------------------------------------------------------- */
@@ -314,7 +386,7 @@ article h4[id] {
 }
 
 /* --------------------------------------------------------------------------
-   Sidebar / TOC — active item marked in salmon.
+   Sidebar / TOC: active item marked in salmon.
    -------------------------------------------------------------------------- */
 #toc .nav-link,
 .affix .nav-link {
@@ -352,27 +424,24 @@ footer.border-top {
    Landing page.
    -------------------------------------------------------------------------- */
 .mf-hero {
-  margin: 0 -3rem 2.5rem;
-  padding: 0 3rem;
-}
-.mf-hero__banner {
-  display: block;
-  width: 100%;
-  max-width: 1200px;
-  height: auto;
-  border-radius: var(--mf-radius);
-  margin: 0 auto 1.5rem;
+  margin: 0 0 2.5rem;
 }
 .mf-hero__title {
-  /* The banner artwork bakes in the wordmark; this heading stays for
-     accessibility and search engines without duplicating it visually. */
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  margin: 0 0 0.75rem;
+  text-align: center;
+  font-weight: 800;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  line-height: 1.05;
+  background: linear-gradient(135deg, var(--mf-salmon-light) 0%, var(--mf-ice) 55%, var(--mf-salmon) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-bs-theme='light'] .mf-hero__title {
+  background: linear-gradient(135deg, var(--mf-terracotta) 0%, var(--mf-slate) 60%, var(--mf-terracotta-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .mf-hero__tagline {
   max-width: 46rem;
@@ -439,9 +508,15 @@ footer.border-top {
 
 .mf-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.25rem;
   margin-bottom: 3rem;
+}
+@media (max-width: 900px) {
+  .mf-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .mf-grid { grid-template-columns: 1fr; }
 }
 
 .mf-card {
@@ -470,21 +545,14 @@ footer.border-top {
 .mf-card:hover,
 .mf-card:focus-visible {
   border-color: var(--mf-salmon);
-  transform: translateY(-2px);
 }
 .mf-card:hover::before,
 .mf-card:focus-visible::before { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .mf-card, .mf-btn { transition: none; }
-  .mf-card:hover, .mf-card:focus-visible { transform: none; }
   .mf-btn:hover { transform: none; }
 }
 
-.mf-feature-card img {
-  width: 72px;
-  height: auto;
-  margin-bottom: 0.75rem;
-}
 .mf-feature-card h3, .mf-doc-card h3, .mf-mod-card h3 {
   font-size: 1.05rem;
   margin-bottom: 0.35rem;
@@ -495,37 +563,48 @@ footer.border-top {
   margin-bottom: 0;
 }
 
-.mf-whatsnew {
+/* .mf-also: the compact "also in the box" strip under the features grid - the features that
+   didn't earn a full island card, still true and still worth a line each. */
+.mf-also {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 3rem;
 }
-.mf-whatsnew .mf-card {
+.mf-also .mf-card {
   padding: 1rem 1.1rem;
   font-size: 0.92rem;
 }
-.mf-whatsnew .mf-card strong {
+.mf-also .mf-card strong {
   display: block;
   color: var(--mf-salmon);
   font-family: var(--mf-font-heading);
   margin-bottom: 0.25rem;
 }
 /* Raw salmon on --bs-tertiary-bg is 2.25:1 in light mode; the deep shade clears AA. */
-:root[data-bs-theme='light'] .mf-whatsnew .mf-card strong { color: var(--mf-terracotta-deep); }
+:root[data-bs-theme='light'] .mf-also .mf-card strong { color: var(--mf-terracotta-deep); }
 
 .mf-mod-card {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+  position: relative;
 }
 .mf-mod-card img {
+  box-sizing: border-box;
   width: 44px;
   height: 44px;
   border-radius: 8px;
-  object-fit: cover;
+  object-fit: contain;
+  background: var(--mf-ice);
+  padding: 6px;
   flex: none;
 }
+.mf-mod-card > div {
+  flex: 1;
+  min-width: 0;
+}
+.mf-mod-card.external::after { position: absolute; top: 0.75rem; right: 0.75rem; }
 
 .mf-why {
   max-width: 42rem;
@@ -538,12 +617,36 @@ footer.border-top {
 .mf-why p { margin-bottom: 0.6rem; }
 .mf-why p:last-child { margin-bottom: 0; }
 
-@media (max-width: 768px) {
-  .mf-hero { margin-left: -1rem; margin-right: -1rem; padding: 0 1rem; }
+/* Closing strip - Compatibility and License, in the same centred, card-toned rhythm as the rest
+   of the landing instead of left-aligned default markdown headings. */
+.mf-close {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  max-width: 42rem;
+  margin: 0 auto 2rem;
 }
+.mf-close__col {
+  flex: 1 1 14rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-tertiary-bg);
+}
+.mf-close__col h3 {
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+}
+.mf-close__col ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.92rem;
+}
+.mf-close__col p { margin: 0; }
 
 /* ==========================================================================
-   Motion primitives — for the landing page (and anywhere else that wants
+   Motion primitives: for the landing page (and anywhere else that wants
    the dimension feel). Everything here is opt-in via a class; nothing runs
    on a page that doesn't ask for it, and every animation is switched off
    under prefers-reduced-motion instead of just slowed down.
@@ -565,25 +668,6 @@ footer.border-top {
 .mf-floating--delay-2 { animation-delay: -3s; }
 .mf-floating--delay-3 { animation-delay: -4.5s; }
 
-/* .mf-star: a single twinkling point for a CSS-only starfield (no canvas,
-   no image — a small dot with a radial-gradient glow, sized and positioned
-   by whoever places it). */
-@keyframes mf-twinkle {
-  0%, 100% { opacity: 0.25; transform: scale(0.85); }
-  50% { opacity: 1; transform: scale(1); }
-}
-.mf-star {
-  display: block;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, var(--mf-ice) 55%, transparent 75%);
-  animation: mf-twinkle 3.2s ease-in-out infinite;
-}
-.mf-star--delay-1 { animation-delay: -0.8s; }
-.mf-star--delay-2 { animation-delay: -1.6s; }
-.mf-star--delay-3 { animation-delay: -2.4s; }
-
 /* .mf-portal-glow: a soft pulsing halo, for the hero portal art or any
    "this is a threshold" marker. Apply to an absolutely-positioned element
    sized by the caller; the class only supplies the glow and the pulse. */
@@ -604,12 +688,17 @@ footer.border-top {
 .mf-tilt {
   --mf-tilt-x: 0deg;
   --mf-tilt-y: 0deg;
-  transform: perspective(900px) rotateX(var(--mf-tilt-x)) rotateY(var(--mf-tilt-y));
+  --mf-lift: 0px;
+  transform: perspective(900px) translateY(var(--mf-lift)) rotateX(var(--mf-tilt-x)) rotateY(var(--mf-tilt-y));
   transition: transform var(--mf-transition);
+}
+.mf-tilt:hover,
+.mf-tilt:focus-visible {
+  --mf-lift: -2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mf-floating, .mf-star, .mf-portal-glow {
+  .mf-floating, .mf-portal-glow {
     animation: none;
   }
   .mf-tilt {
@@ -619,42 +708,42 @@ footer.border-top {
 }
 
 /* --------------------------------------------------------------------------
-   Floating islands — a card variant that reads as a chunk of world rather
-   than a flat panel: a bright grassy seam along the top, a voxel dirt-and-
-   stone underside hanging below, gently bobbing. CSS-only (no extra markup
-   beyond the existing .mf-card), so the landing only has to add the class.
+   Floating islands: a card variant that reads as a chunk of world rather
+   than a flat panel: a bright grassy seam along the top, a pre-rendered
+   isometric voxel underside (docs/assets/site/island-underside.png, tiled)
+   hanging below. Only the underside strip bobs, on its own keyframes at a
+   small amplitude; the card and its text stay put so paragraphs don't drift
+   while read. CSS-only beyond the existing .mf-card (the strip is an ::after
+   background image), so the landing only has to add the class.
    -------------------------------------------------------------------------- */
 .mf-card--island {
-  margin-bottom: 1.5rem;
-  overflow: visible; /* .mf-card clips by default; the dirt underside hangs past the card's own edge */
+  margin-bottom: 1.75rem;
+  overflow: visible; /* .mf-card clips by default; the underside hangs past the card's own edge */
   border-top: 3px solid var(--mf-green);
   border-bottom: none;
+}
+@keyframes mf-underside-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 .mf-card--island::after {
   content: '';
   position: absolute;
-  left: 14%;
-  right: 14%;
-  bottom: -12px;
-  height: 12px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      #6b4a34 0, #6b4a34 12.5%,
-      #573d2b 12.5%, #573d2b 25%
-    );
-  clip-path: polygon(
-    0% 0%, 8% 100%, 16% 0%, 24% 100%, 32% 0%, 40% 100%, 48% 0%,
-    56% 100%, 64% 0%, 72% 100%, 80% 0%, 88% 100%, 96% 0%, 100% 100%,
-    100% 0%
-  );
-  opacity: 0.9;
+  left: 12%;
+  right: 12%;
+  bottom: -18px;
+  height: 22px;
+  background-image: url('../assets/site/island-underside.png');
+  background-repeat: repeat-x;
+  background-size: 44px 22px;
+  animation: mf-underside-bob 6s ease-in-out infinite;
 }
-:root[data-bs-theme='light'] .mf-card--island::after { opacity: 0.75; }
-.mf-card--island::before { display: none; } /* the hover glow blob assumes overflow:hidden; the island drops it for the dirt underside instead */
-.mf-card--island.mf-floating { animation-name: mf-float; }
+.mf-grid > .mf-card--island:nth-child(3n+2)::after { animation-delay: -2s; }
+.mf-grid > .mf-card--island:nth-child(3n+3)::after { animation-delay: -4s; }
+:root[data-bs-theme='light'] .mf-card--island::after { opacity: 0.85; }
+.mf-card--island::before { display: none; } /* the hover glow blob assumes overflow:hidden; the island drops it for the underside instead */
 @media (prefers-reduced-motion: reduce) {
-  .mf-card--island.mf-floating { animation: none; }
+  .mf-card--island::after { animation: none; }
 }
 
 /* ==========================================================================
@@ -672,11 +761,11 @@ footer.border-top {
 ::view-transition-old(root) { animation-name: mf-portal-close; }
 ::view-transition-new(root) { animation-name: mf-portal-open; }
 @keyframes mf-portal-close {
-  to { clip-path: circle(0% at 94% 5%); opacity: 0.4; }
+  to { clip-path: circle(0% at var(--mf-swirl-x, 94%) var(--mf-swirl-y, 5%)); opacity: 0.4; transform: rotate(12deg) scale(1.06); }
 }
 @keyframes mf-portal-open {
-  from { clip-path: circle(0% at 94% 5%); }
-  to { clip-path: circle(150% at 94% 5%); }
+  from { clip-path: circle(0% at var(--mf-swirl-x, 94%) var(--mf-swirl-y, 5%)); transform: rotate(-18deg) scale(1.12); }
+  to { clip-path: circle(150% at var(--mf-swirl-x, 94%) var(--mf-swirl-y, 5%)); transform: rotate(0deg) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(root),
@@ -687,12 +776,12 @@ footer.border-top {
 }
 
 /* ==========================================================================
-   Landing hero — the dimension descent. Four stacked layers (opaque
+   Landing hero: the dimension descent. Four stacked layers (opaque
    background, three transparent animated ones) in one box; the animated
    layers swap to a still PNG under prefers-reduced-motion via <picture> in
    the markup. main.js writes --mf-hero-dx/--mf-hero-dy on the stage from
    pointer position and scroll progress; each layer multiplies that by its
-   own --mf-depth, so the layers drift at different rates (parallax) — the
+   own --mf-depth, so the layers drift at different rates (parallax): the
    custom properties inherit from the stage to its children, no per-layer
    JS needed. Everything here is inert without JS and off under reduced
    motion or on a touch device (main.js gates on both; the transform itself
@@ -722,6 +811,20 @@ footer.border-top {
 .mf-hero__layer--far { z-index: 2; --mf-depth: 0.3; }
 .mf-hero__layer--mid { z-index: 3; --mf-depth: 0.6; }
 .mf-hero__layer--near { z-index: 4; --mf-depth: 1; }
+/* Light mode swaps in a daylight background (generate.py's hero_background(light=True)) and
+   lifts the animated layers a little so islands read against sky instead of the void. */
+.mf-hero__layer--bg-light { display: none; }
+:root[data-bs-theme='light'] .mf-hero__layer--bg-dark { display: none; }
+:root[data-bs-theme='light'] .mf-hero__layer--bg-light { display: block; }
+:root[data-bs-theme='light'] .mf-hero__layer--far,
+:root[data-bs-theme='light'] .mf-hero__layer--mid,
+:root[data-bs-theme='light'] .mf-hero__layer--near {
+  filter: brightness(1.12) saturate(0.92);
+}
+@media (max-width: 768px) {
+  .mf-hero__stage { aspect-ratio: 4 / 3; }
+  .mf-hero__layer { object-position: 50% 45%; }
+}
 .mf-hero__sparks {
   position: absolute;
   inset: 0;
@@ -747,12 +850,46 @@ footer.border-top {
 }
 
 /* --------------------------------------------------------------------------
-   Section headings that build themselves — a row of small blocks under the
+   Drifting islands between sections: a handful of small islands parallax
+   past at their own slow rate as the reader scrolls, standing in for the
+   "islands drift past at different depths" descent. Each sits in its own
+   zero-height .mf-drift-zone so it anchors to a spot in the flow instead of
+   the page, and never affects layout or blocks a click (pointer-events:
+   none). main.js writes --mf-drift-y from scroll position; inert until it
+   does, and the property itself is dropped under reduced motion.
+   -------------------------------------------------------------------------- */
+body[data-layout='landing'] article { position: relative; }
+.mf-drift-zone {
+  position: relative;
+  height: 0;
+  overflow: visible;
+}
+.mf-drift {
+  position: absolute;
+  z-index: 0;
+  width: 110px;
+  height: auto;
+  opacity: 0.5;
+  pointer-events: none;
+  transform: translateY(var(--mf-drift-y, 0px));
+}
+@media (prefers-reduced-motion: reduce) {
+  .mf-drift { transform: none; }
+}
+@media (max-width: 700px) {
+  .mf-drift { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Section headings that build themselves: a row of small blocks under the
    heading fades and rises into place, staggered, the first time it scrolls
    into view. main.js appends the block row and toggles .is-visible via an
    IntersectionObserver; under reduced motion the blocks are simply shown
    at rest (no observer runs).
    -------------------------------------------------------------------------- */
+.mf-build-heading {
+  margin-bottom: 0;
+}
 .mf-build-heading__blocks {
   display: flex;
   gap: 4px;
@@ -767,6 +904,10 @@ footer.border-top {
   transform: translateY(6px) scale(0.6);
   transition: opacity 260ms ease, transform 260ms ease;
 }
+/* Grass, dirt, stone: the row reads as a thin cross-section of a chunk settling into place,
+   not a uniform line of squares. */
+.mf-build-heading__blocks span:nth-child(3n+2) { background: var(--mf-slate-mid); }
+.mf-build-heading__blocks span:nth-child(3n+3) { background: #6b4a34; }
 .mf-build-heading.is-visible .mf-build-heading__blocks span {
   opacity: 1;
   transform: translateY(0) scale(1);
@@ -783,7 +924,7 @@ footer.border-top {
 }
 
 /* --------------------------------------------------------------------------
-   Console command snippets — /manifold purge, /miningdim, and friends,
+   Console command snippets: /manifold purge, /miningdim, and friends,
    styled like the game's own chat log rather than a generic code block
    (which stays for C#). Deliberately dark in both site themes: it is a
    picture of the game's UI, not themed prose.
@@ -806,7 +947,7 @@ footer.border-top {
 .mf-console code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
 
 /* --------------------------------------------------------------------------
-   Portal travel — clicking the hero gate plays a short expanding-circle
+   Portal travel: clicking the hero gate plays a short expanding-circle
    swirl centred on the gate, then navigates. Scoped to that one link by
    main.js (not a site-wide view-transition), so the rest of the site keeps
    ordinary instant navigation. Skipped entirely under reduced motion: the
@@ -826,21 +967,29 @@ footer.border-top {
 }
 
 /* --------------------------------------------------------------------------
-   Hidden portal — type "manifold" anywhere, or the Konami code, to open a
+   Hidden portal: type "manifold" anywhere, or the Konami code, to open a
    small overlay with a secret line. Reduced motion keeps the overlay
    (content, not motion) and only drops the fade-in.
    -------------------------------------------------------------------------- */
-.mf-secret-portal {
+dialog.mf-secret-portal {
   position: fixed;
   inset: 0;
   z-index: 2100;
+  margin: auto;
+  max-width: none;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  border: 0;
+  background: transparent;
+  animation: mf-secret-fade 200ms ease;
+}
+dialog.mf-secret-portal::backdrop {
   background: rgba(14, 17, 22, 0.82);
   backdrop-filter: blur(4px);
-  animation: mf-secret-fade 200ms ease;
 }
 .mf-secret-portal__panel {
   position: relative;
@@ -851,8 +1000,18 @@ footer.border-top {
   background: var(--mf-void-2);
   color: var(--mf-text);
   text-align: center;
+  overflow: hidden;
 }
-.mf-secret-portal__glow { position: absolute; inset: -40% -20% auto -20%; height: 140%; z-index: -1; }
+.mf-secret-portal__glow { position: absolute; inset: -20%; z-index: -1; border-radius: 50%; }
+.mf-secret-portal__vortex {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--mf-salmon), var(--mf-ice), var(--mf-salmon-light), var(--mf-salmon));
+  animation: mf-vortex-spin 3s linear infinite;
+}
+@keyframes mf-vortex-spin { to { transform: rotate(360deg); } }
 .mf-secret-portal__line {
   font-family: var(--mf-font-heading);
   font-size: 1.05rem;
@@ -861,11 +1020,12 @@ footer.border-top {
 @keyframes mf-secret-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .mf-portal-transition { display: none; }
-  .mf-secret-portal { animation: none; }
+  dialog.mf-secret-portal { animation: none; }
+  .mf-secret-portal__vortex { animation: none; }
 }
 
 /* --------------------------------------------------------------------------
-   Article header loops — a small looping illustration at the top of each
+   Article header loops: a small looping illustration at the top of each
    article, same still-swap treatment as the hero layers.
    -------------------------------------------------------------------------- */
 .mf-article-header {
@@ -877,29 +1037,82 @@ footer.border-top {
 }
 
 /* --------------------------------------------------------------------------
-   404 — "you fell out of the world".
+   404: "you fell out of the world". A full-scene moment rather than a
+   shrunk-down card: the void backdrop fills the viewport, the figure drifts
+   at a size that reads from across the room, and the way home is typed like
+   any other console command.
    -------------------------------------------------------------------------- */
 .mf-404 {
+  position: relative;
+  z-index: 0; /* establishes a stacking context so the void backdrop's z-index: -1 stays contained
+                 in here instead of escaping behind the page's own background */
   max-width: 32rem;
-  margin: 3rem auto;
+  margin: 0 auto;
+  min-height: calc(100vh - 12rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+  overflow: hidden;
 }
-.mf-404 img {
-  width: 220px;
-  height: 160px;
+/* Falling out of the world means falling into the void, in either theme: the backdrop stays the
+   dark hero art regardless of data-bs-theme, so this one page doesn't need a light variant. */
+.mf-404__void {
+  position: absolute;
+  inset: -4rem;
+  z-index: -1;
+  /* bottom 100%: hero-bg fades from a lit top to the void at its base; showing only that base
+     keeps this page dark and the text readable, in either site theme. */
+  background: var(--mf-void) url('../assets/site/hero-bg.webp') center bottom / cover;
+  border-radius: var(--mf-radius);
+}
+.mf-404__void::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(14, 17, 22, 0.35);
+}
+.mf-404__art {
+  width: 320px;
+  height: 233px;
   margin: 0 auto 1.5rem;
+  animation: mf-float 7s ease-in-out infinite;
 }
+@media (prefers-reduced-motion: reduce) {
+  .mf-404__art { animation: none; }
+}
+.mf-404 h1 { color: var(--mf-text); }
 .mf-404 p {
-  color: var(--bs-secondary-color);
+  color: var(--mf-muted);
   margin-bottom: 1.75rem;
+}
+.mf-console--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color var(--mf-transition), transform var(--mf-transition);
+}
+.mf-console--link:hover,
+.mf-console--link:focus-visible {
+  border-color: var(--mf-green);
+  transform: translateY(-1px);
+}
+.mf-console__caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.15em;
+  background: var(--mf-green-light);
+  animation: mf-caret-blink 1s step-end infinite;
+}
+@keyframes mf-caret-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mf-console__caret { animation: none; }
 }
 
 /* --------------------------------------------------------------------------
-   Card thumbnails — the nine "what your mod gets" cards and the docs grid
-   use full 220x160 illustrations, not the 72px icon .mf-feature-card was
-   originally sized for; this overrides that rule (same selector, later in
-   the cascade) so the artwork reads as the card's picture, not a bullet
-   icon. .mf-doc-card never had an image rule at all.
+   Card thumbnails: the "what your mod gets" cards and the docs grid use
+   full 220x160 illustrations as the card's picture, not a bullet icon.
    -------------------------------------------------------------------------- */
 .mf-feature-card img,
 .mf-doc-card img {
@@ -908,4 +1121,10 @@ footer.border-top {
   height: auto;
   margin-bottom: 0.75rem;
   border-radius: var(--mf-radius);
+}
+/* The glowy art (bloom-lit voxels, dashed arcs) can wash out against a bright card; a soft dark
+   drop-shadow keeps it legible in light mode without touching every generated frame. */
+:root[data-bs-theme='light'] .mf-feature-card img,
+:root[data-bs-theme='light'] .mf-doc-card img {
+  filter: drop-shadow(0 1px 3px rgba(35, 43, 49, 0.3));
 }
