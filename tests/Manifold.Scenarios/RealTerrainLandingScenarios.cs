@@ -26,6 +26,8 @@ using Xunit;
 /// across its scenarios; each uses a distinct player name and a distinct column X, so none of
 /// them interfere with each other.
 /// </summary>
+// rollback-stage2-candidate: every player scenario here hard-refuses stage 1 rollback (joined
+// test players are not captured); the entity-only scenario already isolates through RollbackWorld.
 [Trait("Category", "E2E")]
 public class RealTerrainLandingScenarios : ManifoldScenarioBase
 {
