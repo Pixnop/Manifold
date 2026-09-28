@@ -97,7 +97,9 @@ new DimensionCommandBuilder()
     .Register(sapi);
 ```
 
-Players can now type `/voiddim` to transit.
+Players can now type `/voiddim` to transit:
+
+<div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/voiddim</code></div>
 
 ## Complete Minimal Example
 

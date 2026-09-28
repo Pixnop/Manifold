@@ -250,9 +250,7 @@ bounded to what you actually changed. Throws `DimensionNotFoundException` for un
 
 For in-game diagnosis, server admins (privilege `controlserver`) can run:
 
-```
-/manifold relight [radius]
-```
+<div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/manifold relight [radius]</code></div>
 
 It relights the chunk columns around the caller in the dimension they are standing in, over the
 full world height. `radius` is in chunks (default 1, max 4). Use it to confirm whether a lighting

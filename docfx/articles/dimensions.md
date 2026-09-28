@@ -157,6 +157,8 @@ once the owner re-declares it, exactly like any other `Pending` entry.
 | `IManifoldServer.ForceRemoveDimension(code)` | `Ephemeral` only. | Evacuates every connected occupant to the overworld (`LastVisited` position) first, then removes. Returns `false` if the code is unknown, or if an occupant could not be evacuated (the dimension is left in place). For `BuiltIn`/`Persistent` it defers to `TryRemove` - same exceptions, without evacuating anyone first. |
 | `/manifold purge <code>` (privilege `controlserver`) | Any non-built-in dimension - `Active`, `Pending`, `Quarantined`, `Persistent` or `Ephemeral`. | Evacuates occupants first; if any player could not be evacuated, reports an error naming how many remain and does not purge. Errors (does not evacuate) if the code is unknown or built-in. On success, releases the engine id and fires `Destroyed`. |
 
+<div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/manifold purge mymod:vault</code></div>
+
 An `Ephemeral` dimension also reaps itself automatically: when its last occupant **transits out** (not
 on disconnect), `Destroyed` fires and its chunks are discarded - see [Persistent vs.
 Ephemeral](#persistent-vs-ephemeral) above.
