@@ -78,7 +78,7 @@ public sealed class GeneratedColumnStoreTests
     public void ToBytes_Should_Match_The_0_5_1_Released_Format()
     {
         // Golden bytes: the wire format is 8 bytes per key, little-endian, packed as
-        // (dim << 42) | (cx << 21) | cz (see the class remarks) - pinned independently of ToBytes
+        // (dim << 42) | (cx << 21) | cz (see the class remarks), pinned independently of ToBytes
         // itself so a format change here is caught even if the writer and this assertion drifted
         // together. Unchanged since v0.5.1 (git show v0.5.1:src/Manifold/Internal/GeneratedColumnStore.cs).
         var store = new GeneratedColumnStore();

@@ -10,7 +10,7 @@ namespace Manifold.Internal;
 /// same-named moddata key on that player.
 /// </summary>
 /// <remarks>
-/// Blob bytes themselves are never touched by versioning - only this side table exists, so an
+/// Blob bytes themselves are never touched by versioning: only this side table exists, so an
 /// older Manifold build that predates it, or a world it has never run against, has no sidecar at
 /// all and every blob reads exactly as it always has. Encoded as a <see cref="TreeAttribute"/>
 /// mapping blob key to version (int): the same structure the dimension manifest itself already

@@ -91,7 +91,7 @@ internal sealed class DimensionPersistence
     /// refused the way it always was: logged, dropped, consumers re-register at boot. An
     /// unrecognized-version manifest is refused the same way, but is also copied verbatim to
     /// <see cref="UnrecognizedManifestKey"/> and latches <see cref="IsVersionRefused"/>, which
-    /// makes <see cref="Save"/> a no-op for the rest of the session - unlike the corrupt case,
+    /// makes <see cref="Save"/> a no-op for the rest of the session: unlike the corrupt case,
     /// this data is not gone, so it must not be overwritten by an incomplete re-registration pass.
     /// </summary>
     /// <param name="version">The schema version recorded for the manifest (from the sidecar; 1 if it has none).</param>

@@ -781,7 +781,7 @@ public sealed class TransitServiceTests
     [Fact]
     public void TeleportPlayer_Should_Match_The_0_5_1_Released_GameMode_Format_And_Record_Schema_Version_1()
     {
-        // Golden bytes: the saved value is the raw 4-byte int, no envelope - unchanged since v0.5.1
+        // Golden bytes: the saved value is the raw 4-byte int, no envelope, unchanged since v0.5.1
         // (git show v0.5.1:src/Manifold/Internal/TransitService.cs). The sidecar records version 1
         // for it, the same way DimensionPersistence.Save does for the manifest.
         var (svc, registry, _, _, _) = NewService();

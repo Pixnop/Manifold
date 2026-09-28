@@ -64,16 +64,17 @@ generated-column set (`manifold:genchunks`).
 
 ### Schema versioning
 
-Every blob Manifold persists - the dimension manifest, the generated-column set, per-player
-last-visited positions, the per-player inventory-separation profile (`manifold:inv`, in player
-moddata), and the saved pre-forced game mode (`manifold:gamemode-before-forced`, also in player
-moddata) - carries an explicit schema version, without changing that blob's own bytes at all: a
-world saved by a newer Manifold still opens correctly in an older one.
+Every blob Manifold persists (the dimension manifest, the generated-column set, per-player
+last-visited positions, the per-player inventory-separation profile, `manifold:inv` in player
+moddata, and the saved pre-forced game mode, `manifold:gamemode-before-forced`, also in player
+moddata) carries an explicit schema version, without changing that blob's own bytes at all: a world
+saved by this version still opens correctly with Manifold 0.5.x, and a later release that changes a
+format is refused by this one instead of misread.
 
 The version lives in a separate sidecar record, `SchemaSidecar`, kept next to the blobs it
 describes: one in the savegame under `manifold:schema` for the three savegame-level blobs, and one
 in each player's moddata under the same key for that player's two blobs. It is encoded as a
-`TreeAttribute` mapping blob key to version (int) - the same structure the manifest itself already
+`TreeAttribute` mapping blob key to version (int), the same structure the manifest itself already
 uses for its own entries, so there is no new serialization format to write or maintain. A blob key
 absent from the sidecar, including an absent sidecar altogether (every world saved before this
 sidecar existed), means version 1.
@@ -81,17 +82,23 @@ sidecar existed), means version 1.
 Reading a blob whose sidecar-recorded version this build does not recognize (greater than the
 version it writes) refuses that blob instead of misreading it: it is logged (naming the key and
 both versions), the raw bytes are copied to a `<key>.unrecognized` recovery key so they are never
-lost, and the refusal is latched for the session - `DimensionPersistence`, `GeneratedColumnStore`
-and `PlayerPositionStore` each expose `IsVersionRefused`, and `ManifoldModSystem` skips re-saving a
+lost, and the refusal is latched for the session (`DimensionPersistence`, `GeneratedColumnStore`
+and `PlayerPositionStore` each expose `IsVersionRefused`), and `ManifoldModSystem` skips re-saving a
 refused key's blob for the rest of the session so it is never overwritten by this session's
 incomplete in-memory state (an empty set for the generated-column store or the position store with
-no consumer re-registered yet, or a partial manifest). `GeneratedColumnStore` additionally treats
-every column as already generated while refused, so `DimensionGenerator` loads columns from disk
-instead of regenerating over them without a reliable record of what the newer version already
-created. The two player-moddata blobs already avoided the equivalent problem by construction: the
-game-mode restore and the inventory swap are simply skipped on refusal, leaving the raw moddata as
-it was. In every case, a refused key's sidecar entry is left exactly as read - never downgraded
-back to a version this build would then treat as safe to write over.
+no consumer re-registered yet, or a partial manifest). An unrecognized version with no data behind
+it (an absent or empty blob) is not refused: it is read as empty, the same as an absent blob at a
+recognized version, since there is nothing there to protect from being overwritten.
+`GeneratedColumnStore` additionally treats every column as already generated while refused, so
+`DimensionGenerator` loads columns from disk instead of regenerating over them without a reliable
+record of what the newer version already created. The saved pre-forced game mode and the per-player
+inventory profile already avoided the equivalent overwrite problem by construction: the restore and
+the swap are simply skipped on refusal, leaving the raw moddata as it was. For the saved game mode
+specifically, this means a player who left a forced dimension while its blob was refused keeps the
+forced mode in every dimension, including unforced ones, until a build that recognizes the blob's
+version runs; the blob, sidecar entry and recovery copy are all left untouched, so no data is lost,
+only the restore is deferred. In every case, a refused key's sidecar entry is left exactly as read:
+never downgraded back to a version this build would then treat as safe to write over.
 
 ## Zero Harmony
 

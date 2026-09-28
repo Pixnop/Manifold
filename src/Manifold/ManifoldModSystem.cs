@@ -591,8 +591,8 @@ public sealed class ManifoldModSystem : ModSystem
     /// Loads a savegame-level store's blob under the version <see cref="_schemaSidecar"/> records
     /// for its key, and if the load refuses an unrecognized newer version, logs it (naming the key
     /// and both versions) and copies the raw blob to <c>"{key}.unrecognized"</c> so it is never
-    /// lost - the store only latches its own <c>IsVersionRefused</c> flag, it does not hold the key
-    /// it was read from or log with it, so that is done here instead.
+    /// lost (the store only latches its own <c>IsVersionRefused</c> flag; it does not hold the key
+    /// it was read from or log with it, so that is done here instead).
     /// </summary>
     private void LoadStoreOrPreserveUnrecognized(GeneratedColumnStore store, string key)
     {

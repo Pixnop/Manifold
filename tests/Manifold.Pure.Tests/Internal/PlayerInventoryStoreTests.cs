@@ -51,7 +51,7 @@ public sealed class PlayerInventoryStoreTests
     {
         // Golden bytes: BinaryWriter's own encoding (currentKeys count, then per key: category
         // int + owner-key string; snapshots count, then per snapshot: key string + length int +
-        // bytes) - pinned independently of ToBytes itself. Unchanged since v0.5.1
+        // bytes), pinned independently of ToBytes itself. Unchanged since v0.5.1
         // (git show v0.5.1:src/Manifold/Internal/PlayerInventoryStore.cs).
         var store = new PlayerInventoryStore();
         store.SetCurrentKey(ManifoldInventory.Backpack, "mod:vault");

@@ -96,7 +96,7 @@ public sealed class PlayerPositionStoreTests
     public void ToBytes_Should_Match_The_0_5_1_Released_Format()
     {
         // Golden bytes: BinaryWriter's own encoding of (count:int, then per entry key:string,
-        // x:int, y:int, z:int) - pinned independently of ToBytes itself, hand-built the same way
+        // x:int, y:int, z:int), pinned independently of ToBytes itself, hand-built the same way
         // BinaryWriter.Write(string) always has (7-bit length prefix + UTF8 bytes). Unchanged
         // since v0.5.1 (git show v0.5.1:src/Manifold/Internal/PlayerPositionStore.cs).
         var store = new PlayerPositionStore();

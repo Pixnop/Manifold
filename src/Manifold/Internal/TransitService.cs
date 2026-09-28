@@ -273,8 +273,11 @@ internal sealed class TransitService : ITransitionService
     /// Decodes a saved pre-forced game mode (always the raw 4-byte int; the format itself never
     /// changed). A <paramref name="saved"/> blob whose sidecar-recorded version is newer than
     /// <see cref="GameModeSchemaVersion"/> is refused: logged, copied to a recovery key, and the
-    /// sidecar entry is left exactly as read (never downgraded) - the caller then leaves the
-    /// moddata untouched and simply skips the restore for this transit.
+    /// sidecar entry is left exactly as read (never downgraded); the caller then leaves the
+    /// moddata untouched and simply skips the restore for this transit. This means the player keeps
+    /// whatever mode a forced dimension left them in, in every dimension including unforced ones,
+    /// until a build that recognizes the blob's version runs; nothing is lost, the restore is only
+    /// deferred.
     /// </summary>
     private EnumGameMode? TryDecodeSavedGameMode(byte[] saved, IServerPlayer player)
     {
@@ -325,7 +328,7 @@ internal sealed class TransitService : ITransitionService
     /// <summary>
     /// Logs and preserves a player blob whose sidecar-recorded version is newer than this build
     /// supports: the raw bytes are copied to <c>"{blobKey}.unrecognized"</c> so they are never
-    /// lost, and the sidecar entry is deliberately left untouched here - only the caller's own
+    /// lost, and the sidecar entry is deliberately left untouched here: only the caller's own
     /// write path ever advances it, so a refused key's recorded version is never downgraded.
     /// </summary>
     private void RefusePlayerBlob(IServerPlayer player, string blobKey, byte[] raw, int version, int supported)
