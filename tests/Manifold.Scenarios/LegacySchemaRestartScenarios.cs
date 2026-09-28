@@ -5,8 +5,8 @@ using Atlas.XUnit;
 using Xunit;
 
 /// <summary>
-/// Proves a world that has never run against a Manifold build with schema versioning - no
-/// "manifold:schema" sidecar at all - still boots and reloads its dimensions correctly after a
+/// Proves a world that has never run against a Manifold build with schema versioning (no
+/// "manifold:schema" sidecar at all) still boots and reloads its dimensions correctly after a
 /// genuine server restart. The staged fixture (fixtures/legacy-schema) erases the sidecar on
 /// every save, so what actually reaches disk ahead of this scenario's restart, and what the
 /// rebooted server reads back, is exactly that legacy shape: every blob key with no sidecar entry,
@@ -26,7 +26,7 @@ public class LegacySchemaRestartScenarios : ManifoldScenarioBase
     public async Task Dimensions_Should_StillLoad_When_TheSaveHasNoSchemaSidecarAtAll()
     {
         // The fixture erases the sidecar on every save, so what the pre-restart shutdown actually
-        // persisted - and what this boot read back - has no "manifold:schema" key at all.
+        // persisted, and what this boot read back, has no "manifold:schema" key at all.
         byte[]? sidecar = World.Api.WorldManager.SaveGame.GetData("manifold:schema");
         Assert.True(
             sidecar is null or { Length: 0 },

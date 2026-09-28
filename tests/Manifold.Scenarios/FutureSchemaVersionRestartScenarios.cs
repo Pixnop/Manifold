@@ -10,12 +10,15 @@ using Xunit;
 /// one key keeps that key's bytes untouched across a genuine server save and restart, while every
 /// other key keeps working normally. The staged fixture (fixtures/future-schema-version) bumps the
 /// sidecar's "manifold:genchunks" entry to version 99 (this build supports up to
-/// <see cref="GeneratedColumnStore.SchemaVersion"/>) on every save, right after Manifold's own
-/// GameWorldSave handler has written the real blob and sidecar for this boot - and snapshots the
+/// <see cref="GeneratedColumnStore.SchemaVersion"/>) on the first save only, right after Manifold's
+/// own GameWorldSave handler has written the real blob and sidecar for this boot, and snapshots the
 /// exact bytes Manifold wrote for "manifold:genchunks" under a recovery key of its own, so this
 /// scenario can compare the on-disk bytes AFTER the restart against what was on disk right BEFORE
 /// it, the same real save/load round trip a player upgrading (or in this case, briefly
-/// downgrading) Manifold actually goes through.
+/// downgrading) Manifold actually goes through. Every later save, including every save after the
+/// restart, is a no-op for the fixture: re-declaring the version and re-snapshotting the bytes on
+/// every save would let the fixture re-baseline itself against whatever Manifold last wrote
+/// instead of catching a regression where Manifold rewrites the refused key after the restart.
 ///
 /// A separate class from <see cref="DimensionPersistenceScenarios"/> and
 /// <see cref="LegacySchemaRestartScenarios"/> (and its own fixture data directory) for the same

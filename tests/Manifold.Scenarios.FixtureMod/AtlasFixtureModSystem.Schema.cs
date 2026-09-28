@@ -16,6 +16,7 @@ public sealed partial class AtlasFixtureModSystem
 
     private const string SchemaSidecarKey = "manifold:schema";
     private const string GeneratedColumnsKey = "manifold:genchunks";
+    private const string DeclaredMarkerKey = "atlasfixture:futuregenchunksdeclared";
 
     private void StartSchemaFixtures(AtlasFixtureConfig config)
     {
@@ -38,14 +39,24 @@ public sealed partial class AtlasFixtureModSystem
         _sapi.WorldManager.SaveGame.StoreData(SchemaSidecarKey, System.Array.Empty<byte>());
 
     /// <summary>
-    /// Bumps the sidecar's entry for "manifold:genchunks" to version 99 (this build only supports
-    /// up to 1), leaving every other entry Manifold just wrote alone. Also snapshots the
-    /// "manifold:genchunks" bytes Manifold just wrote under <see cref="PrevGenchunksKey"/>, so a
-    /// restart scenario can prove those exact bytes are still there after the reboot reads a
-    /// sidecar it must refuse.
+    /// On the very first save this fixture sees, bumps the sidecar's entry for
+    /// "manifold:genchunks" to version 99 (this build only supports up to 1), leaving every other
+    /// entry Manifold just wrote alone, and snapshots the "manifold:genchunks" bytes Manifold just
+    /// wrote under <see cref="PrevGenchunksKey"/>, so a restart scenario can prove those exact
+    /// bytes are still there after the reboot reads a sidecar it must refuse. Every later save
+    /// (including every save after the restart) is a no-op, marked by
+    /// <see cref="DeclaredMarkerKey"/>: re-declaring and re-snapshotting on every save would let
+    /// this fixture re-baseline itself against whatever Manifold last wrote, silently hiding a
+    /// regression where the refused key is rewritten or downgraded after the restart instead of
+    /// catching it.
     /// </summary>
     private void DeclareFutureGenchunksVersionOnSave()
     {
+        if (_sapi.WorldManager.SaveGame.GetData(DeclaredMarkerKey) is { Length: > 0 })
+        {
+            return;
+        }
+
         var tree = new TreeAttribute();
         byte[]? raw = _sapi.WorldManager.SaveGame.GetData(SchemaSidecarKey);
         if (raw is { Length: > 0 })
@@ -61,5 +72,7 @@ public sealed partial class AtlasFixtureModSystem
         {
             _sapi.WorldManager.SaveGame.StoreData(PrevGenchunksKey, genchunks);
         }
+
+        _sapi.WorldManager.SaveGame.StoreData(DeclaredMarkerKey, new byte[] { 1 });
     }
 }
