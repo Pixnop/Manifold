@@ -1,9 +1,11 @@
 namespace Manifold.Scenarios;
 
 using System.Globalization;
+using System.Linq;
 using Atlas.Api;
 using Atlas.XUnit;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Xunit;
 
@@ -16,12 +18,16 @@ using Xunit;
 /// AdminCommandScenarios and PlayerTransitScenarios use for a shared host.
 /// </summary>
 /// <remarks>
-/// The void portal block is not covered here: PortalBlockBase.OnEntityCollide only fires from
-/// the engine's physics-step collision resolution, which needs the entity to actually move
-/// (accumulate velocity and cross into the block); Atlas's ITestPlayer exposes only
-/// <c>TeleportTo</c> (a direct position set, no velocity). A test player placed and repeatedly
-/// re-teleported onto a placed <c>manifoldsample:voidportal</c> block never triggered the
-/// collision within a generous tick budget, confirming this rather than assuming it.
+/// The void portal block and <c>/sendtestblock</c>'s success path both need real server-side
+/// state <see cref="ITestPlayer"/> does not expose directly, but both are reachable through its
+/// documented escape hatch, <see cref="ITestPlayer.Entity"/>, a live <c>EntityPlayer</c>:
+/// <c>ServerPlayer.CurrentBlockSelection</c> is just <c>Entity.BlockSelection</c>, a public
+/// field, so a scenario can set the aim directly instead of raycasting for it; and the engine's
+/// own server-side collision resolution runs from <c>IRemotePhysics.OnReceivedClientPos</c>
+/// (implemented by <c>EntityBehaviorPlayerPhysics</c>, reachable via
+/// <c>Entity.SidedProperties.Behaviors</c>), the same handler a real client's position packet
+/// drives, so moving the entity's position and replaying that call is a real collision, not a
+/// simulated one.
 /// </remarks>
 [Trait("Category", "E2E")]
 public class ManifoldSampleSmokeScenarios : ManifoldScenarioBase
@@ -31,7 +37,51 @@ public class ManifoldSampleSmokeScenarios : ManifoldScenarioBase
     {
         Assert.True(World.Api.ModLoader.IsModEnabled("manifoldsample"), "manifoldsample is not enabled in the embedded server.");
         Assert.NotNull(World.Api.ModLoader.GetModSystem("ManifoldSample.ManifoldSampleModSystem"));
+        Assert.NotNull(World.Api.World.GetBlock(new AssetLocation("manifoldsample", "voidportal")));
         await World.Ticks(1);
+    }
+
+    [AtlasScenario]
+    public async Task VoidPortal_Should_TeleportPlayerToVoid_When_CollidedWith()
+    {
+        int voidId = await SampleDimensionId("void");
+        ITestPlayer player = await JoinSurvivalPlayer("sampleportal");
+
+        int px = (int)player.Position.X, pz = (int)player.Position.Z;
+        var portalPos = new BlockPos(px + 4, 64, pz, 0);
+        World.SetBlock("manifoldsample:voidportal", portalPos);
+        await World.Ticks(2);
+
+        // The engine's own server-side collision path (a real client position packet lands here
+        // too), not a Manifold call: moving the entity across the portal's cell and replaying it
+        // is the actual mechanism PortalBlockBase.OnEntityCollide relies on, driven directly
+        // instead of through a simulated client that Atlas's ITestPlayer does not provide.
+        var physics = player.Entity.SidedProperties.Behaviors.OfType<IRemotePhysics>().First();
+        var above = new BlockPos(portalPos.X, portalPos.Y + 3, portalPos.Z, 0).ToVec3d().Add(0.5, 0, 0.5);
+        var inside = new BlockPos(portalPos.X, portalPos.Y, portalPos.Z, 0).ToVec3d().Add(0.5, 0.5, 0.5);
+
+        player.Entity.Pos.SetPos(above.X, above.Y, above.Z);
+        physics.OnReceivedClientPos(1);
+        await World.Ticks(1);
+
+        bool teleported = false;
+        for (int i = 0; i < 40 && !teleported; i++)
+        {
+            player.Entity.Pos.SetPos(inside.X, inside.Y, inside.Z);
+            physics.OnReceivedClientPos(1);
+            await World.Ticks(1);
+            teleported = player.Position.dimension == voidId;
+            if (!teleported)
+            {
+                player.Entity.Pos.SetPos(above.X, above.Y, above.Z);
+                physics.OnReceivedClientPos(1);
+                await World.Ticks(1);
+                teleported = player.Position.dimension == voidId;
+            }
+        }
+
+        Assert.True(teleported, "The player never transited through the void portal block.");
+        await LandedAt(player, voidId, 1024, 1024);
     }
 
     [AtlasScenario]
