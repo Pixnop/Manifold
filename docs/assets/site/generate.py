@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 SITE_DIR = Path(__file__).resolve().parent
 
@@ -364,35 +364,36 @@ def not_found_scene(t):
 NOT_FOUND_SIZE = (320 * R, 233 * R)
 
 
-# ---------------------------------------------------------------- island underside strip
+# ---------------------------------------------------------------- island underside
 
-UNDERSIDE_COLS = 16
-UNDERSIDE_SIZE = (UNDERSIDE_COLS * 3 + 16, 30)  # fixed canvas: no bbox crop, so the aspect ratio
-                                                 # main.css draws it at is known exactly, and the
-                                                 # margin below keeps every column clear of the
-                                                 # canvas edge (nothing cut mid-block)
+UNDERSIDE_BLOCK = 12          # page pixels per block
+UNDERSIDE_ROWS = (15, 13, 10, 7, 4, 2)  # blocks per row, top to bottom
 
 
 def island_underside(seed=51):
-    """A single full-width underside band, not a repeat-x tile: a grass lip over dirt and stone
-    that tapers shallower at both ends and deepest in the middle, so it reads as the hanging root
-    of one island instead of a row of repeated bricks. Used once per card, at its true aspect
-    ratio (UNDERSIDE_SIZE), not stretched to a fixed background-size."""
+    """The hanging root of a floating island, drawn under a landing card.
+
+    Seen from the front rather than in isometric: an isometric cone has a V-shaped top edge
+    that no straight cut can line up with the straight bottom of a card, while rows of blocks
+    narrowing downward sit flush with it. Earth first, then stone darkening with depth, each
+    block lit from above like the renderer's cubes, with a little jitter so the rows look dug
+    rather than stacked."""
     rng = np.random.default_rng(seed)
-    scene = Scene(*UNDERSIDE_SIZE)
-    voxels = []
-    mid = (UNDERSIDE_COLS - 1) / 2
-    for i in range(UNDERSIDE_COLS):
-        taper = 1 - (abs(i - mid) / (mid + 1)) ** 1.6  # 1.0 at the centre, ->0 at both ends
-        depth = max(1, min(4, round(taper * 3.4 + rng.uniform(-0.4, 0.4))))
-        for j in range(2):
-            voxels.append(vox(i, j, 0, GREEN))
-        for k in range(1, depth + 1):
-            color = EARTH if k == 1 else (STONE if k < depth else mix(STONE, VOID, 0.4))
-            for j in range(2):
-                voxels.append(vox(i, j, -k, color))
-    scene.add(voxels, 8, 5, 3.0)
-    return scene.render(bloom=0)
+    b = UNDERSIDE_BLOCK * R
+    cols = UNDERSIDE_ROWS[0]
+    img = Image.new("RGBA", (cols * b, len(UNDERSIDE_ROWS) * b))
+    draw = ImageDraw.Draw(img)
+    for row, count in enumerate(UNDERSIDE_ROWS):
+        shift = int(rng.integers(-1, 2)) if 0 < row < len(UNDERSIDE_ROWS) - 1 else 0
+        start = (cols - count) // 2 + shift
+        base = EARTH if row == 0 else mix(SLATE_LIGHT, SLATE, row / (len(UNDERSIDE_ROWS) - 1))
+        for c in range(start, start + count):
+            color = moddb.shade(base, 0.9 + 0.2 * rng.random())
+            x0, y0 = c * b, row * b
+            draw.rectangle([x0, y0, x0 + b - 1, y0 + b - 1], fill=color + (255,))
+            draw.rectangle([x0, y0, x0 + b - 1, y0 + max(1, b // 6)], fill=moddb.shade(color, 1.18) + (255,))
+            draw.rectangle([x0 + b - max(1, b // 8), y0, x0 + b - 1, y0 + b - 1], fill=moddb.shade(color, 0.78) + (255,))
+    return img
 
 
 # ---------------------------------------------------------------- API reference card art

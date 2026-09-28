@@ -765,14 +765,14 @@ footer.border-top {
 /* --------------------------------------------------------------------------
    Floating islands: a card variant that reads as a chunk of world rather
    than a flat panel: a bright grassy seam along the top, a pre-rendered
-   isometric voxel underside (docs/assets/site/island-underside.png, tiled)
+   voxel underside (docs/assets/site/island-underside.png, one image per card)
    hanging below. Only the underside strip bobs, on its own keyframes at a
    small amplitude; the card and its text stay put so paragraphs don't drift
    while read. CSS-only beyond the existing .mf-card (the strip is an ::after
    background image), so the landing only has to add the class.
    -------------------------------------------------------------------------- */
 .mf-card--island {
-  margin-bottom: 1.75rem;
+  margin-bottom: 5.5rem; /* room for the whole hanging root before the next row */
   overflow: visible; /* .mf-card clips by default; the underside hangs past the card's own edge */
   border-top: 3px solid var(--mf-green);
   border-bottom: none;
@@ -784,28 +784,20 @@ footer.border-top {
    disabled and that static value is all that applies). */
 @keyframes mf-underside-bob {
   0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-4px); }
+  50% { transform: translateX(-50%) translateY(3px); }
 }
 .mf-card--island::after {
   content: '';
   position: absolute;
   left: 50%;
-  /* width as a capped percentage, not left/right insets alone: those scale the underside (and so
-     its height, at a fixed aspect ratio) with the card's own width, which grows well past 100px
-     tall on a wide desktop column - capped, it stays a similar size at every breakpoint. */
-  width: min(70%, 220px);
+  /* a capped percentage so the root stays a similar size at every breakpoint */
+  width: min(55%, 190px);
   transform: translateX(-50%);
-  /* top: 100% + a small negative margin, not bottom: -Npx: at this element's own aspect ratio,
-     anchoring by bottom instead sizes it upward from that anchor - taller than the old fixed
-     22px, it reached back up into the card and sat on top of the card's own paragraph text. This
-     starts it essentially at the card's bottom border (pulled up 8px so the grass lip overlaps
-     the border, not floating a visible gap above it) and grows downward, clear of the content. */
+  /* hangs from the card's bottom edge: the image's top row is straight (a front view, see
+     island_underside() in docs/assets/site/generate.py), so it sits flush under the card */
   top: 100%;
-  margin-top: -8px;
-  /* one full-width image (docs/assets/site/generate.py's island_underside(), true aspect ratio
-     64:30), not a repeat-x tile: the old 32x28 single-block tile at a mismatched background-size
-     read as a row of separate bricks, not a hanging underside. */
-  aspect-ratio: 64 / 30;
+  margin-top: -1px;
+  aspect-ratio: 5 / 2;
   background-image: url('../assets/site/island-underside.png');
   background-repeat: no-repeat;
   background-size: 100% 100%;
