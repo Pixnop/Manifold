@@ -88,6 +88,37 @@ This happens **synchronously on the main thread** before the player arrives - so
 > after registration; it runs the same bounded generation a transit would, synchronously, with no
 > player involved. See [The Registry](dimensions.md#the-registry) for an example.
 
+## Post-processing a Generated Column
+
+`IDimensionRegistry.ColumnGenerated` fires right after a column is generated, not when an
+existing one is only loaded (a restart, or a re-visit). Use it to decorate the terrain a strategy
+just produced without touching the strategy itself: a structure, a marker, loot (from any mod,
+not only the one that owns the dimension):
+
+```csharp
+manifold.Registry.ColumnGenerated += (_, e) =>
+{
+    if (e.Dimension.Code.Path != "mydim")
+    {
+        return;
+    }
+
+    var pos = new BlockPos((e.ChunkX * 32) + 16, 20, (e.ChunkZ * 32) + 16, e.Dimension.InternalId);
+    e.BlockAccessor.SetBlock(myMarkerBlockId, pos);
+};
+```
+
+`e.BlockAccessor` is a plain accessor: writes apply immediately, no `Commit()` needed. It uses the
+same `synchronize:false, relight:false` semantics as worldgen itself, so a write here does not
+queue a server relight task or a neighbour-update/resync entry the way a live player edit would;
+call `IManifoldServer.RelightRegion` afterwards if the decoration needs lighting. The column has
+not been sent to any client when this event fires (sending always happens right after), so a
+block placed here is included in that first send with no separate resync. Only the event's own
+column is guaranteed loaded: a write that lands in a neighbour column not generated yet is
+silently dropped, so split a structure that spans multiple columns and place it per column. Raised
+on the server main thread, for every generation path: a transit, the streaming driver, and
+`IManifoldServer.GenerateRegion`. A throwing subscriber is isolated like `Created`/`Destroyed`.
+
 ## WithGenerationRadius
 
 The radius (in chunks) is configured on the builder:

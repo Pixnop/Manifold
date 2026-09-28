@@ -95,6 +95,18 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             .RegisterStatic();
         PublishDimensionId("pregenerated", pregenerated.InternalId);
 
+        // Dedicated to ColumnGeneratedEventScenarios: never pregenerated at boot (unlike
+        // "pregenerated" above), so its one column only ever generates once the ColumnGenerated
+        // subscriber below (registered in StartCoverageFixtures, which runs after this) is live.
+        IDimension colgen = _manifold.Registry
+            .Define(new AssetLocation(Domain, "colgen"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithFixedSpawn(FixedSpawn)
+            .WithGenerationRadius(0)
+            .RegisterStatic();
+        PublishDimensionId("colgen", colgen.InternalId);
+
         // Exercises IManifoldServer.GenerateRegion called synchronously right here, right after
         // RegisterStatic, with no player and no transit (issue #69: a statically registered
         // dimension otherwise has no terrain until something visits it). Radius 0 keeps this to a

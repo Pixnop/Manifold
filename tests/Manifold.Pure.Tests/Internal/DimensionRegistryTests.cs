@@ -2,6 +2,7 @@ using System;
 using Manifold.Api;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
+using NSubstitute;
 using Vintagestory.API.Common;
 using Xunit;
 
@@ -199,6 +200,64 @@ public sealed class DimensionRegistryTests
 
         Assert.Equal(42, dim.InternalId);
         Assert.Equal("owner_a", dim.OwnerModId);
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_Should_Keep_Its_Lifetime_When_The_Builder_Requested_Another()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner:dim"), 42, DimensionLifetime.Persistent, "owner"),
+            DimensionState.Pending);
+
+        var dim = registry.DefineForOwner(Code("owner:dim"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Ephemeral()
+            .Create();
+
+        // The seeded Pending entry's lifetime wins over the builder's requested one.
+        Assert.Equal(DimensionLifetime.Persistent, dim.Lifetime);
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_With_A_Mismatched_Lifetime_Should_Log_A_Warning()
+    {
+        var allocator = new DimensionAllocator();
+        var logger = Substitute.For<ILogger>();
+        var registry = new DimensionRegistry(allocator, logger: logger);
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner:dim"), 42, DimensionLifetime.Persistent, "owner"),
+            DimensionState.Pending);
+
+        registry.DefineForOwner(Code("owner:dim"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Ephemeral()
+            .Create();
+
+        logger.Received(1).Warning(
+            Arg.Is<string>(s => s.Contains("Pending entry", StringComparison.Ordinal)),
+            Arg.Is<object[]>(a => a.Length == 3
+                && Equals(a[0], Code("owner:dim"))
+                && (DimensionLifetime)a[1]! == DimensionLifetime.Ephemeral
+                && (DimensionLifetime)a[2]! == DimensionLifetime.Persistent));
+    }
+
+    [Fact]
+    public void Promoting_A_Pending_Entry_With_A_Matching_Lifetime_Should_Not_Log_A_Warning()
+    {
+        var allocator = new DimensionAllocator();
+        var logger = Substitute.For<ILogger>();
+        var registry = new DimensionRegistry(allocator, logger: logger);
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("owner:dim"), 42, DimensionLifetime.Persistent, "owner"),
+            DimensionState.Pending);
+
+        registry.DefineForOwner(Code("owner:dim"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Persistent()
+            .Create();
+
+        logger.DidNotReceive().Warning(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
     [Fact]

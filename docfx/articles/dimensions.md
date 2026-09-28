@@ -95,6 +95,13 @@ manifold.Registry.Created += (_, e) =>
 
 manifold.Registry.Destroyed += (_, e) =>
     Mod.Logger.Notification($"Dimension removed: {e.Dimension.Code}");
+
+manifold.Registry.ColumnGenerated += (_, e) =>
+{
+    // Fires only for a brand-new column, never one loaded from disk: see Worldgen.md for using
+    // e.BlockAccessor to decorate it (a structure, a marker) right after generation.
+    Mod.Logger.Notification($"Column ({e.ChunkX}, {e.ChunkZ}) generated in {e.Dimension.Code}");
+};
 ```
 
 ## Dimension Codes (AssetLocation)
@@ -124,6 +131,14 @@ runtime `Create()`-made `Persistent` dimension, re-declare it at boot with the s
 strategy and policies, or it stays `Pending` forever and every transit into it throws
 `DimensionStateException`. To find dimensions your mod needs to re-declare, iterate `Registry.All` for
 `State == DimensionState.Pending && OwnerModId == yourModId`.
+
+Promotion also keeps the Pending entry's **lifetime**, ignoring `Persistent()`/`Ephemeral()` on the
+builder that completes it: a Pending entry is always `Persistent` (only `Persistent` dimensions are
+written to the manifest), so it stays `Persistent` even if you build it with `Ephemeral()` this time.
+This is deliberate: a Pending entry already has occupants and saved chunks riding on its original
+lifetime. Building it with `Ephemeral()` is usually a bug (the wrong builder call, or a code
+reused for a different dimension), so Manifold logs a warning naming the code, the requested
+lifetime, and the one actually kept.
 
 If you reinstall a mod whose dimension was `Quarantined`, that dimension does not become `Active` on
 its own either: it becomes `Pending` at the next boot (the owner is loaded again), and then `Active`

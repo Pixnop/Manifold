@@ -64,6 +64,9 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     public event EventHandler<DimensionDestroyedEventArgs>? Destroyed;
 
     /// <inheritdoc/>
+    public event EventHandler<ColumnGeneratedEventArgs>? ColumnGenerated;
+
+    /// <inheritdoc/>
     public IReadOnlyCollection<IDimension> All => _snapshot.Values.Cast<IDimension>().ToList().AsReadOnly();
 
     /// <inheritdoc/>
@@ -216,6 +219,22 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         _snapshot.Values.FirstOrDefault(d => d.InternalId == internalId);
 
     /// <summary>
+    /// Raises <see cref="ColumnGenerated"/> for a newly generated column. Called by
+    /// <see cref="DimensionGenerator"/> right after the column's blocks are committed, before it is
+    /// sent to any client.
+    /// </summary>
+    /// <param name="dimension">The dimension the column belongs to.</param>
+    /// <param name="chunkX">Chunk-grid X of the generated column.</param>
+    /// <param name="chunkZ">Chunk-grid Z of the generated column.</param>
+    /// <param name="blockAccessor">Accessor handed to subscribers for decorating the column.</param>
+    internal void RaiseColumnGenerated(IDimension dimension, int chunkX, int chunkZ, IBlockAccessor blockAccessor) =>
+        SafeEvent.Raise(
+            ColumnGenerated,
+            this,
+            new ColumnGeneratedEventArgs(dimension, chunkX, chunkZ, blockAccessor),
+            LogSubscriberError);
+
+    /// <summary>
     /// Completes a builder's template: promotes a matching Pending entry in place (keeping its
     /// existing <see cref="DimensionImpl.InternalId"/> and <see cref="DimensionImpl.Lifetime"/>,
     /// exactly as before), or reserves a fresh engine id for a brand-new dimension.
@@ -225,7 +244,20 @@ internal sealed class DimensionRegistry : IDimensionRegistry
         if (_snapshot.TryGetValue(template.Code, out var existing) &&
             existing.State == DimensionState.Pending)
         {
-            // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is new.
+            // The Pending entry keeps its identity (id, lifetime, owner); only the configuration is
+            // new. A builder that requested a different lifetime than the entry it is promoting is
+            // most likely a bug (a code that used to be Persistent now built with Ephemeral(), or
+            // vice versa): the kept lifetime wins silently, but we warn so it does not go unnoticed.
+            if (template.Lifetime != existing.Lifetime)
+            {
+                _logger?.Warning(
+                    "[Manifold] Dimension '{0}' was requested as {1} but is being promoted from a "
+                    + "Pending entry seeded as {2}; the Pending entry's lifetime wins.",
+                    template.Code,
+                    template.Lifetime,
+                    existing.Lifetime);
+            }
+
             var promoted = template with
             {
                 InternalId = existing.InternalId,

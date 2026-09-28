@@ -45,6 +45,13 @@ internal sealed class OwnerScopedRegistry : IDimensionRegistry
     }
 
     /// <inheritdoc/>
+    public event EventHandler<ColumnGeneratedEventArgs> ColumnGenerated
+    {
+        add => _shared.ColumnGenerated += value;
+        remove => _shared.ColumnGenerated -= value;
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyCollection<IDimension> All => _shared.All;
 
     /// <inheritdoc/>
