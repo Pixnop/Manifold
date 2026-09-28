@@ -78,20 +78,81 @@ public sealed class TargetPositionResolversTests
     }
 
     [Fact]
-    public void SameXZSurfaceY_Should_Prefer_Dry_Ground_Under_A_Liquid_Surface()
+    public void SameXZSurfaceY_Should_Never_Search_Below_A_Liquid_Into_Buried_Rock()
     {
+        // Realistic ocean-over-terrain column: water from 20 to 30 (surface at 30), a sand seabed
+        // at 19, then rock from 1 to 18 with a 3-block air cave at 5-7. The old bug continued
+        // scanning past the seabed and landed the player in that sealed cave (result 5); the fix
+        // must stop at the water's own surface instead.
+        var entity = NewEntityAt(5, 64, 7);
+        var target = Substitute.For<IDimension>();
+        target.InternalId.Returns(10);
+        var byY = new Dictionary<int, Block>();
+        for (int y = 20; y <= 30; y++)
+        {
+            byY[y] = new Block { BlockId = 2, MatterState = EnumMatterState.Liquid };
+        }
+
+        byY[19] = new Block { BlockId = 1 }; // sand seabed
+        for (int y = 1; y <= 18; y++)
+        {
+            byY[y] = new Block { BlockId = 3 }; // rock, except the cave below
+        }
+
+        byY.Remove(5);
+        byY.Remove(6);
+        byY.Remove(7); // 3-block air cave, sealed under the seabed
+
+        var sapi = NewSapiWithColumn(256, byY);
+
+        var result = TargetPositionResolvers.SameXZSurfaceY.Resolve(entity, target, sapi);
+
+        Assert.Equal(31, result.Y);
+    }
+
+    [Fact]
+    public void SameXZSurfaceY_Should_Keep_Current_Y_When_A_Liquid_Pocket_Is_Capped_By_Rock()
+    {
+        // An enclosed water pocket with solid rock right above it: the liquid surface has no
+        // clearance, and there is no dry spot either (it is rock all the way up), so the only
+        // safe outcome is the void-dimension fallback, never landing inside the rock above.
+        var entity = NewEntityAt(5, 64, 7);
+        var target = Substitute.For<IDimension>();
+        target.InternalId.Returns(10);
+        var byY = new Dictionary<int, Block>();
+        for (int y = 1; y < 256; y++)
+        {
+            byY[y] = new Block { BlockId = 1 };
+        }
+
+        byY[10] = new Block { BlockId = 2, MatterState = EnumMatterState.Liquid };
+
+        var sapi = NewSapiWithColumn(256, byY);
+
+        var result = TargetPositionResolvers.SameXZSurfaceY.Resolve(entity, target, sapi);
+
+        Assert.Equal(64, result.Y);
+    }
+
+    [Fact]
+    public void SameXZSurfaceY_Should_Not_Land_On_A_Plant_With_No_Floor()
+    {
+        // Tall grass at 51 sticking up from solid ground at 50: landing on top of the grass (52)
+        // would put the player in open air right at the edge, not on the actual ground. The grass
+        // has no collision and no solid top face, so the scan must walk through it to the real
+        // floor at 50.
         var entity = NewEntityAt(5, 64, 7);
         var target = Substitute.For<IDimension>();
         target.InternalId.Returns(10);
         var sapi = NewSapiWithColumn(256, new Dictionary<int, Block>
         {
-            [30] = new Block { BlockId = 2, MatterState = EnumMatterState.Liquid },
-            [20] = new Block { BlockId = 1 }, // dry lake bed, open above it
+            [50] = new Block { BlockId = 1 },
+            [51] = new Block { BlockId = 4, CollisionBoxes = null, SideSolid = default },
         });
 
         var result = TargetPositionResolvers.SameXZSurfaceY.Resolve(entity, target, sapi);
 
-        Assert.Equal(21, result.Y);
+        Assert.Equal(51, result.Y);
     }
 
     [Fact]
