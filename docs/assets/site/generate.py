@@ -353,24 +353,33 @@ NOT_FOUND_SIZE = (320 * R, 233 * R)
 
 # ---------------------------------------------------------------- island underside strip
 
-def island_underside(seed=51, cells=4):
-    """A small tileable isometric strip: a grass lip over one or two hanging dirt/stone blocks,
-    for the floating island cards' ::after (background-repeat: repeat-x in main.css)."""
+UNDERSIDE_COLS = 16
+UNDERSIDE_SIZE = (UNDERSIDE_COLS * 3 + 16, 30)  # fixed canvas: no bbox crop, so the aspect ratio
+                                                 # main.css draws it at is known exactly, and the
+                                                 # margin below keeps every column clear of the
+                                                 # canvas edge (nothing cut mid-block)
+
+
+def island_underside(seed=51):
+    """A single full-width underside band, not a repeat-x tile: a grass lip over dirt and stone
+    that tapers shallower at both ends and deepest in the middle, so it reads as the hanging root
+    of one island instead of a row of repeated bricks. Used once per card, at its true aspect
+    ratio (UNDERSIDE_SIZE), not stretched to a fixed background-size."""
     rng = np.random.default_rng(seed)
-    scene = Scene(cells * 4, 14)
+    scene = Scene(*UNDERSIDE_SIZE)
     voxels = []
-    for i in range(cells):
+    mid = (UNDERSIDE_COLS - 1) / 2
+    for i in range(UNDERSIDE_COLS):
+        taper = 1 - (abs(i - mid) / (mid + 1)) ** 1.6  # 1.0 at the centre, ->0 at both ends
+        depth = max(1, min(4, round(taper * 3.4 + rng.uniform(-0.4, 0.4))))
         for j in range(2):
             voxels.append(vox(i, j, 0, GREEN))
-        under = 1 + int(rng.integers(0, 2))
-        for k in range(1, under + 1):
-            color = EARTH if k == 1 else STONE
+        for k in range(1, depth + 1):
+            color = EARTH if k == 1 else (STONE if k < depth else mix(STONE, VOID, 0.4))
             for j in range(2):
                 voxels.append(vox(i, j, -k, color))
-    scene.add(voxels, 2, 3, 3.2)
-    img = scene.render(bloom=0)
-    box = img.getbbox()
-    return img.crop(box) if box else img
+    scene.add(voxels, 8, 5, 3.0)
+    return scene.render(bloom=0)
 
 
 # ---------------------------------------------------------------- API reference card art
