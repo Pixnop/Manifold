@@ -171,7 +171,7 @@ transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new Tran
 
 | Value | Effect |
 |-------|--------|
-| `SameCoordinates` | Keep the player's current X/Z; land on the surface at that column. Default. |
+| `SameCoordinates` | Keep the player's current X/Z; land on the surface at that column (see below). Default. |
 | `DimensionSpawn` | Always land at the dimension's configured fixed spawn point (set with `WithFixedSpawn`). |
 | `LastVisited` | Return to where the player last was in this dimension; falls back to `SameCoordinates` on first visit. |
 
@@ -196,6 +196,24 @@ manifold.Registry
 ```
 
 Per-player last-visited positions are persisted in the savegame and survive server restarts.
+
+### The default surface search
+
+`SameXZSurfaceY` (used by `SameCoordinates`, and as the fallback for `DimensionSpawn`/`LastVisited`
+when they have nothing to land on) scans down from the target dimension's ceiling and lands on the
+first solid, dry block that has two full blocks of clear space above it (feet, then head). This means:
+
+- A one-block gap in a cave ceiling is skipped - there is no room to stand in it - and the search
+  keeps going for a spot with real clearance, above or below it.
+- A liquid surface (a lake, an ocean) is not landed on directly either; the search continues below it
+  for dry ground. The liquid's surface is only used as a landing spot if the column has no dry spot
+  at all.
+- If the column has no valid spot whatsoever - a fully solid column, an empty/void column, or one
+  outside the world's height range - the player's current Y is kept unchanged. This is the same
+  behavior a void dimension always had; it now also covers a solid column with no opening in it.
+
+Positions the caller chose explicitly are never second-guessed by this search: `OverridePosition`, a
+custom `Resolver`, and a `DimensionSpawn`/`FixedSpawn` point are all used as-is.
 
 ## ITargetPositionResolver
 
