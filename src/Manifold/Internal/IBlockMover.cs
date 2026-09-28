@@ -22,4 +22,16 @@ internal interface IBlockMover
     /// <param name="target">Target position; <see cref="BlockPos.dimension"/> is the target dim.</param>
     /// <returns><c>true</c> if a non-air block was moved; <c>false</c> if the source was air.</returns>
     bool Move(BlockPos source, BlockPos target);
+
+    /// <summary>
+    /// True when the block at <paramref name="pos"/> is one part of a structure spanning several
+    /// grid positions (a multiblock satellite or controller, or one half of a bed) and therefore
+    /// cannot be safely relocated by <see cref="Move"/> alone. See
+    /// <see cref="MultiPositionBlockDetector"/> for the detection rules.
+    /// </summary>
+    /// <param name="pos">Dimension-encoded position to inspect.</param>
+    /// <param name="reason">A human-readable explanation when this returns <c>true</c>; otherwise
+    /// <c>null</c>.</param>
+    /// <returns><c>true</c> when the position cannot be safely relocated by <see cref="Move"/> alone.</returns>
+    bool IsMultiPosition(BlockPos pos, out string? reason);
 }
