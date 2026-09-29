@@ -37,7 +37,7 @@ frame; everything else is a still image that moves by CSS alone.
 | `hero-far-1..6.png` | varies, cropped to content | - | The six small, distant islands, each its own static transparent crop. Bobs via CSS (`--mf-bob`, `animation-delay` set per island from its old phase). |
 | `hero-near-1..2.png` | varies, cropped to content | - | The one or two large islands cropped by the hero's frame edge, closer to the viewer. Same static-crop-plus-CSS-bob treatment as `hero-far-*`. |
 | `hero-mid-island.png` | 273x303 | - | The portal island and its gate stonework (pillars, lintel, keystone, rune inlays): static, since only the membrane between the pillars actually moves. |
-| `hero-mid-gate.webp` / `.png` | 156x201 | 48 frames, 1.92s (25fps) | The vortex membrane, its sparks, and the traveller, cropped tightly to the gate opening instead of the full hero canvas - the one piece of the portal that still needs real frames. Shares its bob wrapper with `hero-mid-island.png` (same phase) so the two never drift apart. `.png` is the reduced-motion still. |
+| `hero-mid-gate.webp` / `.png` | 168x213 | 48 frames, 1.92s (25fps) | The vortex membrane, its sparks, the traveller and the gate stonework redrawn so the front pillar stays in front of the membrane, cropped tightly to the gate instead of the full hero canvas - the one piece of the portal that still needs real frames. Shares its bob wrapper with `hero-mid-island.png` (same phase) so the two never drift apart. `.png` is the reduced-motion still. |
 
 `hero-far-*` and `hero-near-*` need no `-720` companion: each is already a few KB, cropped to its
 own content by `save_hero_crop` in `generate.py`. `hero-mid-gate.webp` is the one hero asset

@@ -31,7 +31,7 @@ title: Manifold
 <img class="mf-hero__island" src="assets/site/hero-mid-island.png" style="--ix: 583.5; --iy: 171.5; --iw: 273; --ih: 302.5;" width="273" height="303" alt="" loading="eager" decoding="async">
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-mid-gate.png">
-<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 156w, assets/site/hero-mid-gate.webp 312w" sizes="(max-width: 768px) 16vw, 156px" style="--ix: 656; --iy: 183; --iw: 156; --ih: 201;" width="156" height="201" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 167w, assets/site/hero-mid-gate.webp 335w" sizes="(max-width: 768px) 17vw, 168px" style="--ix: 656; --iy: 171.5; --iw: 167.5; --ih: 212.5;" width="168" height="213" alt="" loading="eager" decoding="async">
 </picture>
 </div>
 </div>
