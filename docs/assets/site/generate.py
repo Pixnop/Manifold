@@ -90,8 +90,8 @@ HERO_GATE_MS = 40  # 48 x 40ms = 24fps, a 1.92s loop
 # canvas's own (0, 0) sits in the hero's page-px space (chosen with margin around the gate's
 # known footprint); HERO_MID_GATE_OX/OY place the gate within it the same way HERO_MID_OY places
 # it in the full hero.
-HERO_MID_GATE_CANVAS = (300, 300)
-HERO_MID_GATE_SHIFT = (600, 140)
+HERO_MID_GATE_CANVAS = (360, 380)
+HERO_MID_GATE_SHIFT = (540, 120)
 HERO_MID_GATE_OX = 720 - HERO_MID_GATE_SHIFT[0]
 HERO_MID_GATE_OY = HERO_MID_OY - HERO_MID_GATE_SHIFT[1]
 
@@ -148,15 +148,20 @@ def hero_near_island(seed, x, y, radius, depth, trees, s):
     return scene.render(bloom=8, strength=0.55)
 
 
+def hero_mid_scene(t):
+    """The portal island's voxels and its gate's voxels at time t (the island never changes)."""
+    gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=t)
+    base = island(np.random.default_rng(3), 6, 3, keep_clear=cells,
+                  light=((0, -1), SALMON_LIGHT, 5), tree_cells=[(-4, -4), (4, -3), (4, 4)])
+    return base, gate_vox
+
+
 def hero_mid_stones():
     """The portal island and its gate stonework: pillars, lintel, keystone, rune inlays. Static -
     the same image every frame - so gate()'s membrane and sparks (small emissive voxels, size <
-    0.5) are left out here and rendered separately by hero_mid_gate_frame, since those are the
-    only part of the portal that actually needs to animate."""
+    0.5) are left out here; hero_mid_gate_frame supplies them."""
     w, h = HERO
-    gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=0.0)
-    base = island(np.random.default_rng(3), 6, 3, keep_clear=cells,
-                  light=((0, -1), SALMON_LIGHT, 5), tree_cells=[(-4, -4), (4, -3), (4, 4)])
+    base, gate_vox = hero_mid_scene(0.0)
     stones = [v for v in gate_vox if v[5] >= 0.5]  # v = (i, j, k, color, alpha, size, emissive)
     scene = Scene(w, h)
     scene.add(base + stones, w / 2, HERO_MID_OY, 15)
@@ -164,31 +169,58 @@ def hero_mid_stones():
 
 
 def hero_mid_gate_frame(t):
-    """The vortex membrane, its sparks, and the traveller crossing through: the only part of the
-    portal that moves frame to frame, redrawn over the gate stonework. Same formulas as the old hero_mid(t), just on the small
-    dedicated canvas above instead of the full hero, and no longer sharing a frame budget with
-    the static stonework in hero_mid_stones."""
+    """The portal island and its whole gate at time t, with the traveller crossing through,
+    depth-sorted in one scene on the gate's small canvas. hero_gate_layers keeps only the part of
+    it that moves."""
     w, h = HERO_MID_GATE_CANVAS
-    gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=t)
-    # The stonework is static and already in hero_mid_stones, but it is drawn here again so it is
-    # depth-sorted with the membrane: without it the membrane, stacked on top of the island
-    # image, covers the front pillar and looks shifted off the centre of its gate.
+    base, gate_vox = hero_mid_scene(t)
     scene = Scene(w, h)
-    scene.add(gate_vox, HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
-    img = scene.render(bloom=15, strength=0.7)
+    scene.add(base + gate_vox, HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
 
-    # the traveller walks up from the grass, through the opening, and fades into the membrane
+    # the traveller walks up from the grass, through the opening, and fades into the membrane;
+    # in the same scene so the bushes it passes behind stay in front of it
     phase = t % 1.0
     if phase < 0.6:
         u = phase / 0.6
         j = 3.0 - 3.6 * u
         alpha = int(255 * min(1.0, u / 0.15) * min(1.0, (1 - u) / 0.35))
-        fig = Scene(w, h)
         # size=0.9 rendered at roughly 7 page px, unreadable at hero scale even at the loop's
         # midpoint; 2.4 reads as a small figure instead of a flicker.
-        fig.add(traveller(0.3, j, 0.05, alpha=alpha, size=2.4), HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
-        img.alpha_composite(fig.render(bloom=0))
-    return img
+        scene.add(traveller(0.3, j, 0.05, alpha=alpha, size=2.4), HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
+    return scene.render(bloom=15, strength=0.7)
+
+
+def hero_gate_layers(stones):
+    """Splits the portal into the static island image and the animated overlay stacked on it.
+    The overlay cannot just be the membrane: sitting on top, it would cover the pillar and the
+    trees in front of the gate. So every frame is the whole scene, depth-sorted, and the overlay
+    keeps the region where any frame differs from the still, cut out of the still so it is drawn
+    once, never twice (two semi-transparent edges stacked would darken). The overlay reaches a
+    little past the hole on opaque pixels, which hides the seam a browser's resampling leaves
+    along a hard cut. Returns the holed still (hero canvas) and the overlay frames (gate canvas)."""
+    sx, sy = HERO_MID_GATE_SHIFT
+    gw, gh = HERO_MID_GATE_CANVAS
+    box = (sx * R, sy * R, (sx + gw) * R, (sy + gh) * R)
+    still = np.asarray(stones.crop(box)).astype(int)
+    frames = [hero_mid_gate_frame(n / HERO_GATE_FRAMES) for n in range(HERO_GATE_FRAMES)]
+    changed = np.zeros(still.shape[:2], bool)
+    for f in frames:
+        changed |= np.abs(np.asarray(f).astype(int) - still).max(axis=2) > 3
+
+    def grow(mask, px):
+        img = Image.fromarray(mask.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(2 * px + 1))
+        return np.asarray(img) > 0
+
+    hole = grow(changed, 2)
+    keep = hole | (grow(changed, 4) & (still[..., 3] == 255))
+    overlays = []
+    for f in frames:
+        a = np.asarray(f).copy()
+        a[~keep] = 0
+        overlays.append(Image.fromarray(a, "RGBA"))
+    holed = np.asarray(stones).copy()
+    holed[box[1]:box[3], box[0]:box[2]][hole] = 0
+    return Image.fromarray(holed, "RGBA"), overlays
 
 
 def save_hero_crop(name, img):
@@ -591,9 +623,9 @@ if __name__ == "__main__":
     for n, (seed, x, y, radius, depth, trees, s, phase, amp) in enumerate(HERO_NEAR_SPOTS):
         box = save_hero_crop(f"hero-near-{n + 1}", hero_near_island(seed, x, y, radius, depth, trees, s))
         print(f"hero-near-{n + 1}", box, phase, amp)
-    box = save_hero_crop("hero-mid-island", hero_mid_stones())
+    stones, gate_frames = hero_gate_layers(hero_mid_stones())
+    box = save_hero_crop("hero-mid-island", stones)
     print("hero-mid-island", box, HERO_MID_PHASE, HERO_MID_AMP)
-    gate_frames = [hero_mid_gate_frame(n / HERO_GATE_FRAMES) for n in range(HERO_GATE_FRAMES)]
     box = save_hero_gate("hero-mid-gate", gate_frames, shift=HERO_MID_GATE_SHIFT)
     print("hero-mid-gate", box, HERO_MID_PHASE, HERO_MID_AMP)
 

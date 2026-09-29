@@ -36,8 +36,8 @@ frame; everything else is a still image that moves by CSS alone.
 | `hero-bg.webp` / `-light.webp` | 1440x640 | - | Opaque nebula and stars (dark/light theme), lighter near the top fading to void (or sky) at the bottom. No animation. |
 | `hero-far-1..6.png` | varies, cropped to content | - | The six small, distant islands, each its own static transparent crop. Bobs via CSS (`--mf-bob`, `animation-delay` set per island from its old phase). |
 | `hero-near-1..2.png` | varies, cropped to content | - | The one or two large islands cropped by the hero's frame edge, closer to the viewer. Same static-crop-plus-CSS-bob treatment as `hero-far-*`. |
-| `hero-mid-island.png` | 273x303 | - | The portal island and its gate stonework (pillars, lintel, keystone, rune inlays): static, since only the membrane between the pillars actually moves. |
-| `hero-mid-gate.webp` / `.png` | 168x213 | 48 frames, 1.92s (25fps) | The vortex membrane, its sparks, the traveller and the gate stonework redrawn so the front pillar stays in front of the membrane, cropped tightly to the gate instead of the full hero canvas - the one piece of the portal that still needs real frames. Shares its bob wrapper with `hero-mid-island.png` (same phase) so the two never drift apart. `.png` is the reduced-motion still. |
+| `hero-mid-island.png` | 273x300 | - | The portal island and its gate stonework, with a hole where `hero-mid-gate.webp` draws the moving part. |
+| `hero-mid-gate.webp` / `.png` | 226x191 | 48 frames, 1.92s (25fps) | Everything around the portal that moves: the vortex membrane, its sparks and the traveller. Each frame is the whole portal island rendered depth-sorted, cut to the region where any frame differs from the still, and that region is cut out of `hero-mid-island.png`, so the pillar and the trees in front stay in front and nothing is drawn twice. Shares its bob wrapper with `hero-mid-island.png`. `.png` is the reduced-motion still. |
 
 `hero-far-*` and `hero-near-*` need no `-720` companion: each is already a few KB, cropped to its
 own content by `save_hero_crop` in `generate.py`. `hero-mid-gate.webp` is the one hero asset

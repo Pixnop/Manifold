@@ -28,10 +28,10 @@ title: Manifold
 </div>
 <div class="mf-hero__layer mf-hero__layer--mid">
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: 0s;">
-<img class="mf-hero__island" src="assets/site/hero-mid-island.png" style="--ix: 583.5; --iy: 171.5; --iw: 273; --ih: 302.5;" width="273" height="303" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-mid-island.png" style="--ix: 583.5; --iy: 174; --iw: 273; --ih: 300;" width="273" height="300" alt="" loading="eager" decoding="async">
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-mid-gate.png">
-<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 167w, assets/site/hero-mid-gate.webp 335w" sizes="(max-width: 768px) 17vw, 168px" style="--ix: 656; --iy: 171.5; --iw: 167.5; --ih: 212.5;" width="168" height="213" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 226w, assets/site/hero-mid-gate.webp 452w" sizes="(max-width: 768px) 24vw, 226px" style="--ix: 625.5; --iy: 171.5; --iw: 226; --ih: 191;" width="226" height="191" alt="" loading="eager" decoding="async">
 </picture>
 </div>
 </div>
