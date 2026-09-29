@@ -12,7 +12,7 @@ avoid a collision). Only the scenes below, and a couple of new pieces (the trave
 animated divider, the closed gate for the 404), live in this file.
 
 Needs Pillow and NumPy, same as the Mod DB generator. A full run takes several minutes, most of
-it in the four hero layers.
+it in the header and highlight loops (each rendered at full card size, one frame at a time).
 
 Every file is written at twice the size the page displays it at (`R` in `generate.py`), so it
 stays sharp on high-density screens. The sizes below are display sizes; the page sets each
@@ -20,25 +20,37 @@ stays sharp on high-density screens. The sizes below are display sizes; the page
 
 ## Hero (`docs/assets/site/hero-*`)
 
-Four layers at 1440x640, meant to sit in the same absolutely-positioned box and move at different
-speeds under scroll (parallax). They share that canvas size exactly, so no per-layer offset is
-needed to line them up.
+The hero used to be three full-canvas animated layers (far/mid/near), each 22 frames at 220ms -
+a slow bob baked into raster frames, which came out to only 4.5 frames per second and read as
+choppy. It is now one opaque background plus a set of small, individually-cropped island images
+that sit inside the same 1440x640 box (a stage `<div>` in `index.md`, see `mf-hero__stage` /
+`mf-hero__island` / `mf-hero__bob` in `main.css`): the bob is a CSS keyframe (a pure small
+translation, so there is no reason to spend frames on it), applied to a wrapper *inside* each
+depth layer rather than the layer itself, so it never fights the pointer/scroll parallax
+transform main.js writes on the layer. Only the portal's vortex membrane, its sparks, and the
+traveller crossing through are still real animation, since those actually change shape frame to
+frame; everything else is a still image that moves by CSS alone.
 
 | File | Display size | Loop | Use |
 | --- | --- | --- | --- |
-| `hero-bg.png` | 1440x640 | - | Opaque nebula and stars, lighter near the top (the lit overworld) fading to void at the bottom. No animation: this is the page background colour, effectively. |
-| `hero-far.webp` / `.png` | 1440x640 | 22 frames, 4.84s | Small, distant islands drifting on their own slow bob. Transparent. |
-| `hero-mid.webp` / `.png` | 1440x640 | 22 frames, 4.84s | The portal island: gate, spinning vortex membrane, drifting sparks, and a traveller who climbs up from the grass and fades into the opening partway through the loop. Transparent. |
-| `hero-near.webp` / `.png` | 1440x640 | 22 frames, 4.84s | One or two larger islands, each cropped by the frame edge, drifting a little closer to the viewer than the mid layer. Transparent. |
+| `hero-bg.webp` / `-light.webp` | 1440x640 | - | Opaque nebula and stars (dark/light theme), lighter near the top fading to void (or sky) at the bottom. No animation. |
+| `hero-far-1..6.png` | varies, cropped to content | - | The six small, distant islands, each its own static transparent crop. Bobs via CSS (`--mf-bob`, `animation-delay` set per island from its old phase). |
+| `hero-near-1..2.png` | varies, cropped to content | - | The one or two large islands cropped by the hero's frame edge, closer to the viewer. Same static-crop-plus-CSS-bob treatment as `hero-far-*`. |
+| `hero-mid-island.png` | 273x303 | - | The portal island and its gate stonework (pillars, lintel, keystone, rune inlays): static, since only the membrane between the pillars actually moves. |
+| `hero-mid-gate.webp` / `.png` | 156x201 | 48 frames, 1.92s (25fps) | The vortex membrane, its sparks, and the traveller, cropped tightly to the gate opening instead of the full hero canvas - the one piece of the portal that still needs real frames. Shares its bob wrapper with `hero-mid-island.png` (same phase) so the two never drift apart. `.png` is the reduced-motion still. |
 
-The three animated layers share the same 22 frames as the Mod DB banner, so they stay in phase
-with each other over repeated loops, but play back at 220ms/frame (`HERO_MS` in `generate.py`)
-instead of the Mod DB banner's 70ms: at 70ms the loop read as a jitter rather than a slow drift,
-and hero-mid's traveller appeared and vanished within 1.5s. `.png` stills (one frame each) are for
-`prefers-reduced-motion`.
+`hero-far-*` and `hero-near-*` need no `-720` companion: each is already a few KB, cropped to its
+own content by `save_hero_crop` in `generate.py`. `hero-mid-gate.webp` is the one hero asset
+still worth halving for phones (`hero-mid-gate-720.webp`), since its swirling, ever-changing
+membrane pattern does not compress as well as the mostly-static islands. Rendering the gate
+overlay on its own small canvas (`HERO_MID_GATE_CANVAS`) instead of the full 1440x640 hero, then
+cropping, is also what keeps `generate.py` fast: a `Scene`'s cost scales with its canvas area,
+and the gate only ever occupies a small corner of it.
 
-Combined weight for a motion-enabled visit: `hero-bg.png` + the three `.webp` files, about
-1.4 MB. The reduced-motion set (`hero-bg.png` + the three `.png` stills) is about 630 KB.
+Combined weight for a motion-enabled visit at 1440 (`hero-bg` + `hero-bg-light` + every
+`hero-far`/`hero-near`/`hero-mid-island` crop + `hero-mid-gate.webp`) is about 770 KB, down from
+the old four-layer set's roughly 1.05 MB. At the phone crop (390 width, `-720`/half-size
+companions where they exist) it is about 490 KB, down from roughly 520 KB.
 
 ## 0.6 highlight loops (`docs/assets/site/highlight-*`)
 
