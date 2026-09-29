@@ -165,14 +165,16 @@ def hero_mid_stones():
 
 def hero_mid_gate_frame(t):
     """The vortex membrane, its sparks, and the traveller crossing through: the only part of the
-    portal that moves frame to frame. Same formulas as the old hero_mid(t), just on the small
+    portal that moves frame to frame, redrawn over the gate stonework. Same formulas as the old hero_mid(t), just on the small
     dedicated canvas above instead of the full hero, and no longer sharing a frame budget with
     the static stonework in hero_mid_stones."""
     w, h = HERO_MID_GATE_CANVAS
     gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=t)
-    glow = [v for v in gate_vox if v[5] < 0.5]
+    # The stonework is static and already in hero_mid_stones, but it is drawn here again so it is
+    # depth-sorted with the membrane: without it the membrane, stacked on top of the island
+    # image, covers the front pillar and looks shifted off the centre of its gate.
     scene = Scene(w, h)
-    scene.add(glow, HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
+    scene.add(gate_vox, HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
     img = scene.render(bloom=15, strength=0.7)
 
     # the traveller walks up from the grass, through the opening, and fades into the membrane
