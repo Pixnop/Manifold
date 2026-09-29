@@ -46,12 +46,12 @@
       "_appLogoPath": "images/logo.svg",
       "_appFaviconPath": "images/logo.svg",
       "_description": "A Vintage Story library mod for declaring and managing custom dimensions: procedural worldgen, player and entity transit, and travel policy, with a Harmony-free API.",
-      "_ogImage": "https://pixnop.github.io/Manifold/assets/moddb/banner-manifold.png",
+      "_ogImage": "https://leonfvt.fr/Manifold/assets/moddb/banner-manifold.png",
       "_ogTitle": "Manifold",
       "_ogDescription": "A Vintage Story library mod for declaring and managing custom dimensions."
     },
     "sitemap": {
-      "baseUrl": "https://pixnop.github.io/Manifold"
+      "baseUrl": "https://leonfvt.fr/Manifold"
     }
   }
 }

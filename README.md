@@ -120,7 +120,7 @@ public sealed class MyModSystem : ModSystem
 
 ## Documentation
 
-- Full documentation site: **https://pixnop.github.io/Manifold/**
+- Full documentation site: **https://leonfvt.fr/Manifold/**
 - Conceptual articles: [`docfx/articles/`](docfx/articles/)
   - [Getting Started](docfx/articles/getting-started.md)
   - [Dimensions](docfx/articles/dimensions.md)
