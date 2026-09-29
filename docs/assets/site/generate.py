@@ -57,9 +57,43 @@ def traveller(i, j, k, cloak=SALMON_LIGHT, facing=1.0, alpha=255, size=1.0):
 
 
 # ---------------------------------------------------------------- hero (parallax layers)
+#
+# Each island used to be baked into a full-canvas animated webp, 22 frames at 220ms so it stayed
+# in phase with the other two layers - a slow bob, but only 4.5 frames per second of it, which
+# read as choppy. The bob is a small pure translation, so it is a CSS keyframe now (mf-hero-bob
+# in main.css) and every island is its own tightly-cropped static image instead: (x, y) below is
+# its un-bobbed centre in the 1440x640 hero, in page px, and phase/amp are what main.css's
+# animation-delay and --mf-bob need to reproduce the same drift, desynchronised the same way.
+# Only the portal's vortex membrane, its sparks and the traveller crossing through still need
+# real frames (hero_mid_gate_frame); the portal island and its gate stonework are static too
+# (hero_mid_stones), sharing one bob with the gate overlay via main.css's shared wrapper.
 
 HERO = (1440, 640)
-HERO_FRAMES = 22
+HERO_FAR_SPOTS = [
+    # (x, y, radius, phase, amplitude)
+    (160, 90, 4, 0.00, 2.0), (430, 60, 3, 0.30, 2.0), (980, 70, 4, 0.55, 2.0),
+    (1260, 110, 3, 0.80, 2.0), (60, 220, 3, 0.15, 2.0), (700, 40, 3, 0.65, 2.0),
+]
+HERO_NEAR_SPOTS = [
+    # (seed, x, y, radius, depth, trees, s, phase, amplitude)
+    (401, -60, 520, 7, 3, 2, 20, 0.10, 2.5),
+    (402, 1330, -40, 5, 3, 1, 17, 0.50, 2.2),
+]
+HERO_MID_OY = 330
+HERO_MID_PHASE, HERO_MID_AMP = 0.0, 2.0
+HERO_GATE_FRAMES = 48
+HERO_GATE_MS = 40  # 48 x 40ms = 24fps, a 1.92s loop
+# The gate overlay (membrane + sparks + traveller) is rendered on its own small canvas instead of
+# the full 1440x640 hero: a Scene's cost is dominated by its canvas area (painted and blurred at
+# SS*R px per page px), and the gate only ever occupies a small corner of the hero, so rendering
+# it full-size and cropping after wasted most of that work. HERO_MID_GATE_SHIFT is where this
+# canvas's own (0, 0) sits in the hero's page-px space (chosen with margin around the gate's
+# known footprint); HERO_MID_GATE_OX/OY place the gate within it the same way HERO_MID_OY places
+# it in the full hero.
+HERO_MID_GATE_CANVAS = (300, 300)
+HERO_MID_GATE_SHIFT = (600, 140)
+HERO_MID_GATE_OX = 720 - HERO_MID_GATE_SHIFT[0]
+HERO_MID_GATE_OY = HERO_MID_OY - HERO_MID_GATE_SHIFT[1]
 
 
 def hero_background(light=False):
@@ -96,28 +130,49 @@ def hero_background(light=False):
     return moddb.to_image(bg).convert("RGBA")
 
 
-def hero_far(t):
-    """Small, distant islands drifting slowly, each on its own bob."""
+def hero_far_island(n, x, y, radius):
+    """One far-layer island, alone in a HERO-sized scene at its un-bobbed spot so its crop lines
+    up with the hero canvas exactly; the bob is a CSS animation on the saved crop, not a frame."""
     w, h = HERO
     scene = Scene(w, h)
-    spots = [(160, 90, 4, 0.00), (430, 60, 3, 0.30), (980, 70, 4, 0.55),
-             (1260, 110, 3, 0.80), (60, 220, 3, 0.15), (700, 40, 3, 0.65)]
-    for n, (x, y, radius, phase) in enumerate(spots):
-        rng = np.random.default_rng(300 + n)
-        scene.add(island(rng, radius, 1, trees=rng.integers(0, 2)), x, y + bob(t, phase, 2.0), 5)
+    rng = np.random.default_rng(300 + n)
+    scene.add(island(rng, radius, 1, trees=rng.integers(0, 2)), x, y, 5)
     return scene.render(bloom=5, strength=0.5)
 
 
-def hero_mid(t):
-    """The portal island: gate, membrane, sparks, and a traveller crossing through."""
+def hero_near_island(seed, x, y, radius, depth, trees, s):
+    """One near-layer island, alone in a HERO-sized scene (see hero_far_island)."""
     w, h = HERO
-    rng = np.random.default_rng(2)
-    gate_vox, cells = gate(-3, -2, 0, 4, 6, rng, t=t)
+    scene = Scene(w, h)
+    scene.add(island(np.random.default_rng(seed), radius, depth, trees=trees), x, y, s)
+    return scene.render(bloom=8, strength=0.55)
+
+
+def hero_mid_stones():
+    """The portal island and its gate stonework: pillars, lintel, keystone, rune inlays. Static -
+    the same image every frame - so gate()'s membrane and sparks (small emissive voxels, size <
+    0.5) are left out here and rendered separately by hero_mid_gate_frame, since those are the
+    only part of the portal that actually needs to animate."""
+    w, h = HERO
+    gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=0.0)
     base = island(np.random.default_rng(3), 6, 3, keep_clear=cells,
                   light=((0, -1), SALMON_LIGHT, 5), tree_cells=[(-4, -4), (4, -3), (4, 4)])
-    oy = 330 + bob(t, 0.0, 2.0)
+    stones = [v for v in gate_vox if v[5] >= 0.5]  # v = (i, j, k, color, alpha, size, emissive)
     scene = Scene(w, h)
-    scene.add(base + gate_vox, w / 2, oy, 15)
+    scene.add(base + stones, w / 2, HERO_MID_OY, 15)
+    return scene.render(bloom=15, strength=0.7)
+
+
+def hero_mid_gate_frame(t):
+    """The vortex membrane, its sparks, and the traveller crossing through: the only part of the
+    portal that moves frame to frame. Same formulas as the old hero_mid(t), just on the small
+    dedicated canvas above instead of the full hero, and no longer sharing a frame budget with
+    the static stonework in hero_mid_stones."""
+    w, h = HERO_MID_GATE_CANVAS
+    gate_vox, cells = gate(-3, -2, 0, 4, 6, np.random.default_rng(2), t=t)
+    glow = [v for v in gate_vox if v[5] < 0.5]
+    scene = Scene(w, h)
+    scene.add(glow, HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
     img = scene.render(bloom=15, strength=0.7)
 
     # the traveller walks up from the grass, through the opening, and fades into the membrane
@@ -129,18 +184,37 @@ def hero_mid(t):
         fig = Scene(w, h)
         # size=0.9 rendered at roughly 7 page px, unreadable at hero scale even at the loop's
         # midpoint; 2.4 reads as a small figure instead of a flicker.
-        fig.add(traveller(0.3, j, 0.05, alpha=alpha, size=2.4), w / 2, oy, 15)
+        fig.add(traveller(0.3, j, 0.05, alpha=alpha, size=2.4), HERO_MID_GATE_OX, HERO_MID_GATE_OY, 15)
         img.alpha_composite(fig.render(bloom=0))
     return img
 
 
-def hero_near(t):
-    """One or two large islands, cropped by the frame, drifting a little closer to the viewer."""
-    w, h = HERO
-    scene = Scene(w, h)
-    scene.add(island(np.random.default_rng(401), 7, 3, trees=2), -60, 520 + bob(t, 0.1, 2.5), 20)
-    scene.add(island(np.random.default_rng(402), 5, 3, trees=1), 1330, -40 + bob(t, 0.5, 2.2), 17)
-    return scene.render(bloom=8, strength=0.55)
+def save_hero_crop(name, img):
+    """Crop a HERO-canvas render to its own content and save it as a static PNG. Returns the crop
+    box in page px (left, top, width, height) so main.css/index.md can position it as a
+    percentage of the hero stage."""
+    box = img.getbbox()
+    img.crop(box).save(OUT / f"{name}.png", optimize=True)
+    left, top, right, bottom = (v / R for v in box)
+    return left, top, right - left, bottom - top
+
+
+def save_hero_gate(name, frames, quality=40, frame_ms=HERO_GATE_MS, shift=(0, 0)):
+    """Writes the gate overlay's looping webp (cropped to the union of every frame's content, not
+    its whole own canvas), a still png (first frame) for prefers-reduced-motion, and a half-size
+    -720 companion for the phone crop. Returns the crop box in page px within the hero (not the
+    frames' own small canvas): shift is where that canvas's (0, 0) sits in the hero, as page px,
+    same as save_hero_crop for every other hero image."""
+    box = union_box(frames)
+    cropped = [f.crop(box) for f in frames]
+    cropped[0].save(OUT / f"{name}.webp", save_all=True, append_images=cropped[1:],
+                    duration=frame_ms, loop=0, quality=quality, method=6)
+    cropped[0].save(OUT / f"{name}.png", optimize=True)
+    half = [f.resize((f.width // 2, f.height // 2), Image.LANCZOS) for f in cropped]
+    half[0].save(OUT / f"{name}-720.webp", save_all=True, append_images=half[1:],
+                 duration=frame_ms, loop=0, quality=quality, method=6)
+    left, top, right, bottom = (v / R for v in box)
+    return left + shift[0], top + shift[1], right - left, bottom - top
 
 
 # ---------------------------------------------------------------- 0.6 highlight loops
@@ -497,22 +571,29 @@ def assert_edges_clear(img):
 
 
 if __name__ == "__main__":
-    # hero: four aligned layers at HERO size, no cropping, so they stack without drifting.
-    # The opaque background is fully covered every frame, so a lossy webp costs far less than
-    # the old PNG for the same look; a half-size companion covers the hero's phone crop.
+    # hero: the opaque background is one full-canvas layer, still aligned to HERO exactly so it
+    # stacks under the rest without drifting. Every island is its own tightly-cropped static
+    # image now (see the hero (parallax layers) section above), positioned in main.css/index.md
+    # from the page-px boxes printed below; only the portal's vortex membrane, sparks and
+    # traveller are still real animation, cropped to the gate instead of the full canvas.
     for light, suffix in ((False, ""), (True, "-light")):
         bg = hero_background(light=light)
         bg.convert("RGB").save(OUT / f"hero-bg{suffix}.webp", quality=82, method=6)
         bg.resize((bg.width // 2, bg.height // 2), Image.LANCZOS).convert("RGB").save(
             OUT / f"hero-bg{suffix}-720.webp", quality=82, method=6)
-    # all three share HERO_FRAMES's period so the parallax layers stay in phase with each other
-    # over repeated loops. frame_ms=220 (not moddb's 70) stretches that same 22-frame loop to
-    # 4.84s: at 70ms the loop read as a jitter rather than a slow drift, and the traveller in
-    # hero-mid appeared and vanished within 1.5s.
-    HERO_MS = 220
-    save_animated("hero-far", hero_far, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True, frame_ms=HERO_MS)
-    save_animated("hero-mid", hero_mid, 0.0, frames=HERO_FRAMES, quality=40, crop=False, mobile=True, frame_ms=HERO_MS)
-    save_animated("hero-near", hero_near, 0.0, frames=HERO_FRAMES, quality=42, crop=False, mobile=True, frame_ms=HERO_MS)
+
+    print("-- hero layout: name  left top width height (page px)  phase  amp --")
+    for n, (x, y, radius, phase, amp) in enumerate(HERO_FAR_SPOTS):
+        box = save_hero_crop(f"hero-far-{n + 1}", hero_far_island(n, x, y, radius))
+        print(f"hero-far-{n + 1}", box, phase, amp)
+    for n, (seed, x, y, radius, depth, trees, s, phase, amp) in enumerate(HERO_NEAR_SPOTS):
+        box = save_hero_crop(f"hero-near-{n + 1}", hero_near_island(seed, x, y, radius, depth, trees, s))
+        print(f"hero-near-{n + 1}", box, phase, amp)
+    box = save_hero_crop("hero-mid-island", hero_mid_stones())
+    print("hero-mid-island", box, HERO_MID_PHASE, HERO_MID_AMP)
+    gate_frames = [hero_mid_gate_frame(n / HERO_GATE_FRAMES) for n in range(HERO_GATE_FRAMES)]
+    box = save_hero_gate("hero-mid-gate", gate_frames, shift=HERO_MID_GATE_SHIFT)
+    print("hero-mid-gate", box, HERO_MID_PHASE, HERO_MID_AMP)
 
     save_animated("highlight-pregeneration", pregeneration_scene, 0.9, frames=36, quality=80)
     save_animated("highlight-column-generated", column_generated_scene, 0.6, frames=36)
