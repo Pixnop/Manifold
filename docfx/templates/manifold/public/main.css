@@ -1,5 +1,1293 @@
+/* ==========================================================================
+   Manifold docs theme: "the void between worlds"
+   Overrides the docfx "modern" template through Bootstrap 5 custom
+   properties and a handful of new classes used by the landing page.
+   ========================================================================== */
+
+/* Fonts are loaded as a real <link rel="stylesheet"> from layout/_master.tmpl
+   (preconnect + stylesheet), not an @import here, so they fetch in parallel
+   with main.css instead of after it. */
+
+:root {
+  /* Palette (see docs/assets/moddb for the source art direction) */
+  --mf-void: #0e1116;
+  --mf-void-2: #151618;
+  --mf-slate: #333f48;
+  --mf-slate-mid: #4b606c;
+  --mf-slate-light: #5c7b89;
+  --mf-salmon: #e28f70;
+  --mf-salmon-light: #e2a191;
+  --mf-salmon-soft: #f3d3c6;
+  --mf-ice: #d5edf0;
+  --mf-green: #8cb274;
+  --mf-green-light: #b7d6a4;
+  --mf-text: #d9e2e6;
+  --mf-muted: #a9bac2;
+  --mf-terracotta: #b5542e; /* light-mode link accent, WCAG AA on paper */
+  --mf-terracotta-deep: #a54b28; /* light-mode salmon-family text on tinted panels, AA on --bs-tertiary-bg */
+
+  --mf-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mf-font-heading: 'Sora', var(--mf-font-body);
+  --mf-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --mf-radius: 0.5rem;
+  --mf-transition: 180ms ease;
+}
+
 /* Constrain the navbar logo (the source SVG is 1024x1024). */
 #logo {
   height: 36px;
   width: auto;
+  border-radius: 6px;
+  margin-right: 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Dark theme (default): the void, with a faint nebula behind body text.
+   -------------------------------------------------------------------------- */
+:root[data-bs-theme='dark'] {
+  color-scheme: dark;
+  --bs-body-bg: var(--mf-void);
+  --bs-body-color: var(--mf-text);
+  --bs-emphasis-color: #f3f7f8;
+  --bs-secondary-color: var(--mf-muted);
+  --bs-secondary-rgb: 169, 186, 194;
+  --bs-focus-ring-color: rgba(226, 143, 112, 0.6);
+  --bs-border-color: #2a323b;
+  --bs-border-color-translucent: rgba(217, 226, 230, 0.12);
+  --bs-tertiary-bg: var(--mf-void-2);
+  --bs-secondary-bg: var(--mf-void-2);
+  --bs-link-color: var(--mf-salmon);
+  --bs-link-color-rgb: 226, 143, 112;
+  --bs-link-hover-color: var(--mf-salmon-light);
+  --bs-link-hover-color-rgb: 226, 161, 145;
+  --bs-code-color: var(--mf-salmon-light);
+
+  --bs-navbar-color: var(--mf-muted);
+  --bs-navbar-hover-color: var(--mf-text);
+  --bs-navbar-active-color: var(--mf-text);
+  --bs-navbar-brand-color: var(--mf-text);
+  --bs-navbar-brand-hover-color: var(--mf-text);
+
+  background-color: var(--bs-body-bg);
+  background-image:
+    radial-gradient(ellipse 900px 560px at 12% -8%, rgba(226, 143, 112, 0.10), transparent 60%),
+    radial-gradient(ellipse 1000px 640px at 96% 8%, rgba(75, 96, 108, 0.22), transparent 60%),
+    radial-gradient(ellipse 900px 700px at 50% 100%, rgba(92, 123, 137, 0.10), transparent 65%);
+  background-attachment: fixed;
+}
+
+/* --------------------------------------------------------------------------
+   Light theme: ice / paper, not an inverted afterthought.
+   -------------------------------------------------------------------------- */
+:root[data-bs-theme='light'] {
+  color-scheme: light;
+  --bs-body-bg: #f6fafb;
+  --bs-body-color: #232b31;
+  --bs-emphasis-color: var(--mf-slate);
+  --bs-secondary-color: #57666d;
+  --bs-secondary-rgb: 87, 102, 109;
+  --bs-focus-ring-color: rgba(181, 84, 46, 0.6);
+  --bs-border-color: #d7e2e5;
+  --bs-border-color-translucent: rgba(51, 63, 72, 0.12);
+  --bs-tertiary-bg: #eef4f5;
+  --bs-secondary-bg: #eef4f5;
+  --bs-link-color: var(--mf-terracotta);
+  --bs-link-color-rgb: 181, 84, 46;
+  --bs-link-hover-color: #96431f;
+  --bs-link-hover-color-rgb: 150, 67, 31;
+  --bs-code-color: #a0451f;
+
+  --bs-navbar-color: #57666d;
+  --bs-navbar-hover-color: var(--mf-slate);
+  --bs-navbar-active-color: var(--mf-slate);
+  --bs-navbar-brand-color: var(--mf-slate);
+  --bs-navbar-brand-hover-color: var(--mf-slate);
+
+  background-color: var(--bs-body-bg);
+  background-image:
+    radial-gradient(ellipse 900px 560px at 10% -10%, rgba(226, 143, 112, 0.09), transparent 60%),
+    radial-gradient(ellipse 1000px 640px at 100% 0%, rgba(92, 123, 137, 0.10), transparent 60%);
+  background-attachment: fixed;
+}
+
+body {
+  font-family: var(--mf-font-body);
+  overflow-x: clip;
+}
+
+h1, h2, h3, h4, h5, h6,
+.navbar-brand,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: var(--mf-font-heading);
+  letter-spacing: -0.01em;
+}
+
+article h1, article h2, article h3 { color: var(--bs-emphasis-color); }
+
+::selection {
+  background: var(--mf-salmon);
+  color: var(--mf-void);
+}
+
+/* --------------------------------------------------------------------------
+   Focus rings: visible everywhere, in the accent colour.
+   -------------------------------------------------------------------------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+.btn:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--mf-salmon);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+/* Bootstrap's own .nav-link/.dropdown-item focus-visible rule (outline: 0 plus a 25% blue
+   box-shadow) has higher specificity than the generic rule above and wins on the navbar. */
+.nav-link:focus-visible,
+.navbar-brand:focus-visible,
+.dropdown-item:focus-visible,
+.dropdown-toggle:focus-visible {
+  outline: 2px solid var(--mf-salmon);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbars.
+   -------------------------------------------------------------------------- */
+:root { scrollbar-color: var(--mf-slate-mid) transparent; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: var(--mf-slate-mid);
+  border-radius: 8px;
+  border: 3px solid var(--bs-body-bg);
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--mf-slate-light); }
+
+/* --------------------------------------------------------------------------
+   Navbar: translucent, blurred, salmon active indicator.
+   -------------------------------------------------------------------------- */
+header.border-bottom {
+  border-bottom-color: var(--bs-border-color) !important;
+  background-color: rgba(14, 17, 22, 0.72) !important;
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+:root[data-bs-theme='light'] header.border-bottom {
+  background-color: rgba(246, 250, 251, 0.78) !important;
+}
+
+#navbar .nav-item .nav-link,
+#navbar .nav-item a {
+  position: relative;
+  transition: color var(--mf-transition);
+}
+#navbar .nav-item .nav-link.active,
+#navbar .nav-item a.active {
+  color: var(--bs-navbar-active-color);
+}
+#navbar .nav-item .nav-link.active::after,
+#navbar .nav-item a.active::after {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: -2px;
+  height: 2px;
+  background: var(--mf-salmon);
+  border-radius: 2px;
+}
+
+#search .form-control,
+#search-query {
+  background-color: var(--bs-tertiary-bg);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+#search .bi-search { color: var(--bs-secondary-color); }
+
+/* Mobile menu (offcanvas / collapse) picks up the same translucent panel. */
+.navbar-collapse.collapse.show,
+.navbar-collapse.collapsing {
+  background-color: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+}
+
+/* --------------------------------------------------------------------------
+   Code.
+   -------------------------------------------------------------------------- */
+code, pre, kbd, samp, .code-action {
+  font-family: var(--mf-font-mono);
+  /* JetBrains Mono ligates => into a single arrow glyph; in a C# sample that can read as a
+     literal character a reader might copy by eye, so code stays letter-for-letter. */
+  font-variant-ligatures: none;
+}
+:not(pre) > code {
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-code-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.875em;
+}
+pre code.hljs {
+  background-color: var(--mf-void-2) !important;
+  color: var(--mf-text) !important;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--mf-radius);
+}
+:root[data-bs-theme='light'] pre code.hljs {
+  background-color: #eef4f5 !important;
+  color: #232b31 !important;
+}
+/* highlight.js token colours, themed from the palette instead of the stock scheme (whose light
+   .hljs-attr #FF0000 and .hljs-meta #2B91AF both fail 4.5:1 on the code background); each group
+   below is checked against its own theme's code background. */
+:root[data-bs-theme='dark'] .hljs-keyword,
+:root[data-bs-theme='dark'] .hljs-selector-tag,
+:root[data-bs-theme='dark'] .hljs-built_in,
+:root[data-bs-theme='dark'] .hljs-name,
+:root[data-bs-theme='dark'] .hljs-tag,
+:root[data-bs-theme='dark'] .hljs-literal,
+:root[data-bs-theme='dark'] .hljs-symbol,
+:root[data-bs-theme='dark'] .hljs-bullet,
+:root[data-bs-theme='dark'] .hljs-link,
+:root[data-bs-theme='dark'] .hljs-attr { color: var(--mf-salmon-light); }
+:root[data-bs-theme='dark'] .hljs-string,
+:root[data-bs-theme='dark'] .hljs-title,
+:root[data-bs-theme='dark'] .hljs-section,
+:root[data-bs-theme='dark'] .hljs-attribute,
+:root[data-bs-theme='dark'] .hljs-template-tag,
+:root[data-bs-theme='dark'] .hljs-template-variable,
+:root[data-bs-theme='dark'] .hljs-type,
+:root[data-bs-theme='dark'] .hljs-addition { color: var(--mf-green-light); }
+:root[data-bs-theme='dark'] .hljs-comment,
+:root[data-bs-theme='dark'] .hljs-quote,
+:root[data-bs-theme='dark'] .hljs-variable,
+:root[data-bs-theme='dark'] .hljs-doctag { color: var(--mf-muted); }
+:root[data-bs-theme='dark'] .hljs-deletion,
+:root[data-bs-theme='dark'] .hljs-selector-attr,
+:root[data-bs-theme='dark'] .hljs-selector-pseudo,
+:root[data-bs-theme='dark'] .hljs-meta { color: var(--mf-ice); }
+
+:root[data-bs-theme='light'] .hljs-keyword,
+:root[data-bs-theme='light'] .hljs-selector-tag,
+:root[data-bs-theme='light'] .hljs-built_in,
+:root[data-bs-theme='light'] .hljs-name,
+:root[data-bs-theme='light'] .hljs-tag,
+:root[data-bs-theme='light'] .hljs-literal,
+:root[data-bs-theme='light'] .hljs-symbol,
+:root[data-bs-theme='light'] .hljs-bullet,
+:root[data-bs-theme='light'] .hljs-link { color: var(--mf-slate); }
+:root[data-bs-theme='light'] .hljs-string,
+:root[data-bs-theme='light'] .hljs-title,
+:root[data-bs-theme='light'] .hljs-section,
+:root[data-bs-theme='light'] .hljs-attribute,
+:root[data-bs-theme='light'] .hljs-template-tag,
+:root[data-bs-theme='light'] .hljs-template-variable,
+:root[data-bs-theme='light'] .hljs-type,
+:root[data-bs-theme='light'] .hljs-addition { color: #456b2e; } /* same shade as the light-mode TIP heading */
+:root[data-bs-theme='light'] .hljs-comment,
+:root[data-bs-theme='light'] .hljs-quote,
+:root[data-bs-theme='light'] .hljs-variable,
+:root[data-bs-theme='light'] .hljs-doctag { color: var(--mf-slate-mid); }
+:root[data-bs-theme='light'] .hljs-deletion,
+:root[data-bs-theme='light'] .hljs-selector-attr,
+:root[data-bs-theme='light'] .hljs-selector-pseudo,
+:root[data-bs-theme='light'] .hljs-meta,
+:root[data-bs-theme='light'] .hljs-attr { color: var(--mf-terracotta-deep); }
+.code-action {
+  color: var(--bs-secondary-color);
+}
+.code-action:hover { color: var(--mf-salmon); }
+/* Raw salmon (#E28F70) on the light-mode tinted backgrounds it sits on is 2.3-2.4:1, well under
+   the 4.5:1 AA floor; the deep terracotta shade already used for other light-mode text clears it. */
+:root[data-bs-theme='light'] .code-action:hover { color: var(--mf-terracotta-deep); }
+
+/* --------------------------------------------------------------------------
+   Callouts: docfx's own [!NOTE] [!TIP] [!IMPORTANT] [!WARNING] [!CAUTION]
+   blocks. docfx renders these as <div class="NOTE alert alert-info"> (TIP
+   also alert-info; IMPORTANT and CAUTION are both alert-danger; WARNING is
+   alert-warning) with an <h5> title: the uppercase class carries the icon
+   already (via .alert-info/-warning/-danger h5::before in docfx.min.css),
+   these rules only need to reset colour to the palette.
+   -------------------------------------------------------------------------- */
+.NOTE, .TIP, .IMPORTANT, .WARNING, .CAUTION {
+  --bs-alert-bg: var(--bs-tertiary-bg);
+  --bs-alert-color: var(--bs-body-color);
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--bs-border-color);
+  border-left-width: 4px;
+  padding: 0.85rem 1.1rem;
+  margin: 1.25rem 0;
+}
+.NOTE h5, .TIP h5, .IMPORTANT h5, .WARNING h5, .CAUTION h5 {
+  font-family: var(--mf-font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
+}
+.NOTE > :last-child, .TIP > :last-child, .IMPORTANT > :last-child,
+.WARNING > :last-child, .CAUTION > :last-child { margin-bottom: 0; }
+
+.NOTE { border-left-color: #6a8b99; }
+/* Text colour is a dedicated shade, not --mf-slate-light directly: the raw
+   token is 4.01:1 on --mf-void-2, just under AA (4.5:1) for body-size text. */
+.NOTE h5 { color: #6a8b99; }
+.TIP { border-left-color: var(--mf-green); }
+.TIP h5 { color: var(--mf-green); }
+.IMPORTANT { border-left-color: var(--mf-salmon); }
+.IMPORTANT h5 { color: var(--mf-salmon); }
+.WARNING { border-left-color: #d9a441; }
+.WARNING h5 { color: #d9a441; }
+.CAUTION { border-left-color: #d3654d; }
+.CAUTION h5 { color: #d3654d; }
+/* Light mode: --bs-tertiary-bg is much brighter than --mf-void-2, so every
+   title needs its own darker shade to clear 4.5:1 (checked against
+   #eef4f5); the dark-mode values above are already AA on --mf-void-2. */
+:root[data-bs-theme='light'] .NOTE h5 { color: var(--mf-slate); }
+:root[data-bs-theme='light'] .TIP h5 { color: #456b2e; }
+:root[data-bs-theme='light'] .IMPORTANT h5 { color: var(--mf-terracotta-deep); }
+:root[data-bs-theme='light'] .WARNING h5 { color: #7f5b16; }
+:root[data-bs-theme='light'] .CAUTION h5 { color: #b5442f; }
+
+/* --------------------------------------------------------------------------
+   Tables.
+   -------------------------------------------------------------------------- */
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.95em;
+}
+article table th,
+article table td {
+  border: 1px solid var(--bs-border-color);
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+}
+article table th {
+  background-color: var(--bs-tertiary-bg);
+  font-family: var(--mf-font-heading);
+  font-weight: 600;
+}
+article table tr:hover td { background-color: var(--bs-border-color-translucent); }
+
+/* API member sections (docfx "modern" reference pages): the member name (h3) and its Returns /
+   Parameters / Exceptions / Remarks sub-headings (h4.section) rendered at nearly the same size,
+   so the member hierarchy was weak. The h3 stays a real heading in the mono font (this is a
+   symbol, not prose); the h4 labels shrink to small-caps muted tags. */
+article h4[id] {
+  border-top: 1px solid var(--bs-border-color);
+  padding-top: 1rem;
+  margin-top: 1.75rem;
+}
+article h3[data-uid] {
+  font-family: var(--mf-font-mono);
+  font-size: 1.15rem;
+  color: var(--mf-salmon);
+}
+:root[data-bs-theme='light'] article h3[data-uid] { color: var(--mf-terracotta-deep); }
+article h4.section {
+  font-family: var(--mf-font-heading);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bs-secondary-color);
+  margin-top: 1.1rem;
+}
+.memberInfo, dl.parameters, dl.exceptions {
+  border-left: 2px solid var(--bs-border-color);
+  padding-left: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar / TOC: active item marked in salmon.
+   -------------------------------------------------------------------------- */
+/* docfx's runtime toc/affix builder renders plain <a> tags, not Bootstrap .nav-link: the toc
+   marks the current page with .active on the <li>, and the affix ("In this article") list uses
+   Bootstrap's own .link-body-emphasis class with no active state of its own. Targeting the
+   .nav-link class these never carry left both the active marker and the affix colour dead,
+   falling through to the browser default (pure black/white, off-palette in both themes). */
+#toc li > a,
+.affix a.link-body-emphasis {
+  color: var(--bs-secondary-color);
+  border-radius: 4px;
+  transition: color var(--mf-transition), background-color var(--mf-transition);
+}
+#toc li > a:hover,
+.affix a.link-body-emphasis:hover {
+  color: var(--bs-body-color);
+  background-color: var(--bs-tertiary-bg);
+}
+#toc li.active > a {
+  color: var(--mf-salmon);
+  font-weight: 600;
+  background-color: rgba(226, 143, 112, 0.10);
+  border-left: 2px solid var(--mf-salmon);
+}
+:root[data-bs-theme='light'] #toc li.active > a { color: var(--mf-terracotta-deep); }
+#tocFilter, .tocFilter input {
+  background-color: var(--bs-tertiary-bg);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+
+/* --------------------------------------------------------------------------
+   Footer.
+   -------------------------------------------------------------------------- */
+footer.border-top {
+  border-top-color: var(--bs-border-color) !important;
+  color: var(--bs-secondary-color);
+}
+
+/* --------------------------------------------------------------------------
+   Landing page.
+   -------------------------------------------------------------------------- */
+.mf-hero {
+  margin: 0 0 2.5rem;
+}
+.mf-hero__title {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  font-weight: 800;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  line-height: 1.05;
+  background: linear-gradient(135deg, var(--mf-salmon-light) 0%, var(--mf-ice) 55%, var(--mf-salmon) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-bs-theme='light'] .mf-hero__title {
+  background: linear-gradient(135deg, var(--mf-terracotta) 0%, var(--mf-slate) 60%, var(--mf-terracotta-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.mf-hero__tagline {
+  max-width: 46rem;
+  margin: 0 auto 1.5rem;
+  text-align: center;
+  font-size: 1.15rem;
+  color: var(--bs-secondary-color);
+}
+.mf-hero__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+.mf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform var(--mf-transition), background-color var(--mf-transition), border-color var(--mf-transition), color var(--mf-transition);
+}
+.mf-btn:hover { transform: translateY(-1px); }
+.mf-btn--primary {
+  background-color: var(--mf-salmon);
+  color: var(--mf-void);
+}
+.mf-btn--primary:hover { background-color: var(--mf-salmon-light); color: var(--mf-void); }
+.mf-btn--ghost {
+  background-color: transparent;
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+.mf-btn--ghost:hover { border-color: var(--mf-salmon); color: var(--mf-salmon); }
+:root[data-bs-theme='light'] .mf-btn--ghost:hover { border-color: var(--mf-terracotta-deep); color: var(--mf-terracotta-deep); }
+
+.mf-install {
+  max-width: 46rem;
+  margin: 0 auto 3rem;
+}
+
+.mf-section-title {
+  text-align: center;
+  margin-bottom: 0.4rem;
+}
+.mf-section-sub {
+  text-align: center;
+  color: var(--bs-secondary-color);
+  max-width: 40rem;
+  margin: 0 auto 2rem;
+}
+
+.mf-divider {
+  display: block;
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  margin: 3rem auto;
+  opacity: 0.7;
+}
+/* Same multiply treatment as the card art above: the divider's blur halo (baked for the void) is
+   a soft pink smear on paper without it. */
+:root[data-bs-theme='light'] .mf-divider {
+  opacity: 0.85;
+  mix-blend-mode: multiply;
+}
+
+.mf-grid {
+  display: grid;
+  /* minmax(0, 1fr), not 1fr: 1fr alone has an implicit min of auto, so an unbreakable child (a
+     long inline code identifier) forces the column past the viewport instead of wrapping. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 3rem;
+}
+@media (max-width: 900px) {
+  .mf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* 9 cards in 2 columns orphans the 9th next to an empty cell; spanning it keeps every row full. */
+  .mf-grid:has(> :nth-child(9):last-child) > :nth-child(9) { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .mf-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.mf-card code { overflow-wrap: anywhere; }
+
+.mf-card {
+  position: relative;
+  display: block;
+  padding: 1.25rem;
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-tertiary-bg);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  transition: transform var(--mf-transition), border-color var(--mf-transition), box-shadow var(--mf-transition);
+}
+.mf-card::before {
+  content: '';
+  position: absolute;
+  inset: -40% -40% auto auto;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(226, 143, 112, 0.35), transparent 70%);
+  opacity: 0;
+  transition: opacity var(--mf-transition);
+  pointer-events: none;
+}
+.mf-card:hover,
+.mf-card:focus-visible {
+  border-color: var(--mf-salmon);
+}
+.mf-card:hover::before,
+.mf-card:focus-visible::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .mf-card, .mf-btn { transition: none; }
+  .mf-btn:hover { transform: none; }
+}
+
+.mf-feature-card h3, .mf-doc-card h3, .mf-mod-card h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.35rem;
+}
+.mf-feature-card p, .mf-doc-card p, .mf-mod-card p {
+  color: var(--bs-secondary-color);
+  font-size: 0.92rem;
+  margin-bottom: 0;
+}
+
+/* .mf-also: the compact "also in the box" strip under the features grid - the features that
+   didn't earn a full island card, still true and still worth a line each. */
+.mf-also {
+  display: grid;
+  /* minmax(380px, 1fr): at 1440 this settles on 3 wide columns instead of auto-fit's 5-6 at a
+     narrower minimum, which packed each card too tight for an inline identifier like
+     DimensionCommandBuilder to sit on one line. */
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+.mf-also .mf-card {
+  padding: 1rem 1.1rem;
+  font-size: 0.92rem;
+}
+.mf-also .mf-card strong {
+  display: block;
+  color: var(--mf-salmon);
+  font-family: var(--mf-font-heading);
+  margin-bottom: 0.25rem;
+}
+/* Raw salmon on --bs-tertiary-bg is 2.25:1 in light mode; the deep shade clears AA. */
+:root[data-bs-theme='light'] .mf-also .mf-card strong { color: var(--mf-terracotta-deep); }
+/* Links on top of --bs-tertiary-bg (cards, callouts, the closing strip): the ordinary light-mode
+   link colour (#B5542E) measures 4.42:1 there, just under the 4.5:1 AA floor for body text; the
+   deep shade already used elsewhere on this background clears it. */
+:root[data-bs-theme='light'] .mf-card a,
+:root[data-bs-theme='light'] .mf-close__col a,
+:root[data-bs-theme='light'] .NOTE a, :root[data-bs-theme='light'] .TIP a,
+:root[data-bs-theme='light'] .IMPORTANT a, :root[data-bs-theme='light'] .WARNING a,
+:root[data-bs-theme='light'] .CAUTION a { color: var(--mf-terracotta-deep); }
+
+.mf-mod-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  position: relative;
+}
+.mf-mod-card img {
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--mf-ice);
+  padding: 6px;
+  flex: none;
+}
+.mf-mod-card > div {
+  flex: 1;
+  min-width: 0;
+}
+.mf-mod-card.external::after { position: absolute; top: 0.75rem; right: 0.75rem; }
+
+.mf-why {
+  max-width: 42rem;
+  margin: 0 auto 3rem;
+  padding: 1.25rem 1.5rem;
+  border-left: 3px solid var(--mf-slate-light);
+  background-color: var(--bs-tertiary-bg);
+  border-radius: 0 var(--mf-radius) var(--mf-radius) 0;
+}
+.mf-why p { margin-bottom: 0.6rem; }
+.mf-why p:last-child { margin-bottom: 0; }
+
+/* Closing strip - Compatibility and License, in the same centred, card-toned rhythm as the rest
+   of the landing instead of left-aligned default markdown headings. */
+.mf-close {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  max-width: 42rem;
+  margin: 0 auto 2rem;
+}
+.mf-close__col {
+  flex: 1 1 14rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-tertiary-bg);
+}
+.mf-close__col h3 {
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+}
+.mf-close__col ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.92rem;
+}
+.mf-close__col p { margin: 0; }
+
+/* ==========================================================================
+   Motion primitives: for the landing page (and anywhere else that wants
+   the dimension feel). Everything here is opt-in via a class; nothing runs
+   on a page that doesn't ask for it, and every animation is switched off
+   under prefers-reduced-motion instead of just slowed down.
+   ========================================================================== */
+
+/* .mf-floating: gentle vertical bob, for a drifting island or any prop that
+   should feel like it's hanging in the void. Stack with a delay/duration
+   modifier so a group of them don't bob in lockstep. */
+@keyframes mf-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.mf-floating {
+  animation: mf-float 6s ease-in-out infinite;
+}
+.mf-floating--slow { animation-duration: 9s; }
+.mf-floating--fast { animation-duration: 4.5s; }
+.mf-floating--delay-1 { animation-delay: -1.5s; }
+.mf-floating--delay-2 { animation-delay: -3s; }
+.mf-floating--delay-3 { animation-delay: -4.5s; }
+
+/* .mf-portal-glow: a soft pulsing halo, for the hero portal art or any
+   "this is a threshold" marker. Apply to an absolutely-positioned element
+   sized by the caller; the class only supplies the glow and the pulse. */
+@keyframes mf-portal-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.mf-portal-glow {
+  /* closest-side, not circle: circle would stretch to the box's diagonal, so on a tall narrow
+     box (the hero portal link) the gradient is still visibly alpha at the box's left/right edges
+     - a lit rectangular column with a hard edge behind the portal instead of a soft round glow. */
+  background: radial-gradient(closest-side, rgba(226, 143, 112, 0.55), rgba(226, 143, 112, 0.08) 55%, transparent 100%);
+  animation: mf-portal-pulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* .mf-tilt: a light 3D hover tilt driven by --mf-tilt-x/--mf-tilt-y. The
+   custom properties default to 0deg (flat) so the class is inert without
+   JS; public/main.js's pointer handler updates them on hover for any
+   element carrying this class (card, island, badge, whatever). */
+.mf-tilt {
+  --mf-tilt-x: 0deg;
+  --mf-tilt-y: 0deg;
+  --mf-lift: 0px;
+  transform: perspective(900px) translateY(var(--mf-lift)) rotateX(var(--mf-tilt-x)) rotateY(var(--mf-tilt-y));
+  transition: transform var(--mf-transition);
+}
+.mf-tilt:hover,
+.mf-tilt:focus-visible {
+  --mf-lift: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mf-floating, .mf-portal-glow {
+    animation: none;
+  }
+  .mf-tilt {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Floating islands: a card variant that reads as a chunk of world rather
+   than a flat panel: a bright grassy seam along the top, a pre-rendered
+   voxel underside (docs/assets/site/island-underside.png, one image per card)
+   hanging below. Only the underside strip bobs, on its own keyframes at a
+   small amplitude; the card and its text stay put so paragraphs don't drift
+   while read. CSS-only beyond the existing .mf-card (the strip is an ::after
+   background image), so the landing only has to add the class.
+   -------------------------------------------------------------------------- */
+.mf-card--island {
+  margin-bottom: 5.5rem; /* room for the whole hanging root before the next row */
+  overflow: visible; /* .mf-card clips by default; the underside hangs past the card's own edge */
+  border-top: 3px solid var(--mf-green);
+  border-bottom: none;
+}
+/* translateX(-50%) in every stop, not just on the element's own base `transform`: a running
+   animation's keyframe value replaces the whole `transform` property for its entire duration, so
+   without it here the underside lost its horizontal centering the instant the animation started
+   (kept on the base rule below only for the prefers-reduced-motion case, where this animation is
+   disabled and that static value is all that applies). */
+@keyframes mf-underside-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(3px); }
+}
+.mf-card--island::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  /* a capped percentage so the root stays a similar size at every breakpoint */
+  width: min(55%, 190px);
+  transform: translateX(-50%);
+  /* hangs from the card's bottom edge: the image's top row is straight (a front view, see
+     island_underside() in docs/assets/site/generate.py), so it sits flush under the card */
+  top: 100%;
+  margin-top: -1px;
+  aspect-ratio: 5 / 2;
+  background-image: url('../assets/site/island-underside.png');
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  animation: mf-underside-bob 6s ease-in-out infinite;
+}
+.mf-grid > .mf-card--island:nth-child(3n+2)::after { animation-delay: -2s; }
+.mf-grid > .mf-card--island:nth-child(3n+3)::after { animation-delay: -4s; }
+:root[data-bs-theme='light'] .mf-card--island::after { opacity: 0.85; }
+.mf-card--island::before { display: none; } /* the hover glow blob assumes overflow:hidden; the island drops it for the underside instead */
+@media (prefers-reduced-motion: reduce) {
+  .mf-card--island::after { animation: none; }
+}
+
+/* ==========================================================================
+   Theme switch = dimension switch. The stock docfx theme dropdown still
+   drives everything (it sets data-bs-theme, we never touch that); this only
+   wraps the resulting flip in a portal-swirl view transition where the
+   browser supports it, and does nothing at all otherwise or when the reader
+   asked for less motion.
+   ========================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+::view-transition-old(root) { animation-name: mf-portal-close; }
+::view-transition-new(root) { animation-name: mf-portal-open; }
+@keyframes mf-portal-close {
+  to { clip-path: circle(0% at var(--mf-swirl-x, 94%) var(--mf-swirl-y, 5%)); opacity: 0.4; transform: rotate(12deg) scale(1.06); }
+}
+@keyframes mf-portal-open {
+  from { clip-path: circle(0% at var(--mf-swirl-x, 94%) var(--mf-swirl-y, 5%)); transform: rotate(-18deg) scale(1.12); }
+  to { clip-path: circle(150% at var(--mf-swirl-x, 94%) var(--mf-swirl-y, 5%)); transform: rotate(0deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   The descent: a fixed backdrop behind the whole landing page (not just the
+   boxed hero above) whose warm ambient glow fades out as the reader scrolls
+   down, read as passing from the lit overworld into the void. main.js drives
+   --mf-descent-fade (1 at the top, ->0 past the hero) from scroll position;
+   with no JS, or under reduced motion where the updater never runs, it
+   simply stays at its default (1): a static glow, not an absence of one.
+   ========================================================================== */
+.mf-descent { display: none; }
+:root[data-bs-theme='dark'] body[data-layout='landing'] .mf-descent {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 1400px 900px at 50% -10%, rgba(226, 143, 112, 0.18), transparent 60%),
+    radial-gradient(ellipse 1000px 700px at 50% 6%, rgba(213, 237, 240, 0.09), transparent 65%);
+  opacity: var(--mf-descent-fade, 1);
+}
+
+/* ==========================================================================
+   Landing hero: the dimension descent. Four stacked layers (opaque
+   background, three transparent animated ones) in one box; the animated
+   layers swap to a still PNG under prefers-reduced-motion via <picture> in
+   the markup. main.js writes --mf-hero-dx/--mf-hero-dy on the stage from
+   pointer position and scroll progress; each layer multiplies that by its
+   own --mf-depth, so the layers drift at different rates (parallax): the
+   custom properties inherit from the stage to its children, no per-layer
+   JS needed. Everything here is inert without JS and off under reduced
+   motion or on a touch device (main.js gates on both; the transform itself
+   simply never changes from 0 if nothing writes to it).
+   ========================================================================== */
+.mf-hero--dimension { margin-bottom: 1rem; }
+.mf-hero__stage {
+  --mf-hero-dx: 0px;
+  --mf-hero-dy: 0px;
+  position: relative;
+  width: min(1440px, 100%);
+  aspect-ratio: 1440 / 640;
+  margin: 0 auto 1.5rem;
+  border-radius: var(--mf-radius);
+  overflow: hidden;
+  background: var(--mf-void);
+}
+.mf-hero__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: translate3d(calc(var(--mf-hero-dx) * var(--mf-depth)), calc(var(--mf-hero-dy) * var(--mf-depth)), 0);
+}
+.mf-hero__layer--bg { z-index: 1; --mf-depth: 0; }
+.mf-hero__layer--far { z-index: 2; --mf-depth: 0.3; }
+.mf-hero__layer--mid { z-index: 3; --mf-depth: 0.6; }
+.mf-hero__layer--near { z-index: 4; --mf-depth: 1; }
+/* Light mode swaps in a daylight background (generate.py's hero_background(light=True)) and
+   lifts the animated layers a little so islands read against sky instead of the void. */
+.mf-hero__layer--bg-light { display: none; }
+:root[data-bs-theme='light'] .mf-hero__layer--bg-dark { display: none; }
+:root[data-bs-theme='light'] .mf-hero__layer--bg-light { display: block; }
+:root[data-bs-theme='light'] .mf-hero__layer--far,
+:root[data-bs-theme='light'] .mf-hero__layer--mid,
+:root[data-bs-theme='light'] .mf-hero__layer--near {
+  filter: brightness(1.12) saturate(0.92);
+}
+@media (max-width: 768px) {
+  /* 3/2, not 4/3: object-fit: cover scales a 1440x640 (2.25:1) source to match the box's height,
+     then crops width symmetrically around object-position's horizontal centre - at 4:3 (1.33:1)
+     that keeps only the middle 59% of the source width, well short of hero-near's two islands at
+     its extreme left/right edges. 3/2 (1.5:1) widens that to 67%: still a crop, but a smaller one,
+     without a separate narrow-format render of the layer art. */
+  .mf-hero__stage { aspect-ratio: 3 / 2; }
+  .mf-hero__layer { object-position: 50% 45%; }
+}
+.mf-hero__sparks {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.mf-hero__portal-link {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 16%;
+  height: 34%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  border-radius: 50%;
+  outline-offset: 6px;
+}
+/* Square, not inset:-30% of the (tall, narrow) portal link box: a non-square glow box showed as
+   a lit rectangular column with hard vertical edges behind the portal. */
+.mf-hero__portal-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  z-index: -1;
+}
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .mf-hero__layer { transform: none !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Drifting islands between sections: a handful of small islands parallax
+   past at their own slow rate as the reader scrolls, standing in for the
+   "islands drift past at different depths" descent. Each sits in its own
+   zero-height .mf-drift-zone so it anchors to a spot in the flow instead of
+   the page, and never affects layout or blocks a click (pointer-events:
+   none). main.js writes --mf-drift-y from scroll position; inert until it
+   does, and the property itself is dropped under reduced motion.
+   -------------------------------------------------------------------------- */
+/* Landing content sits above the drift layer (z-index: 1) so a drifting island can never paint
+   over a card or a paragraph; the islands themselves stay behind at z-index: 0. Each also gets a
+   clamp() on its own translateY range (data-drift-range, defaulting to 40px) so a long scroll
+   can't carry one across a section it isn't meant to be near. */
+body[data-layout='landing'] article { position: relative; }
+body[data-layout='landing'] article > :not(.mf-drift-zone) { position: relative; z-index: 1; }
+.mf-drift-zone {
+  position: relative;
+  z-index: 0;
+  height: 0;
+  overflow: visible;
+}
+.mf-drift {
+  position: absolute;
+  width: 110px;
+  height: auto;
+  filter: blur(0.5px);
+  pointer-events: none;
+  transform: translateY(clamp(calc(-1 * var(--mf-drift-range, 40px)), var(--mf-drift-y, 0px), var(--mf-drift-range, 40px)));
+}
+@media (prefers-reduced-motion: reduce) {
+  .mf-drift { transform: none; }
+}
+@media (max-width: 700px) {
+  .mf-drift { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Section headings that build themselves: a row of small blocks under the
+   heading fades and rises into place, staggered, the first time it scrolls
+   into view. main.js appends the block row and toggles .is-visible via an
+   IntersectionObserver; under reduced motion the blocks are simply shown
+   at rest (no observer runs).
+   -------------------------------------------------------------------------- */
+.mf-build-heading {
+  margin-bottom: 0.75rem;
+}
+.mf-build-heading__blocks {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 0.65rem 0 0;
+}
+.mf-build-heading__blocks span {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--mf-green);
+  /* a thin top-left highlight and bottom-right shade, so a 16px square reads as a small
+     isometric cube instead of a flat colour swatch */
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.25), inset -2px -2px 0 rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transform: translateY(6px) scale(0.6);
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+/* Grass, dirt, stone: the row reads as a thin cross-section of a chunk settling into place,
+   not a uniform line of squares. */
+.mf-build-heading__blocks span:nth-child(3n+2) { background: var(--mf-slate-mid); }
+.mf-build-heading__blocks span:nth-child(3n+3) { background: #6b4a34; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(1) { transition-delay: 0ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(2) { transition-delay: 55ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(3) { transition-delay: 110ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(4) { transition-delay: 165ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(5) { transition-delay: 220ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(6) { transition-delay: 275ms; }
+.mf-build-heading.is-visible .mf-build-heading__blocks span:nth-child(7) { transition-delay: 330ms; }
+@media (prefers-reduced-motion: reduce) {
+  .mf-build-heading__blocks span { opacity: 1; transform: none; transition: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Console command snippets: /manifold purge, /miningdim, and friends,
+   styled like the game's own chat log rather than a generic code block
+   (which stays for C#). Deliberately dark in both site themes: it is a
+   picture of the game's UI, not themed prose.
+   -------------------------------------------------------------------------- */
+.mf-console {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--mf-font-mono);
+  font-size: 0.92rem;
+  background: var(--mf-void-2);
+  color: var(--mf-green-light);
+  /* a fixed slate border, not --bs-border-color: this is a picture of the game's own dark UI, so
+     its border stays pinned dark instead of picking up light mode's pale grey. */
+  border: 1px solid var(--mf-slate);
+  border-left: 3px solid var(--mf-green);
+  border-radius: var(--mf-radius);
+  padding: 0.6rem 1rem;
+  margin: 0.9rem 0;
+}
+.mf-console__prompt { color: var(--mf-green); font-weight: 700; }
+.mf-console code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+
+/* --------------------------------------------------------------------------
+   Portal travel: clicking the hero gate plays a short expanding-circle
+   swirl centred on the gate, then navigates. Scoped to that one link by
+   main.js (not a site-wide view-transition), so the rest of the site keeps
+   ordinary instant navigation. Skipped entirely under reduced motion: the
+   click just navigates.
+   -------------------------------------------------------------------------- */
+.mf-portal-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--mf-portal-x, 50%) var(--mf-portal-y, 50%), var(--mf-salmon) 0%, var(--mf-void) 70%);
+  clip-path: circle(0% at var(--mf-portal-x, 50%) var(--mf-portal-y, 50%));
+  animation: mf-portal-travel 480ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+@keyframes mf-portal-travel {
+  to { clip-path: circle(150% at var(--mf-portal-x, 50%) var(--mf-portal-y, 50%)); }
+}
+
+/* --------------------------------------------------------------------------
+   Hidden portal: type "manifold" anywhere, or the Konami code, to open a
+   small overlay with a secret line. Reduced motion keeps the overlay
+   (content, not motion) and only drops the fade-in.
+   -------------------------------------------------------------------------- */
+dialog.mf-secret-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  margin: auto;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  border: 0;
+  background: transparent;
+  animation: mf-secret-fade 200ms ease;
+}
+dialog.mf-secret-portal::backdrop {
+  background: rgba(14, 17, 22, 0.82);
+  backdrop-filter: blur(4px);
+}
+.mf-secret-portal__panel {
+  position: relative;
+  isolation: isolate; /* opens a stacking context here, so the glow's z-index: -1 lands between
+                          this panel's own background and its content instead of behind the
+                          whole page (where an opaque ancestor background hid it entirely) */
+  max-width: 26rem;
+  padding: 2rem 1.75rem;
+  border-radius: var(--mf-radius);
+  border: 1px solid var(--mf-salmon);
+  background: var(--mf-void-2);
+  color: var(--mf-text);
+  text-align: center;
+  overflow: hidden;
+}
+.mf-secret-portal__glow { position: absolute; inset: -20%; z-index: -1; border-radius: 50%; }
+.mf-secret-portal__vortex {
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  margin: 0 auto 1.25rem;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--mf-salmon), var(--mf-ice), var(--mf-salmon-light), var(--mf-salmon));
+  box-shadow: 0 0 2rem rgba(226, 143, 112, 0.5);
+  animation: mf-vortex-spin 3s linear infinite;
+}
+@keyframes mf-vortex-spin { to { transform: rotate(360deg); } }
+.mf-secret-portal__line {
+  font-family: var(--mf-font-heading);
+  font-size: 1.05rem;
+  margin-bottom: 1.25rem;
+}
+@keyframes mf-secret-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .mf-portal-transition { display: none; }
+  dialog.mf-secret-portal { animation: none; }
+  .mf-secret-portal__vortex { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Article header loops: a small looping illustration at the top of each
+   article, same still-swap treatment as the hero layers.
+   -------------------------------------------------------------------------- */
+/* A real header band, not a small thumbnail sitting above the title: the loop stretches the full
+   content width and the H1 sits in its fade, on a striped "ledge" standing in for the grass/dirt/
+   stone cross-section the build-headings use - so an article page carries the same island
+   language as the landing instead of reading as the stock docfx layout with a palette swap. */
+.mf-article-header {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  height: 200px;
+  object-fit: cover;
+  object-position: 50% 38%;
+  border-radius: var(--mf-radius);
+}
+article > picture:first-child {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 0 -2.5rem;
+}
+article > picture:first-child + h1,
+article > h1:first-child {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 1.1rem;
+  padding: 0 1.1rem 0.5rem;
+}
+article > picture:first-child + h1 {
+  max-width: 30rem;
+  padding-top: 0.5rem;
+  background: linear-gradient(to bottom, transparent, var(--bs-body-bg) 78%);
+}
+article > picture:first-child + h1::before,
+article > h1:first-child::before {
+  content: '';
+  display: block;
+  height: 6px;
+  width: 8.75rem;
+  max-width: 100%;
+  margin: 0 0 0.65rem;
+  border-radius: 2px;
+  opacity: 0.9;
+  background: repeating-linear-gradient(
+    90deg, var(--mf-green) 0 14px, var(--mf-slate-mid) 14px 28px, #6b4a34 28px 42px, transparent 42px 56px
+  );
+}
+
+/* --------------------------------------------------------------------------
+   404: "you fell out of the world". A full-scene moment rather than a
+   shrunk-down card: the void backdrop fills the viewport, the figure drifts
+   at a size that reads from across the room, and the way home is typed like
+   any other console command.
+   -------------------------------------------------------------------------- */
+.mf-404 {
+  position: relative;
+  z-index: 0; /* establishes a stacking context so the void backdrop's z-index: -1 stays contained
+                 in here instead of escaping behind the page's own background */
+  max-width: 32rem;
+  margin: 0 auto;
+  min-height: calc(100vh - 12rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+/* Falling out of the world means falling into the void, in either theme: the backdrop stays the
+   dark hero art regardless of data-bs-theme, so this one page doesn't need a light variant.
+   position: fixed + inset: 0, not an inset panel scoped to .mf-404's own 32rem column: a "full
+   scene" backdrop has to reach the actual edges of the viewport, not sit as a dark slab dropped
+   into the page (most visible in light mode, where it read as a failed embed). */
+.mf-404__void {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  /* bottom 100%: hero-bg fades from a lit top to the void at its base; showing only that base
+     keeps this page dark and the text readable, in either site theme. */
+  background: var(--mf-void) url('../assets/site/hero-bg.webp') center bottom / cover;
+}
+.mf-404__void::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(14, 17, 22, 0.35);
+}
+.mf-404__art {
+  width: 420px;
+  height: 306px;
+  margin: 0 auto 1.5rem;
+  animation: mf-float 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mf-404__art { animation: none; }
+}
+.mf-404 h1 { color: var(--mf-text); }
+.mf-404 p {
+  color: var(--mf-muted);
+  margin-bottom: 1.75rem;
+}
+.mf-console--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color var(--mf-transition), transform var(--mf-transition);
+}
+.mf-console--link:hover,
+.mf-console--link:focus-visible {
+  border-color: var(--mf-green);
+  transform: translateY(-1px);
+}
+.mf-console__caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.15em;
+  background: var(--mf-green-light);
+  animation: mf-caret-blink 1s step-end infinite;
+}
+@keyframes mf-caret-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mf-console__caret { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Card thumbnails: the "what your mod gets" cards and the docs grid use
+   full 220x160 illustrations as the card's picture, not a bullet icon.
+   -------------------------------------------------------------------------- */
+.mf-feature-card img,
+.mf-doc-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-bottom: 0.75rem;
+  border-radius: var(--mf-radius);
+}
+/* The glowy art (bloom-lit voxels, dashed ice/salmon arcs) was baked for a dark backdrop: its
+   near-white halos read as legible light on the void but turn into grey/pink smears on paper. A
+   drop-shadow keeps the silhouette legible; multiply blend removes most of that halo instead of
+   leaving it as a pale wash (a bloom pixel near-white multiplies against the light card
+   background to almost nothing, while the saturated voxel colours darken and gain definition) -
+   without touching every generated frame, which the "at least" half of this finding's fix asks
+   for as the fallback to full light-specific art. */
+:root[data-bs-theme='light'] .mf-feature-card img,
+:root[data-bs-theme='light'] .mf-doc-card img {
+  filter: drop-shadow(0 1px 3px rgba(35, 43, 49, 0.3)) saturate(1.15);
+  mix-blend-mode: multiply;
 }
