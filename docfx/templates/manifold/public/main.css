@@ -958,21 +958,20 @@ footer.border-top {
   animation: mf-hero-bob 4.84s ease-in-out infinite;
   /* animation-delay itself is set per island inline, alongside --mf-bob */
 }
-/* --ix/--iy/--iw/--ih carry a px unit (generate.py's crop box, in page px within the 1440x640
-   hero): calc() only allows dividing a length by another length (giving a unitless ratio) or by
-   a bare number, never by a bare number written where a length is meant, so the 1440/640/960
-   below are themselves lengths (1440px etc), not plain numbers. */
+/* --ix/--iy/--iw/--ih are unitless numbers (generate.py's crop box, in page px within the 1440x640
+   hero). Keep them unitless: dividing a length by a length is not supported by Firefox, and an
+   invalid calc() silently drops the whole declaration, piling every island in the corner. */
 .mf-hero__island {
   position: absolute;
-  top: calc(var(--iy) / 640px * 100%);
-  height: calc(var(--ih) / 640px * 100%);
-  left: calc(var(--ix) / 1440px * 100%);
-  width: calc(var(--iw) / 1440px * 100%);
+  top: calc(var(--iy) * 100% / 640);
+  height: calc(var(--ih) * 100% / 640);
+  left: calc(var(--ix) * 100% / 1440);
+  width: calc(var(--iw) * 100% / 1440);
 }
 @media (max-width: 768px) {
   .mf-hero__island {
-    left: calc((var(--ix) - 240px) / 960px * 100%);
-    width: calc(var(--iw) / 960px * 100%);
+    left: calc((var(--ix) - 240) * 100% / 960);
+    width: calc(var(--iw) * 100% / 960);
   }
 }
 @media (prefers-reduced-motion: reduce) {

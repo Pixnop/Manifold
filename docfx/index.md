@@ -8,39 +8,39 @@ title: Manifold
 <img class="mf-hero__layer mf-hero__layer--bg mf-hero__layer--bg-light" src="assets/site/hero-bg-light.webp" width="1440" height="640" alt="" loading="eager" decoding="async">
 <div class="mf-hero__layer mf-hero__layer--far">
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: 0s;">
-<img class="mf-hero__island" src="assets/site/hero-far-1.png" style="--ix: 123.5px; --iy: 71.5px; --iw: 73px; --ih: 52.5px;" width="73" height="53" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-far-1.png" style="--ix: 123.5; --iy: 71.5; --iw: 73; --ih: 52.5;" width="73" height="53" alt="" loading="eager" decoding="async">
 </div>
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -1.452s;">
-<img class="mf-hero__island" src="assets/site/hero-far-2.png" style="--ix: 403.5px; --iy: 46.5px; --iw: 53px; --ih: 47.5px;" width="53" height="48" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-far-2.png" style="--ix: 403.5; --iy: 46.5; --iw: 53; --ih: 47.5;" width="53" height="48" alt="" loading="eager" decoding="async">
 </div>
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -2.662s;">
-<img class="mf-hero__island" src="assets/site/hero-far-3.png" style="--ix: 943.5px; --iy: 51.5px; --iw: 73px; --ih: 55px;" width="73" height="55" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-far-3.png" style="--ix: 943.5; --iy: 51.5; --iw: 73; --ih: 55;" width="73" height="55" alt="" loading="eager" decoding="async">
 </div>
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -3.872s;">
-<img class="mf-hero__island" src="assets/site/hero-far-4.png" style="--ix: 1233.5px; --iy: 96.5px; --iw: 53px; --ih: 47.5px;" width="53" height="48" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-far-4.png" style="--ix: 1233.5; --iy: 96.5; --iw: 53; --ih: 47.5;" width="53" height="48" alt="" loading="eager" decoding="async">
 </div>
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -0.726s;">
-<img class="mf-hero__island" src="assets/site/hero-far-5.png" style="--ix: 33.5px; --iy: 199px; --iw: 53px; --ih: 52.5px;" width="53" height="53" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-far-5.png" style="--ix: 33.5; --iy: 199; --iw: 53; --ih: 52.5;" width="53" height="53" alt="" loading="eager" decoding="async">
 </div>
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -3.146s;">
-<img class="mf-hero__island" src="assets/site/hero-far-6.png" style="--ix: 673.5px; --iy: 26.5px; --iw: 53px; --ih: 45px;" width="53" height="45" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-far-6.png" style="--ix: 673.5; --iy: 26.5; --iw: 53; --ih: 45;" width="53" height="45" alt="" loading="eager" decoding="async">
 </div>
 </div>
 <div class="mf-hero__layer mf-hero__layer--mid">
 <div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: 0s;">
-<img class="mf-hero__island" src="assets/site/hero-mid-island.png" style="--ix: 583.5px; --iy: 171.5px; --iw: 273px; --ih: 302.5px;" width="273" height="303" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-mid-island.png" style="--ix: 583.5; --iy: 171.5; --iw: 273; --ih: 302.5;" width="273" height="303" alt="" loading="eager" decoding="async">
 <picture>
 <source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-mid-gate.png">
-<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 156w, assets/site/hero-mid-gate.webp 312w" sizes="(max-width: 768px) 16vw, 156px" style="--ix: 656px; --iy: 183px; --iw: 156px; --ih: 201px;" width="156" height="201" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 156w, assets/site/hero-mid-gate.webp 312w" sizes="(max-width: 768px) 16vw, 156px" style="--ix: 656; --iy: 183; --iw: 156; --ih: 201;" width="156" height="201" alt="" loading="eager" decoding="async">
 </picture>
 </div>
 </div>
 <div class="mf-hero__layer mf-hero__layer--near">
 <div class="mf-hero__bob" style="--mf-bob: 2.5px; animation-delay: -0.484s;">
-<img class="mf-hero__island" src="assets/site/hero-near-1.png" style="--ix: 0px; --iy: 419px; --iw: 161.5px; --ih: 221px;" width="162" height="221" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-near-1.png" style="--ix: 0; --iy: 419; --iw: 161.5; --ih: 221;" width="162" height="221" alt="" loading="eager" decoding="async">
 </div>
 <div class="mf-hero__bob" style="--mf-bob: 2.2px; animation-delay: -2.420s;">
-<img class="mf-hero__island" src="assets/site/hero-near-2.png" style="--ix: 1192.5px; --iy: 0px; --iw: 247.5px; --ih: 123px;" width="248" height="123" alt="" loading="eager" decoding="async">
+<img class="mf-hero__island" src="assets/site/hero-near-2.png" style="--ix: 1192.5; --iy: 0; --iw: 247.5; --ih: 123;" width="248" height="123" alt="" loading="eager" decoding="async">
 </div>
 </div>
 <canvas class="mf-hero__sparks" id="mf-hero-sparks" width="1440" height="640" aria-hidden="true"></canvas>
