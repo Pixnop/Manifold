@@ -862,17 +862,41 @@ footer.border-top {
 }
 
 /* ==========================================================================
-   Landing hero: the dimension descent. Four stacked layers (opaque
-   background, three transparent animated ones) in one box; the animated
-   layers swap to a still PNG under prefers-reduced-motion via <picture> in
-   the markup. main.js writes --mf-hero-dx/--mf-hero-dy on the stage from
-   pointer position and scroll progress; each layer multiplies that by its
-   own --mf-depth, so the layers drift at different rates (parallax): the
-   custom properties inherit from the stage to its children, no per-layer
-   JS needed. Everything here is inert without JS and off under reduced
-   motion or on a touch device (main.js gates on both; the transform itself
-   simply never changes from 0 if nothing writes to it).
-   ========================================================================== */
+   Landing hero: the dimension descent. One opaque background layer plus
+   three depth layers (far/mid/near) in one box. main.js writes
+   --mf-hero-dx/--mf-hero-dy on the stage from pointer position and scroll
+   progress; each depth layer multiplies that by its own --mf-depth, so the
+   layers drift at different rates (parallax): the custom properties
+   inherit from the stage to its children, no per-layer JS needed.
+   Everything here is inert without JS and off under reduced motion or on a
+   touch device (main.js gates on both; the transform itself simply never
+   changes from 0 if nothing writes to it).
+
+   Each depth layer holds one or more islands, every one its own small
+   static image (generate.py crops each to its content) instead of a
+   full-canvas frame. The gentle bob is a CSS keyframe (mf-hero-bob) on a
+   .mf-hero__bob wrapper *inside* the depth layer, never on the depth layer
+   itself: a running animation replaces the whole transform property of the
+   element it runs on, so keeping it off the parallax element is what lets
+   both transforms apply at once. The portal's vortex membrane, sparks and
+   traveller are the one part of the hero that still needs real frames
+   (generate.py's hero_mid_gate_frame); that overlay shares its island's
+   .mf-hero__bob wrapper so the two never drift apart, and swaps to a still
+   PNG under prefers-reduced-motion via <picture> in the markup (the island
+   images are already still).
+
+   .mf-hero__island elements are positioned with --ix/--iy/--iw/--ih: the
+   crop's box in page px within the 1440x640 hero, as printed by
+   generate.py. Vertical position/size map 1:1 onto the stage at every
+   width (object-fit: cover on the old full-canvas layers never cropped
+   vertically, since the stage is always at least as wide, relative to its
+   height, as its 3/2 mobile floor). Horizontal position/size divide by
+   1440 above the 768px breakpoint, where the stage matches the hero's own
+   2.25:1 ratio and nothing is cropped; below it the stage narrows to 3/2,
+   which crops the source to its centre 960 of 1440 page px (the same
+   960/1440 window object-fit: cover used to select via object-position:
+   50% 45%), so the same box instead maps against that 960px window,
+   offset by the 240px trimmed from the left. */
 .mf-hero--dimension { margin-bottom: 1rem; }
 .mf-hero__stage {
   --mf-hero-dx: 0px;
@@ -890,15 +914,14 @@ footer.border-top {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
   transform: translate3d(calc(var(--mf-hero-dx) * var(--mf-depth)), calc(var(--mf-hero-dy) * var(--mf-depth)), 0);
 }
-.mf-hero__layer--bg { z-index: 1; --mf-depth: 0; }
+.mf-hero__layer--bg { z-index: 1; --mf-depth: 0; object-fit: cover; }
 .mf-hero__layer--far { z-index: 2; --mf-depth: 0.3; }
 .mf-hero__layer--mid { z-index: 3; --mf-depth: 0.6; }
 .mf-hero__layer--near { z-index: 4; --mf-depth: 1; }
 /* Light mode swaps in a daylight background (generate.py's hero_background(light=True)) and
-   lifts the animated layers a little so islands read against sky instead of the void. */
+   lifts the islands a little so they read against sky instead of the void. */
 .mf-hero__layer--bg-light { display: none; }
 :root[data-bs-theme='light'] .mf-hero__layer--bg-dark { display: none; }
 :root[data-bs-theme='light'] .mf-hero__layer--bg-light { display: block; }
@@ -908,13 +931,52 @@ footer.border-top {
   filter: brightness(1.12) saturate(0.92);
 }
 @media (max-width: 768px) {
-  /* 3/2, not 4/3: object-fit: cover scales a 1440x640 (2.25:1) source to match the box's height,
-     then crops width symmetrically around object-position's horizontal centre - at 4:3 (1.33:1)
-     that keeps only the middle 59% of the source width, well short of hero-near's two islands at
-     its extreme left/right edges. 3/2 (1.5:1) widens that to 67%: still a crop, but a smaller one,
-     without a separate narrow-format render of the layer art. */
   .mf-hero__stage { aspect-ratio: 3 / 2; }
-  .mf-hero__layer { object-position: 50% 45%; }
+  .mf-hero__layer--bg { object-position: 50% 45%; }
+}
+/* The bob: a small, slow, purely vertical drift, desynchronised per island by animation-delay
+   (a negative delay starts the island already mid-cycle instead of snapping to 0 on load) and
+   scaled by --mf-bob (each island's own amplitude, in px, matching generate.py's old bob()
+   calls). 8 keyframe stops sampling sin() is close enough to the real curve at a 2-3px
+   amplitude that the linear interpolation between them does not read as faceted. */
+@keyframes mf-hero-bob {
+  0%    { transform: translateY(0); }
+  12.5% { transform: translateY(calc(var(--mf-bob) * 0.707)); }
+  25%   { transform: translateY(var(--mf-bob)); }
+  37.5% { transform: translateY(calc(var(--mf-bob) * 0.707)); }
+  50%   { transform: translateY(0); }
+  62.5% { transform: translateY(calc(var(--mf-bob) * -0.707)); }
+  75%   { transform: translateY(calc(var(--mf-bob) * -1)); }
+  87.5% { transform: translateY(calc(var(--mf-bob) * -0.707)); }
+  100%  { transform: translateY(0); }
+}
+.mf-hero__bob {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: mf-hero-bob 4.84s ease-in-out infinite;
+  /* animation-delay itself is set per island inline, alongside --mf-bob */
+}
+/* --ix/--iy/--iw/--ih carry a px unit (generate.py's crop box, in page px within the 1440x640
+   hero): calc() only allows dividing a length by another length (giving a unitless ratio) or by
+   a bare number, never by a bare number written where a length is meant, so the 1440/640/960
+   below are themselves lengths (1440px etc), not plain numbers. */
+.mf-hero__island {
+  position: absolute;
+  top: calc(var(--iy) / 640px * 100%);
+  height: calc(var(--ih) / 640px * 100%);
+  left: calc(var(--ix) / 1440px * 100%);
+  width: calc(var(--iw) / 1440px * 100%);
+}
+@media (max-width: 768px) {
+  .mf-hero__island {
+    left: calc((var(--ix) - 240px) / 960px * 100%);
+    width: calc(var(--iw) / 960px * 100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mf-hero__bob { animation: none; }
 }
 .mf-hero__sparks {
   position: absolute;

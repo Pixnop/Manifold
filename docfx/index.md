@@ -6,18 +6,43 @@ title: Manifold
 <div class="mf-hero__stage" id="mf-hero">
 <img class="mf-hero__layer mf-hero__layer--bg mf-hero__layer--bg-dark" src="assets/site/hero-bg.webp" width="1440" height="640" alt="" loading="eager" decoding="async">
 <img class="mf-hero__layer mf-hero__layer--bg mf-hero__layer--bg-light" src="assets/site/hero-bg-light.webp" width="1440" height="640" alt="" loading="eager" decoding="async">
+<div class="mf-hero__layer mf-hero__layer--far">
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: 0s;">
+<img class="mf-hero__island" src="assets/site/hero-far-1.png" style="--ix: 123.5px; --iy: 71.5px; --iw: 73px; --ih: 52.5px;" width="73" height="53" alt="" loading="eager" decoding="async">
+</div>
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -1.452s;">
+<img class="mf-hero__island" src="assets/site/hero-far-2.png" style="--ix: 403.5px; --iy: 46.5px; --iw: 53px; --ih: 47.5px;" width="53" height="48" alt="" loading="eager" decoding="async">
+</div>
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -2.662s;">
+<img class="mf-hero__island" src="assets/site/hero-far-3.png" style="--ix: 943.5px; --iy: 51.5px; --iw: 73px; --ih: 55px;" width="73" height="55" alt="" loading="eager" decoding="async">
+</div>
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -3.872s;">
+<img class="mf-hero__island" src="assets/site/hero-far-4.png" style="--ix: 1233.5px; --iy: 96.5px; --iw: 53px; --ih: 47.5px;" width="53" height="48" alt="" loading="eager" decoding="async">
+</div>
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -0.726s;">
+<img class="mf-hero__island" src="assets/site/hero-far-5.png" style="--ix: 33.5px; --iy: 199px; --iw: 53px; --ih: 52.5px;" width="53" height="53" alt="" loading="eager" decoding="async">
+</div>
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: -3.146s;">
+<img class="mf-hero__island" src="assets/site/hero-far-6.png" style="--ix: 673.5px; --iy: 26.5px; --iw: 53px; --ih: 45px;" width="53" height="45" alt="" loading="eager" decoding="async">
+</div>
+</div>
+<div class="mf-hero__layer mf-hero__layer--mid">
+<div class="mf-hero__bob" style="--mf-bob: 2px; animation-delay: 0s;">
+<img class="mf-hero__island" src="assets/site/hero-mid-island.png" style="--ix: 583.5px; --iy: 171.5px; --iw: 273px; --ih: 302.5px;" width="273" height="303" alt="" loading="eager" decoding="async">
 <picture>
-<source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-far.png">
-<img class="mf-hero__layer mf-hero__layer--far" src="assets/site/hero-far.webp" srcset="assets/site/hero-far-720.webp 1440w, assets/site/hero-far.webp 2880w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
+<source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-mid-gate.png">
+<img class="mf-hero__island" src="assets/site/hero-mid-gate.webp" srcset="assets/site/hero-mid-gate-720.webp 156w, assets/site/hero-mid-gate.webp 312w" sizes="(max-width: 768px) 16vw, 156px" style="--ix: 656px; --iy: 183px; --iw: 156px; --ih: 201px;" width="156" height="201" alt="" loading="eager" decoding="async">
 </picture>
-<picture>
-<source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-mid.png">
-<img class="mf-hero__layer mf-hero__layer--mid" src="assets/site/hero-mid.webp" srcset="assets/site/hero-mid-720.webp 1440w, assets/site/hero-mid.webp 2880w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
-</picture>
-<picture>
-<source media="(prefers-reduced-motion: reduce)" srcset="assets/site/hero-near.png">
-<img class="mf-hero__layer mf-hero__layer--near" src="assets/site/hero-near.webp" srcset="assets/site/hero-near-720.webp 1440w, assets/site/hero-near.webp 2880w" sizes="(max-width: 768px) 100vw, 1440px" width="1440" height="640" alt="" loading="eager" decoding="async">
-</picture>
+</div>
+</div>
+<div class="mf-hero__layer mf-hero__layer--near">
+<div class="mf-hero__bob" style="--mf-bob: 2.5px; animation-delay: -0.484s;">
+<img class="mf-hero__island" src="assets/site/hero-near-1.png" style="--ix: 0px; --iy: 419px; --iw: 161.5px; --ih: 221px;" width="162" height="221" alt="" loading="eager" decoding="async">
+</div>
+<div class="mf-hero__bob" style="--mf-bob: 2.2px; animation-delay: -2.420s;">
+<img class="mf-hero__island" src="assets/site/hero-near-2.png" style="--ix: 1192.5px; --iy: 0px; --iw: 247.5px; --ih: 123px;" width="248" height="123" alt="" loading="eager" decoding="async">
+</div>
+</div>
 <canvas class="mf-hero__sparks" id="mf-hero-sparks" width="1440" height="640" aria-hidden="true"></canvas>
 <a class="mf-hero__portal-link" href="articles/getting-started.md" aria-label="Enter Manifold: read the Getting Started guide">
 <span class="mf-portal-glow mf-hero__portal-glow" aria-hidden="true"></span>
