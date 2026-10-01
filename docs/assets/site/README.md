@@ -93,7 +93,7 @@ always matches.
 
 ## Mod page icons (`docs/assets/site/mod-icons/`)
 
-The "Mods built on Manifold" strip's six icons, downloaded once from their Mod DB pages and
+The "Mods built on Manifold" strip's seven icons, downloaded once from their Mod DB pages and
 resized to 88x88 (2x for a 44px display size) instead of hotlinked from `moddbcdn.vintagestory.at`
 at their original (up to 480x480) size - not generated, so `generate.py` doesn't touch them.
 
