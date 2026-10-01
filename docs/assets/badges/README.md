@@ -143,4 +143,5 @@ Vintage Story forum (BBCode):
 
 Needs Pillow and NumPy, and the Sora variable font, which is not in this repository
 ([OFL](https://fonts.google.com/specimen/Sora)). The wording, the palettes and the layout of
-each format are constants at the top of `generate.py`.
+each format are constants at the top of `generate.py`. It also writes `card.png`, the thumbnail
+of the Badges article on the documentation site's landing page.

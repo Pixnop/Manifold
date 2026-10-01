@@ -47,10 +47,12 @@ def render_mark():
     gate = [v for v in gate if not (v[5] < 0.3 and v[4] < 250)]  # no sparks: noise at badge size
     base = moddb.island(np.random.default_rng(7), 4, 3, keep_clear=cells,
                         light=((0, 0), moddb.SALMON_LIGHT, 4), tree_cells=[(3, 2), (-3, 3)])
-    scene = moddb.Scene(360, 360)
-    scene.add(base + gate, 180, 190, 20)
+    scene = moddb.Scene(440, 520)
+    scene.add(base + gate, 220, 220, 20)
     img = scene.render(bloom=8, strength=0.45)
-    return img.crop(img.getbbox())
+    box = img.getbbox()
+    assert box[0] > 0 and box[1] > 0 and box[2] < img.width and box[3] < img.height, "mark clipped by its canvas"
+    return img.crop(box)
 
 
 MARK = render_mark()
@@ -113,7 +115,7 @@ def paste_mark(img, m, x, y):
 
 def flat(p):
     f_label, f_msg = font(10.5, 500), font(10.5, 700)
-    m = mark(15)
+    m = mark(16)
     label, msg = "requires", "Manifold"
     left = 5 + m.width / U + 4 + text_width(label, f_label, 0.2) + 6
     w = math.ceil(left + 6 + text_width(msg, f_msg, 0.2) + 7)
@@ -122,7 +124,7 @@ def flat(p):
     draw.rounded_rectangle((0, 0, w * U - 1, 20 * U - 1), 3 * U, fill=p["msg_bg"])
     draw.rounded_rectangle((0, 0, left * U, 20 * U - 1), 3 * U, fill=p["label_bg"])
     draw.rectangle(((left - 3) * U, 0, left * U, 20 * U - 1), fill=p["label_bg"])
-    paste_mark(img, m, 5, 2.5)
+    paste_mark(img, m, 5, 2)
     draw_text(img, 5 + m.width / U + 4, 14, label, f_label, p["label_fg"], 0.2)
     draw_text(img, left + 6, 14, msg, f_msg, p["msg_fg"], 0.2)
     return img
@@ -131,11 +133,11 @@ def flat(p):
 def plaque(p):
     w, h = 220, 60
     img = framed(w, h, p)
-    m = mark(44)
+    m = mark(47)
     f1, f2 = font(9.5, 600), font(19, 800)
     block = m.width / U + 12 + max(text_width(LINE_1, f1, 2.6), text_width(LINE_2, f2, 2.2))
     x = (w - block) / 2
-    paste_mark(img, m, x, (h - 44) / 2)
+    paste_mark(img, m, x, (h - 47) / 2)
     x += m.width / U + 12
     draw_text(img, x, 25, LINE_1, f1, p["accent"], 2.6)
     draw_text(img, x, 46, LINE_2, f2, p["ink"], 2.2)
@@ -145,8 +147,8 @@ def plaque(p):
 def square(p):
     w = h = 160
     img = framed(w, h, p, radius=8)
-    m = mark(82)
-    paste_mark(img, m, (w - m.width / U) / 2, 14)
+    m = mark(92)
+    paste_mark(img, m, (w - m.width / U) / 2, 11)
     f1, f2 = font(9.5, 600), font(18, 800)
     draw_text(img, (w - text_width(LINE_1, f1, 2.6)) / 2, 118, LINE_1, f1, p["accent"], 2.6)
     draw_text(img, (w - text_width(LINE_2, f2, 2.2)) / 2, 140, LINE_2, f2, p["ink"], 2.2)
@@ -161,8 +163,8 @@ def seal(p):
     draw.ellipse((2 * U, 2 * U, (w - 2) * U - 1, (h - 2) * U - 1), outline=p["edge"], width=U)
     draw.ellipse((4.5 * U, 4.5 * U, (w - 4.5) * U - 1, (h - 4.5) * U - 1), outline=p["edge"] + (110,), width=U // 2)
     draw_arc_text(img, w / 2, h / 2, 39, f"{LINE_1} {LINE_2}", font(8.6, 700), p["ink"], 1.5)
-    m = mark(50)
-    paste_mark(img, m, (w - m.width / U) / 2, 37)
+    m = mark(55)
+    paste_mark(img, m, (w - m.width / U) / 2, 35)
     for dx in (-9, 0, 9):  # three voxel pips closing the ring under the mark
         s = 2.2 if dx == 0 else 1.6
         cx, cy = (w / 2 + dx) * U, 98 * U
@@ -173,8 +175,8 @@ def seal(p):
 def wide(p):
     w, h = 600, 100
     img = framed(w, h, p, radius=8)
-    m = mark(74)
-    paste_mark(img, m, 26, (h - 74) / 2)
+    m = mark(82)
+    paste_mark(img, m, 26, (h - 82) / 2)
     x = 26 + m.width / U + 22
     f1, f2 = font(26, 800), font(12.5, 500)
     draw_text(img, x, 52, f"{LINE_1} {LINE_2}", f1, p["ink"], 2.4)
@@ -194,3 +196,10 @@ if __name__ == "__main__":
             img.resize((w * 2, h * 2), Image.LANCZOS).save(OUT / f"requires-manifold-{fmt}-{name}@2x.png", optimize=True)
             img.resize((w, h), Image.LANCZOS).save(OUT / f"requires-manifold-{fmt}-{name}.png", optimize=True)
             print(fmt, name, f"{w}x{h}")
+
+    # the docs landing page's card for the Badges article: same 220x160 slot as the other cards
+    card = Image.new("RGBA", (220 * U, 160 * U))
+    plaque_img = plaque(PALETTES["void"])
+    card.alpha_composite(plaque_img.resize((plaque_img.width * 9 // 10, plaque_img.height * 9 // 10), Image.LANCZOS),
+                         (11 * U, 53 * U))
+    card.resize((440, 320), Image.LANCZOS).save(OUT / "card.png", optimize=True)
