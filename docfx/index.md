@@ -206,6 +206,10 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 <img src="assets/site/mod-icons/esoterica.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Esoterica</h3><p>Occult dimensions and rituals built on Manifold's transit API.</p></div>
 </a>
+<a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/rifttraveler">
+<img src="assets/site/mod-icons/rift-traveler.webp" width="44" height="44" alt="" loading="lazy">
+<div><h3 class="no-anchor">Rift Traveler</h3><p>Rift travel, cargo between dimensions, and the Fractured Deep: a shared, streaming cavern dimension.</p></div>
+</a>
 <a class="mf-card mf-tilt mf-mod-card" href="https://mods.vintagestory.at/chart">
 <img src="assets/site/mod-icons/chart.webp" width="44" height="44" alt="" loading="lazy">
 <div><h3 class="no-anchor">Chart</h3><p>A dimension-aware world map: per-dimension tiles, hot-swapped on transit.</p></div>
