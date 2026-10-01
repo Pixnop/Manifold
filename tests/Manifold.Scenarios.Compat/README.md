@@ -17,7 +17,7 @@ their separate-inventory profile, and their saved pre-forced game mode.
 
     VINTAGE_STORY=/path/to/vintagestory dotnet test tests/Manifold.Scenarios.Compat -c Release
 
-Requires the same VINTAGE_STORY setup as `Manifold.Scenarios` (Atlas 0.15.0).
+Requires the same VINTAGE_STORY setup as `Manifold.Scenarios` (Atlas 0.15.1).
 
 ## Why two projects instead of one
 

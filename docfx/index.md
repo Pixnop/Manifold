@@ -272,6 +272,11 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 <h3 class="no-anchor">Architecture</h3>
 <p>Internal services, the sided split, the zero-Harmony note.</p>
 </a>
+<a class="mf-card mf-tilt mf-doc-card" href="articles/badges.md">
+<img src="assets/badges/card.png" width="220" height="160" alt="The Requires Manifold badge, plaque format" loading="lazy">
+<h3 class="no-anchor">Badges</h3>
+<p>A "Requires Manifold" badge for your mod's own page.</p>
+</a>
 <a class="mf-card mf-tilt mf-doc-card" href="api/Manifold.Api.yml">
 <img src="assets/site/api-reference.png" width="220" height="160" alt="A book resting open on a lectern, on its own small island" loading="lazy">
 <h3 class="no-anchor">API Reference</h3>

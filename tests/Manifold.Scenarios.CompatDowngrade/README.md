@@ -20,7 +20,7 @@ unharmed rather than being stripped or crashing the boot.
 
     VINTAGE_STORY=/path/to/vintagestory dotnet test tests/Manifold.Scenarios.CompatDowngrade -c Release
 
-Requires the same VINTAGE_STORY setup as `Manifold.Scenarios` (Atlas 0.15.0). Boots its own
+Requires the same VINTAGE_STORY setup as `Manifold.Scenarios` (Atlas 0.15.1). Boots its own
 embedded server against the published 0.5.1 zip, downloaded once and cached under `obj/` (same
 as `Manifold.Scenarios.Compat`; see the csproj).
 

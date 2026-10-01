@@ -34,6 +34,10 @@
       {
         "files": ["assets/site/**"],
         "exclude": ["assets/site/generate.py", "assets/site/README.md"]
+      },
+      {
+        "files": ["assets/badges/**"],
+        "exclude": ["assets/badges/generate.py", "assets/badges/README.md"]
       }
     ],
     "output": "_site",
