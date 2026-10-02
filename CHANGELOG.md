@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-02
+
 ### Added
 - **A warning at server start on Vintage Story 1.22.4 and 1.22.5.** Those two game versions measure the interaction range with the wrong height in every dimension but the overworld, so containers close as soon as they open and block interactions are refused there (issue #79). The game fixed it in 1.22.6 and Manifold cannot work around it; it now says so in the server log instead of leaving server owners to guess.
 - **`TransitionOptions.Yaw` sets the way a player faces when they land.** `Yaw` is in radians; `null` (the default) keeps the player's current yaw. The player's own client is told to turn the camera when the transit completes (a new optional field on Manifold's transit notification: an older client ignores it, an older server never sets it), and the entity's yaw is set once the engine has moved the player, which can be some ticks later when it has to wait for the destination to load, so the camera turns first and the position follows. Both are needed because a player's camera is driven by their client and the server-side entity yaw alone never reaches it. `PlayerEnteredDimensionEventArgs` gained a `Yaw` property (and a constructor overload taking it; the previous constructor is kept) that reports the yaw the transit asked for. Players only: `TeleportEntity` ignores `Yaw`.
