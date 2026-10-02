@@ -30,6 +30,9 @@ public sealed class ManifoldModSystem : ModSystem
     /// <summary>Savegame key for per-player per-dimension last positions.</summary>
     private const string PlayerPositionsKey = "manifold:lastpos";
 
+    /// <summary>Savegame key for per-player per-dimension origins (where the player came from), added in 0.6.1.</summary>
+    private const string PlayerOriginsKey = "manifold:origins";
+
     /// <summary>
     /// Event bus name Atlas pushes synchronously on the game thread after a world-snapshot
     /// restore, after the SaveGame (moddata included) is restored and before any chunk column
@@ -142,7 +145,7 @@ public sealed class ManifoldModSystem : ModSystem
         // The mirror and transit handler are kept alive by the channel delegates and ClientFacade
         // below; neither needs a field.
         var clientMirror = new ClientDimensionMirror(api.Logger);
-        var transitHandler = new ClientTransitHandler(clientMirror, api.Logger);
+        var transitHandler = new ClientTransitHandler(clientMirror, api.Logger, yaw => ApplyLocalPlayerYaw(api, yaw));
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
         _network.OnClientManifest += clientMirror.ApplyManifest;
@@ -258,6 +261,15 @@ public sealed class ManifoldModSystem : ModSystem
             manifestStore.Write(PlayerPositionsKey, positionStore.ToBytes());
             positionStore.ClearDirty();
             sidecar.SetVersion(PlayerPositionsKey, PlayerPositionStore.SchemaVersion);
+        }
+
+        // Persist where each player came from (the return-to-origin memory). Its own key and version,
+        // so a build that predates it simply ignores the key. Same refusal skip.
+        if (positionStore.Origins is { IsDirty: true, IsVersionRefused: false } origins)
+        {
+            manifestStore.Write(PlayerOriginsKey, origins.ToBytes());
+            origins.ClearDirty();
+            sidecar.SetVersion(PlayerOriginsKey, PlayerOriginStore.SchemaVersion);
         }
 
         // Written whenever any of the blobs above is (re-)written, so the sidecar always matches
@@ -381,6 +393,23 @@ public sealed class ManifoldModSystem : ModSystem
         });
     }
 
+    /// <summary>
+    /// Turns the local player's camera (and entity) to <paramref name="yaw"/>. The camera is driven
+    /// by the client's own mouse state, so setting the entity's yaw alone would be overwritten on the
+    /// next frame: <c>IClientPlayer.CameraYaw</c> is the public way to move it.
+    /// </summary>
+    private static void ApplyLocalPlayerYaw(ICoreClientAPI capi, float yaw)
+    {
+        var player = capi.World.Player;
+        if (player?.Entity is null)
+        {
+            return;
+        }
+
+        player.CameraYaw = yaw;
+        EntityPosAccess.Pos(player.Entity).Yaw = yaw;
+    }
+
     private void OnRegistryDestroyed(object? sender, DimensionDestroyedEventArgs e)
     {
         _network?.BroadcastDimensionRemoved(new DimensionRemovedPacket
@@ -390,9 +419,9 @@ public sealed class ManifoldModSystem : ModSystem
         });
 
         // The engine id is released back to the allocator on removal and may be reused by a later
-        // dimension. Drop the destroyed dim's generator state, saved player positions, and generated
-        // -column markers so a reused id does not inherit a stale auto-disabled / initialised flag,
-        // stale LastVisited coords, or "already generated" markers that would make the new dimension
+        // dimension. Drop the destroyed dim's generator state, saved player positions (and the origins
+        // recorded for it or pointing to it), and generated-column markers so a reused id does not
+        // inherit a stale auto-disabled / initialised flag, stale LastVisited coords or origins, or "already generated" markers that would make the new dimension
         // load the old one's chunks instead of running its own worldgen (common now that ephemeral
         // dims reap on empty and ids recycle within a session).
         _generator?.ForgetDimension(e.Dimension.InternalId);
@@ -451,6 +480,7 @@ public sealed class ManifoldModSystem : ModSystem
             TargetX = e.TargetPosition.X,
             TargetY = e.TargetPosition.Y,
             TargetZ = e.TargetPosition.Z,
+            Yaw = e.Yaw,
         });
 
         // When a player transits out, try to reap the dimension they left if it is an empty ephemeral
@@ -583,6 +613,7 @@ public sealed class ManifoldModSystem : ModSystem
         // modifications) instead of regenerating over them, and the per-player last positions.
         LoadStoreOrPreserveUnrecognized(_generatedColumns, GeneratedColumnsKey);
         LoadStoreOrPreserveUnrecognized(_positionStore, PlayerPositionsKey);
+        LoadStoreOrPreserveUnrecognized(_positionStore.Origins, PlayerOriginsKey);
 
         return (dropped, reseeded);
     }
@@ -614,6 +645,18 @@ public sealed class ManifoldModSystem : ModSystem
         if (store.IsVersionRefused)
         {
             PreserveUnrecognized(key, raw, version, PlayerPositionStore.SchemaVersion);
+        }
+    }
+
+    /// <summary>See <see cref="LoadStoreOrPreserveUnrecognized(GeneratedColumnStore, string)"/>.</summary>
+    private void LoadStoreOrPreserveUnrecognized(PlayerOriginStore store, string key)
+    {
+        int version = _schemaSidecar!.GetVersion(key);
+        var raw = _manifestStore!.Read(key);
+        store.LoadFromBytes(raw, Mod.Logger, version);
+        if (store.IsVersionRefused)
+        {
+            PreserveUnrecognized(key, raw, version, PlayerOriginStore.SchemaVersion);
         }
     }
 

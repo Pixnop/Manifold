@@ -72,6 +72,39 @@ public interface ITransitionService
     bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
 
     /// <summary>
+    /// Where the player came from when they last entered the dimension they are standing in: the
+    /// dimension they left, the exact position and their yaw. Manifold records it on every player
+    /// transit into a different dimension (through <see cref="TeleportPlayer"/> or
+    /// <see cref="TryTeleportPlayer"/>), except a return made with <see cref="TryReturnPlayer"/>,
+    /// which records nothing. It is saved with the world, so it survives logout and restarts.
+    /// </summary>
+    /// <param name="player">Server player to look up.</param>
+    /// <returns>
+    /// The recorded origin, or <c>null</c> when nothing is recorded for the dimension the player is
+    /// in now, or when the dimension they came from no longer exists.
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="player"/> is null.</exception>
+    TransitOrigin? GetOrigin(IServerPlayer player);
+
+    /// <summary>
+    /// Sends the player back to their <see cref="GetOrigin"/>: that dimension, that exact position
+    /// (no surface search, no spawn behavior) and that yaw. It is a normal player transit (same
+    /// events, cancellation, dismount, game mode and inventory policies as
+    /// <see cref="TryTeleportPlayer"/>), except that it records no new origin for the dimension it
+    /// lands in. So a chain origin, A, B unwinds one step per call: a return from B lands in A, a
+    /// return from A lands in the origin, with no ping-pong between the last two.
+    /// </summary>
+    /// <param name="player">Server player to send back.</param>
+    /// <returns>
+    /// <c>true</c> if the player was moved. <c>false</c> (each case is logged) when nothing is
+    /// recorded for the dimension the player is in, when the origin dimension no longer exists or is
+    /// not Active, when a <see cref="PlayerEntering"/> or <see cref="PlayerArriving"/> subscriber
+    /// cancelled the transit, or when the player was riding a mount whose seat refused to release them.
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="player"/> is null.</exception>
+    bool TryReturnPlayer(IServerPlayer player);
+
+    /// <summary>
     /// Moves a non-player entity (item, mob) to another dimension. Generates the destination region if
     /// needed, re-homes the entity, then raises <see cref="EntityChangedDimension"/>. For players use
     /// <see cref="TeleportPlayer"/> instead.

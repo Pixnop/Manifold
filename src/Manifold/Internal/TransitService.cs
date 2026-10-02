@@ -155,8 +155,64 @@ internal sealed class TransitService : ITransitionService
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(targetDim);
-        var target = DimensionGate.RequireActive(_registry, targetDim);
+        return TransitPlayer(player, DimensionGate.RequireActive(_registry, targetDim), options, null);
+    }
 
+    /// <inheritdoc/>
+    public TransitOrigin? GetOrigin(IServerPlayer player)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        int currentId = EntityPosAccess.Pos(player.Entity).Dimension;
+        if (_positionStore.Origins.TryGet(player.PlayerUID, currentId, out var origin)
+            && ResolveOriginDimension(origin) is { } dimension)
+        {
+            return new TransitOrigin(dimension, origin.X, origin.Y, origin.Z, origin.Yaw);
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc/>
+    public bool TryReturnPlayer(IServerPlayer player)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        int currentId = EntityPosAccess.Pos(player.Entity).Dimension;
+        if (!_positionStore.Origins.TryGet(player.PlayerUID, currentId, out var origin))
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Return of {0} refused: no origin is recorded for the dimension they are in (id {1}).",
+                player.PlayerName,
+                currentId);
+            return false;
+        }
+
+        var dimension = ResolveOriginDimension(origin);
+        if (dimension is null || dimension.State != DimensionState.Active)
+        {
+            _sapi.Logger?.Notification(
+                "[Manifold] Return of {0} refused: their origin dimension '{1}' no longer exists or is not active.",
+                player.PlayerName,
+                origin.SourceCode);
+            return false;
+        }
+
+        bool moved = TransitPlayer(player, dimension, default, origin);
+        if (moved)
+        {
+            _sapi.Logger?.Notification("[Manifold] Returned {0} to their origin in '{1}'.", player.PlayerName, dimension.Code);
+        }
+
+        return moved;
+    }
+
+    /// <summary>
+    /// The one player transit pipeline behind <see cref="TryTeleportPlayer"/> and
+    /// <see cref="TryReturnPlayer"/>. A non-null <paramref name="returning"/> lands the player at
+    /// that exact position and yaw instead of resolving one, and leaves the destination's origin
+    /// untouched; any other transit into a different dimension records one.
+    /// </summary>
+    private bool TransitPlayer(IServerPlayer player, IDimension target, TransitionOptions options, OriginEntry? returning)
+    {
         int sourceId = EntityPosAccess.Pos(player.Entity).Dimension;
         var source = _registry.GetByInternalId(sourceId) ?? _registry.GetByInternalId(0)!;
         var targetImpl = _registry.GetByInternalId(target.InternalId);
@@ -164,7 +220,7 @@ internal sealed class TransitService : ITransitionService
         // Resolve a preliminary position to determine the generation region center.
         // The resolver may be called again after generation (see below), so implementations
         // must be deterministic and side-effect free.
-        var prelim = ResolveTargetPosition(player, target, targetImpl, options);
+        var prelim = ResolveLanding(player, target, targetImpl, options, returning);
 
         var enteringArgs = new PlayerEnteringDimensionEventArgs(player, source, target, prelim);
         SafeEvent.Raise(PlayerEntering, this, enteringArgs, LogSubscriberError);
@@ -186,7 +242,7 @@ internal sealed class TransitService : ITransitionService
         _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
 
         // Resolve the final landing position now that terrain exists.
-        var targetPos = ResolveTargetPosition(player, target, targetImpl, options);
+        var targetPos = ResolveLanding(player, target, targetImpl, options, returning);
 
         // Post-generation, pre-teleport hook: subscribers can finalize landing setup or veto.
         var arrivingArgs = new PlayerArrivingDimensionEventArgs(player, source, target, targetPos);
@@ -216,15 +272,51 @@ internal sealed class TransitService : ITransitionService
             return false;
         }
 
-        _movers.Player.Teleport(player, targetPos);
+        // The transit is now certain. Remember where the player came from, unless this transit is
+        // itself a return (otherwise A -> B -> return would make A's origin B, and returning from A
+        // would ping-pong back to B instead of unwinding to where the chain started).
+        if (returning is null && source.InternalId != target.InternalId)
+        {
+            _positionStore.Origins.Record(
+                player.PlayerUID,
+                target.InternalId,
+                new OriginEntry(source.InternalId, source.Code.ToString(), srcPos.X, srcPos.Y, srcPos.Z, srcPos.Yaw));
+        }
+
+        float? yaw = returning?.Yaw ?? options.Yaw;
+        if (returning is { } origin)
+        {
+            _movers.Player.TeleportExact(player, target.InternalId, origin.X, origin.Y, origin.Z, origin.Yaw);
+        }
+        else
+        {
+            _movers.Player.Teleport(player, targetPos, yaw);
+        }
 
         ApplyGameModePolicy(player, targetImpl);
         ApplyInventoryPolicy(player, target, targetImpl);
 
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
-        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos, yaw), LogSubscriberError);
         return true;
     }
+
+    /// <summary>
+    /// The dimension an origin points to, or <c>null</c> when it is gone. Both the engine id and the
+    /// code must match: ids are recycled, so an id alone could now name an unrelated dimension.
+    /// </summary>
+    private IDimension? ResolveOriginDimension(OriginEntry origin) =>
+        _registry.GetByInternalId(origin.SourceId) is { } dim
+        && string.Equals(dim.Code.ToString(), origin.SourceCode, StringComparison.Ordinal)
+            ? dim
+            : null;
+
+    /// <summary>The landing position for a transit: the exact origin of a return (as its block), else the resolved one.</summary>
+    private BlockPos ResolveLanding(
+        IServerPlayer player, IDimension target, DimensionImpl? targetImpl, TransitionOptions options, OriginEntry? returning) =>
+        returning is { } origin
+            ? new BlockPos((int)Math.Floor(origin.X), (int)Math.Floor(origin.Y), (int)Math.Floor(origin.Z), target.InternalId)
+            : ResolveTargetPosition(player, target, targetImpl, options);
 
     /// <summary>
     /// A forced game mode belongs to its dimension. The mode the player had before entering the
