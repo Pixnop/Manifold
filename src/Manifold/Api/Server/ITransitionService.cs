@@ -12,20 +12,33 @@ namespace Manifold.Api.Server;
 /// <remarks>Server-side. All members must be invoked on the main thread.</remarks>
 public interface ITransitionService
 {
-    /// <summary>Raised before transit completes; set <c>Cancel = true</c> to abort.</summary>
+    /// <summary>
+    /// Raised before transit completes; set <c>Cancel = true</c> to abort. Not raised when a player
+    /// who died in a dimension respawns out of it: a respawn cannot be refused (see
+    /// <see cref="PlayerEnteredDimensionEventArgs.IsRespawn"/>).
+    /// </summary>
     event EventHandler<PlayerEnteringDimensionEventArgs> PlayerEntering;
 
     /// <summary>
     /// Raised after the destination region has been generated but before the actual teleport.
     /// Cancellable: setting <c>Cancel = true</c> aborts the transit and leaves the player in the
-    /// source dimension. Fires only on the player-transit path (<see cref="TeleportPlayer"/>).
+    /// source dimension. Fires only on the player-transit path (<see cref="TeleportPlayer"/>), never
+    /// for a respawn out of a dimension.
     /// </summary>
     event EventHandler<PlayerArrivingDimensionEventArgs> PlayerArriving;
 
-    /// <summary>Raised after the player has entered the target dimension.</summary>
+    /// <summary>
+    /// Raised after the player has entered the target dimension. Also raised, with
+    /// <see cref="PlayerEnteredDimensionEventArgs.IsRespawn"/> set, when a player who died in a custom
+    /// dimension respawns out of it; <see cref="PlayerEntering"/> and <see cref="PlayerArriving"/> are not.
+    /// </summary>
     event EventHandler<PlayerEnteredDimensionEventArgs> PlayerEntered;
 
-    /// <summary>Raised after the player has left the source dimension.</summary>
+    /// <summary>
+    /// Raised after the player has left the source dimension. Also raised, with
+    /// <see cref="PlayerLeftDimensionEventArgs.IsRespawn"/> set, when a player who died in a custom
+    /// dimension respawns out of it; <see cref="PlayerEntering"/> and <see cref="PlayerArriving"/> are not.
+    /// </summary>
     event EventHandler<PlayerLeftDimensionEventArgs> PlayerLeft;
 
     /// <summary>
@@ -45,6 +58,12 @@ public interface ITransitionService
     /// out from under it. If the mount's seat refuses to release them, the whole transit is
     /// silently aborted (see <see cref="TryTeleportPlayer"/> to detect this).
     /// </summary>
+    /// <remarks>
+    /// Synchronous, like <see cref="TryTeleportPlayer"/>: if the player was moved,
+    /// <see cref="PlayerLeft"/> and <see cref="PlayerEntered"/> have already been raised by the time
+    /// this method returns. It gives no signal when the transit was cancelled or aborted; use
+    /// <see cref="TryTeleportPlayer"/> when that matters (it documents the full guarantee).
+    /// </remarks>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="options">Optional transit settings.</param>
@@ -58,6 +77,39 @@ public interface ITransitionService
     /// (same events, same generation, same landing-position resolution, same mount handling) instead
     /// of leaving a cancelled transit indistinguishable from a completed one.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The transit is synchronous: everything happens on the calling main thread before this method
+    /// returns, so a caller does not need to wait for <see cref="PlayerEntered"/> to know the outcome.
+    /// </para>
+    /// <para>
+    /// When it returns <c>true</c>: the player entity has been rebound to the target dimension (its
+    /// <c>Pos.Dimension</c> is already the target's id), the engine teleport to the landing position
+    /// has been requested, the target's game-mode and inventory policies have been applied, and
+    /// <see cref="PlayerLeft"/> then <see cref="PlayerEntered"/> have been raised, every subscriber
+    /// having run.
+    /// </para>
+    /// <para>
+    /// Not guaranteed on return: the entity's X/Y/Z. The engine applies the landing coordinates from a
+    /// callback that is queued when the dimension 0 chunk column at the landing X/Z is not loaded, so
+    /// they can arrive a few ticks later and the entity may still hold its source coordinates when
+    /// <see cref="PlayerEntered"/> fires. Read the landing position from
+    /// <see cref="Manifold.Api.Events.PlayerEnteredDimensionEventArgs.TargetPosition"/>, not from the
+    /// entity.
+    /// </para>
+    /// <para>
+    /// When it returns <c>false</c>: the player was not moved, and neither <see cref="PlayerLeft"/>
+    /// nor <see cref="PlayerEntered"/> was raised. A cancel at <see cref="PlayerArriving"/> or a
+    /// refused dismount comes after the destination region was generated, so that region may exist
+    /// and the player's position in the source dimension is already recorded for the
+    /// <c>LastVisited</c> behavior; the player themselves has not moved.
+    /// </para>
+    /// <para>
+    /// What is not covered: the client is notified separately (a network packet), so a client-side mod
+    /// sees <c>LocalPlayerChangedDimension</c> slightly later. An unknown or inactive target throws
+    /// before anything happens (see the exceptions below).
+    /// </para>
+    /// </remarks>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="options">Optional transit settings.</param>
@@ -70,6 +122,40 @@ public interface ITransitionService
     /// <exception cref="Manifold.Api.DimensionNotFoundException">Target code unknown.</exception>
     /// <exception cref="Manifold.Api.DimensionStateException">Target is not Active.</exception>
     bool TryTeleportPlayer(IServerPlayer player, AssetLocation targetDim, TransitionOptions options = default);
+
+    /// <summary>
+    /// Where the player came from when they last entered the dimension they are standing in: the
+    /// dimension they left, the exact position and their yaw. Manifold records it on every player
+    /// transit into a different dimension (through <see cref="TeleportPlayer"/> or
+    /// <see cref="TryTeleportPlayer"/>), except a return made with <see cref="TryReturnPlayer"/>,
+    /// which records nothing. It is saved with the world, so it survives logout and restarts.
+    /// </summary>
+    /// <param name="player">Server player to look up.</param>
+    /// <returns>
+    /// The recorded origin, or <c>null</c> when nothing is recorded for the dimension the player is
+    /// in now, or when the dimension they came from no longer exists.
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="player"/> is null.</exception>
+    TransitOrigin? GetOrigin(IServerPlayer player);
+
+    /// <summary>
+    /// Sends the player back to their <see cref="GetOrigin"/>: that dimension, that exact position
+    /// (no surface search, no spawn behavior) and that yaw. It is a normal player transit (same
+    /// events, cancellation, dismount, game mode and inventory policies as
+    /// <see cref="TryTeleportPlayer"/>), except that it records no new origin for the dimension it
+    /// lands in. So a chain origin, A, B unwinds one step per call: a return from B lands in A, a
+    /// return from A lands in the origin, with no ping-pong between the last two.
+    /// </summary>
+    /// <param name="player">Server player to send back.</param>
+    /// <returns>
+    /// <c>true</c> if the transit went through (the engine may apply the position some ticks later, once
+    /// the destination has loaded). <c>false</c> (each case is logged) when nothing is
+    /// recorded for the dimension the player is in, when the origin dimension no longer exists or is
+    /// not Active, when a <see cref="PlayerEntering"/> or <see cref="PlayerArriving"/> subscriber
+    /// cancelled the transit, or when the player was riding a mount whose seat refused to release them.
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="player"/> is null.</exception>
+    bool TryReturnPlayer(IServerPlayer player);
 
     /// <summary>
     /// Moves a non-player entity (item, mob) to another dimension. Generates the destination region if

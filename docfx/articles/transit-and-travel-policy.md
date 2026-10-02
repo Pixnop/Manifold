@@ -36,6 +36,32 @@ player mounted, exactly as they were. If the mount's seat refuses to release the
 moving elevator seat mid-move), the whole transit is aborted before anything moves, the same as a
 cancellation; use `TryTeleportPlayer` to detect this.
 
+### What you can rely on when it returns
+
+The transit is **synchronous**: it runs entirely on the calling main thread. You do not need to wait
+for `PlayerEntered` to know what happened, because by the time `TryTeleportPlayer` returns:
+
+- `true`: the player entity has been rebound to the target dimension (its `Pos.Dimension` is already
+  the target's id), the engine teleport to the landing position has been requested, the target's
+  game-mode and inventory policies have been applied, and `PlayerLeft` then `PlayerEntered` have
+  been raised, with every subscriber already run.
+- `false`: the player was not moved, and neither `PlayerLeft` nor `PlayerEntered` was raised. A cancel
+  at `PlayerArriving` or a refused dismount happens after the destination region was generated, so
+  that region may exist and the player's position in the source dimension is already recorded for
+  `LastVisited`, but the player has not moved.
+
+**Not guaranteed on return: the entity's X/Y/Z.** The engine applies the landing coordinates from a
+callback that is queued when the dimension 0 chunk column at the landing X/Z is not loaded (typical
+with `WithFixedSpawn`, `LastVisited` or `OverridePosition` far from where the player stands), so
+they can arrive a few ticks later and the entity may still hold its source coordinates when
+`PlayerEntered` fires. Use `PlayerEnteredDimensionEventArgs.TargetPosition` for the landing
+position instead of reading the entity.
+
+`TeleportPlayer` has the same ordering without the return value. Two further things are outside the
+guarantee: a client-side mod hears about the transit through a network packet and so sees
+`LocalPlayerChangedDimension` slightly later, and an unknown or inactive target throws before
+anything happens.
+
 ```csharp
 var transitions = manifold.Transitions;
 
@@ -163,13 +189,17 @@ facade (`manifold.Transitions`):
 | `PlayerEntering` | Before any work, before generation. | Yes (`Cancel = true`) | Player, source, target, preliminary position. |
 | `PlayerArriving` (0.4.0) | After region generation, before the teleport. | Yes | Player, source, target, final position. |
 | `PlayerLeft` | After the player has left the source dimension. | No | Player, source, target. |
-| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target, landing position (`TargetPosition`). |
+| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target, landing position (`TargetPosition`), requested arrival yaw (`Yaw`, 0.6.1). |
 | `EntityChangedDimension` (0.4.0) | After `TeleportEntity` re-homes a non-player entity. | No | Entity, previous and new `IDimension`, final position. |
 
 `PlayerEntering` is the right hook for veto logic (blocked players, missing prerequisites).
 `PlayerArriving` is the right hook for setup work that needs the destination chunks already loaded
 (place a welcome block, attach server-side state, log arrival metadata) - it can still cancel the
 transit. `PlayerLeft` / `PlayerEntered` are post-teleport; use them for cleanup and state propagation.
+
+`PlayerLeft` and `PlayerEntered` are also raised when a player who died in a dimension respawns out
+of it, with `IsRespawn` set (`PlayerEntering` and `PlayerArriving` are not, since a respawn cannot be
+refused): see [Death and respawn](#death-and-respawn).
 
 In `PlayerEntered`, read `e.TargetPosition` rather than `e.Player.Entity.Pos`: the engine applies the
 teleport only once the destination chunks arrive, so the entity can still report its source position.
@@ -203,6 +233,7 @@ For players the engine also raises its own `IEventAPI.PlayerDimensionChanged`; M
 | `OverridePosition` | Landing `BlockPos`. Skips all resolver logic. Its dimension field is stamped with the target's internal id on a copy, so the value you pass for it is ignored and your own instance is never mutated. |
 | `Resolver` | Custom `ITargetPositionResolver` - used when `OverridePosition` is null. |
 | `SpawnBehavior` | Per-transit override of the dimension's configured spawn behavior. |
+| `Yaw` (0.6.1) | The yaw, in radians, the player faces on arrival. `null` (the default) keeps their current yaw. Players only: `TeleportEntity` ignores it. See [Arrival yaw](#arrival-yaw). |
 
 ```csharp
 // Transit to a specific absolute position. The dimension field (the 4th argument) is
@@ -212,6 +243,86 @@ transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new Tran
     OverridePosition = new BlockPos(512, 70, 512, 0)
 });
 ```
+
+## Arrival yaw
+
+Set `TransitionOptions.Yaw` to make the player face a given way when they land, in radians, the same
+unit as `EntityPos.Yaw`. Leave it `null` and they keep the yaw they had.
+
+```csharp
+transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new TransitionOptions
+{
+    Yaw = MathF.PI / 2,
+});
+```
+
+Manifold applies it in two halves. It tells the player's own client to turn the camera when the
+transit completes (`PlayerEntered` time), and it sets the entity's yaw once the engine has actually
+moved the player. When the engine has to wait for the destination to load, that move comes some ticks
+later, so the camera turns first and the position follows. Both halves matter: a player's camera is
+driven by their client, so changing the server-side entity yaw alone (which is all `TeleportToDouble`
+followed by `Entity.Pos.Yaw = ...` does) never reaches the screen, and a client would also send its
+old orientation straight back. `PlayerEntered` reports the requested yaw as `e.Yaw` (`null` when none
+was asked for).
+
+## Returning a player to where they came from
+
+Every time a player transits into a different dimension through Manifold, it records their origin for
+that dimension: the dimension they left, the exact position (doubles, not block coordinates) and the
+yaw they were facing. It is saved with the world, so it survives logout and server restarts.
+
+```csharp
+TransitOrigin? GetOrigin(IServerPlayer player);   // for the dimension the player is in now
+bool TryReturnPlayer(IServerPlayer player);
+```
+
+`GetOrigin` returns `null` when nothing is recorded for the player's current dimension, or when the
+dimension they came from no longer exists. `TryReturnPlayer` sends the player back there: that
+dimension, that exact position (no surface search, no spawn behavior) and that yaw. It is an
+ordinary transit, so the same events fire (`PlayerEntering`, `PlayerArriving`, `PlayerLeft`,
+`PlayerEntered`), a subscriber can cancel it, a rider is dismounted, and the game mode and inventory
+policies of the destination apply.
+
+```csharp
+// "Leave" button inside a mod's dimension: back to wherever the player entered from.
+if (!transitions.TryReturnPlayer(player))
+{
+    // Nothing recorded, the origin dimension is gone or inactive, or a subscriber vetoed it.
+    transitions.TeleportPlayer(player, new AssetLocation("manifold", "overworld"));
+}
+```
+
+`TryReturnPlayer` returns `true` when the transit went through. The engine may apply the position some
+ticks later, so do not read the entity's coordinates as final straight away. It returns `false`, and logs which case it was at Notification level, when:
+
+- nothing is recorded for the dimension the player is in;
+- the origin dimension no longer exists, or is not `Active` (an ephemeral dimension that was reaped,
+  or a persistent one whose owner mod has not re-claimed it yet);
+- a `PlayerEntering` or `PlayerArriving` subscriber cancelled the transit, or the player's mount
+  refused to release them.
+
+A return does not record a new origin for the dimension it lands in, so chains unwind one step per
+call: after overworld, then A, then B, a return from B lands in A, and a return from A lands in the
+overworld, instead of bouncing between A and B. Any other transit (including a transit to a
+dimension the player has already visited) replaces the origin recorded for its destination. A
+transit within the same dimension records nothing.
+
+The engine applies a teleport once the destination column is loaded, which can be some ticks after
+the call. A player who transits again in the meantime still has the coordinates they left on their
+entity, so Manifold records the landing the earlier transit asked for as their position instead: the
+origin is where the player was heading, not the coordinates they left. A player who disconnects
+while such a teleport is waiting is recorded the same way.
+
+For the same reason, a transit that is overtaken before the engine applied it (step into a dimension
+whose terrain is far away, then straight back out with `TryReturnPlayer`) does not drag the player
+away when the engine finally gets to it: Manifold sends them back to the landing of the transit that
+overtook it, and the overtaken transit's yaw is not applied. The engine moves the player once more
+in that case, so a client may see the player at the overtaken landing for a moment before the
+correction.
+
+Origins are stored by dimension id plus the codes of both dimensions, and dropped when either end is
+removed. Ephemeral dimension ids are recycled, so an origin whose id now belongs to another dimension
+is ignored (it reads as "nothing recorded") instead of being followed.
 
 ## SpawnBehavior
 
@@ -334,6 +445,85 @@ How it stays safe:
 - Profiles are saved in the player's moddata, alongside the physical inventory, so a snapshot and the
   live inventory are always written together. The current inventory is serialized before any slot is
   cleared, so a swap never loses items, and the profiles survive logout and server restarts.
+
+## Death and respawn
+
+When a player dies and presses Respawn, the game picks a spawn position (the temporal gear they used,
+a spawn an admin or their role set, else the world spawn, which can be a random spot within the world's
+spawn radius) and teleports them there with X, Y and Z only. It never changes the dimension. Left alone,
+a player who died in a custom dimension would come back in that dimension at the overworld spawn's
+coordinates: in a void dimension that is empty air and a possible death loop, in a solid one it can be
+inside rock.
+
+Manifold takes the player out. By default (`RespawnBehavior.Overworld`) they respawn in the overworld
+at the position the game chose, as the game means a respawn. The move goes through the same machinery
+as any other way out of a dimension:
+
+- The game mode is handed back and the inventory profile is swapped back, exactly as when walking out.
+- `PlayerLeft` and `PlayerEntered` are raised with `IsRespawn` set, so a subscriber can tell a respawn
+  from a transit. `PlayerEntered.TargetPosition` is the landing block and `Yaw` is `null`: the game does
+  not turn a respawning player, and neither does Manifold. The client gets Manifold's usual transit
+  notification (`LocalPlayerDimensionChangedEventArgs.IsRespawn` is set there too, and a client of an
+  older version simply ignores the new field). A dimension Manifold does not manage, such as the
+  game's own, raises no event: the player is moved and nobody is told they left it.
+- `PlayerEntering` and `PlayerArriving` are not raised. A respawn cannot be refused, and a veto would
+  leave the player stuck in the dimension they died in.
+- No last-visited position is recorded, and the origin the player had recorded for the dimension they
+  land in is dropped, so `TryReturnPlayer` cannot send them back to where they died. The respawn
+  coordinates are not a place the player walked to, and recording them would drop a `LastVisited`
+  player into the void next time.
+
+The engine's own death handling is untouched, and comes first. With a separate inventory
+(`WithSeparateInventory`), by default the game drops the hotbar and backpack where the player fell, in
+the dimension, and with the world's keep-inventory penalty they stay on the player. Manifold then swaps
+to the overworld's set as on any exit, so nothing is duplicated: kept items wait in the dimension's own
+set for the next visit, and dropped ones lie on the ground in the dimension, where the player can
+collect them by going back (item entities despawn after the game's usual timer, as anywhere).
+
+An ephemeral dimension is the exception. Respawning out of it is leaving it, so an ephemeral dimension
+left empty is reaped at that moment, and the items the player dropped in it go with it. Where players
+should be able to recover what they dropped, make the dimension `Persistent`, or have it keep its dead
+with `RespawnBehavior.DimensionSpawn` (below).
+
+Manifold follows the revive itself, so it waits exactly as long as the game does: within the respawn
+request when the spawn column is loaded, otherwise a tick or so after the game finishes loading it.
+Only a death that Manifold saw is answered. A respawn request from a player who is alive is ignored (the
+game ignores it too), and so is one from a player another player revived where they fell (a healing
+item): that revive is not a respawn and leaves the player where they are. A player who disconnects while
+dead is handled when they come back; if their dimension no longer exists by then, the join rescue has
+already taken them to the overworld and the respawn is an ordinary overworld one. A death in the
+overworld is not touched, unless the game's spawn designates a dimension (below).
+
+### A spawn point inside a dimension
+
+The temporal gear stores the player's position through the engine's dimension-aware Y (the Y plus
+32768 times the dimension id). Used inside a custom dimension, it gives the game a spawn whose Y
+carries that dimension, and the game's respawn does not decode it: the player would stand at a Y far
+above the dimension, or far above the overworld if they died there. Manifold decodes it. The player
+respawns in the dimension the spawn designates, under that dimension's own policies. Only an active
+persistent dimension is trusted: the id of an ephemeral dimension is recycled, so a spawn set in one
+could name an unrelated dimension by now. For any other dimension, the player respawns at the world's
+default spawn in the overworld.
+
+### Keeping the dead inside
+
+A dimension that wants its players back where they were (an arena, a hub) opts in:
+
+```csharp
+manifold.Registry
+    .Define(new AssetLocation("mymod", "arena"))
+    .Persistent()
+    .WithWorldgen(new BasicVoidWorldgenStrategy())
+    .WithFixedSpawn(new BlockPos(0, 64, 0, 0))
+    .WithRespawnBehavior(RespawnBehavior.DimensionSpawn)
+    .RegisterStatic();
+```
+
+The player respawns inside the dimension at its fixed spawn, wherever the game would have put them
+(a spawn from a temporal gear included). This is a move within the dimension and nothing else: no
+event is raised and no policy changes. Without `WithFixedSpawn` the option has nothing to land on:
+the player respawns in the overworld and Manifold logs a warning once per dimension. A quarantined
+dimension is never kept: its dead respawn in the overworld.
 
 ## PortalBlockBase
 

@@ -119,6 +119,7 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         PlayerTransitedPacket toFlatPacket = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
         Assert.Equal("manifold:overworld", toFlatPacket.SourceCode);
         Assert.Equal("atlasfixture:flat", toFlatPacket.TargetCode);
+        Assert.False(toFlatPacket.IsRespawn);
 
         player.Client.Clear();
         await Ok("/atlasfx teleport-player atlas_mtransit overworld");
@@ -178,6 +179,33 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         DimensionRemovedPacket removed = Assert.Single(player.Client.Packets<DimensionRemovedPacket>(Channel));
         Assert.Equal("atlasfixture:mirrorleave", removed.Code);
         Assert.Equal(leaveId, removed.InternalId);
+    }
+
+    // The client's mirror (and any map or minimap mod that follows LocalPlayerChangedDimension) has
+    // to learn that a player who died and respawned is no longer in the dimension they died in, and
+    // an ephemeral dimension they were the last occupant of is reaped like after any other way out.
+    [AtlasScenario]
+    public async Task Client_Should_ReceiveTransitedAndRemoved_When_LastOccupantRespawnsOutOfEphemeral()
+    {
+        await Ok("/atlasfx create-ephemeral mirrordie");
+        int dieId = await DimensionId("mirrordie");
+        ITestPlayer player = await JoinSurvivalPlayer("atlas_mdie");
+        await Ok("/atlasfx teleport-player atlas_mdie mirrordie");
+        await LandedAt(player, dieId, 512, 512);
+        Kill(player);
+        await World.Until(() => !player.Entity.Alive, timeoutTicks: 200);
+        await World.Ticks(5);
+        player.Client.Clear();
+
+        PressRespawn(player);
+        await AliveIn(player, 0);
+
+        PlayerTransitedPacket transited = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
+        Assert.Equal("atlasfixture:mirrordie", transited.SourceCode);
+        Assert.Equal("manifold:overworld", transited.TargetCode);
+        Assert.True(transited.IsRespawn);
+        DimensionRemovedPacket removed = Assert.Single(player.Client.Packets<DimensionRemovedPacket>(Channel));
+        Assert.Equal("atlasfixture:mirrordie", removed.Code);
     }
 
     private static MetadataEntry Single(DimensionDescriptor descriptor, string key) =>

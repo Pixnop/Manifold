@@ -46,4 +46,70 @@ public sealed class BinaryCompatibilityTests
         Assert.NotNull(eventInfo);
         Assert.Equal(typeof(EventHandler<PlayerEnteredDimensionEventArgs>), eventInfo!.EventHandlerType);
     }
+
+    [Fact]
+    public void PlayerEnteredDimensionEventArgs_Should_Keep_Its_Four_Argument_Constructor()
+    {
+        // Mods built before 0.6.1 construct it with these four parameters; 0.6.1 adds an overload
+        // with a yaw, it must not replace this one.
+        var ctor = typeof(PlayerEnteredDimensionEventArgs).GetConstructor(
+        [
+            typeof(Vintagestory.API.Server.IServerPlayer),
+            typeof(Manifold.Api.IDimension),
+            typeof(Manifold.Api.IDimension),
+            typeof(Vintagestory.API.MathTools.BlockPos),
+        ]);
+
+        Assert.NotNull(ctor);
+    }
+
+    [Fact]
+    public void TransitionOptions_Should_Have_No_Yaw_By_Default()
+    {
+        Assert.Null(new TransitionOptions().Yaw);
+        Assert.Equal(1f, new TransitionOptions { Yaw = 1f }.Yaw);
+    }
+
+    [Fact]
+    public void IDimensionBuilder_Should_Only_Have_Gained_Members_Since_0_6_0()
+    {
+        // Mods built against 0.4.1..0.6.0 call these through the interface; 0.6.1 adds
+        // WithRespawnBehavior next to them and must not have moved or removed any.
+        var builder = typeof(Manifold.Api.Server.IDimensionBuilder);
+        string[] existing =
+        [
+            "WithWorldgen", "Persistent", "Ephemeral", "WithGenerationRadius", "WithRelightHeight", "WithSpawnBehavior",
+            "WithFixedSpawn", "WithForcedGameMode", "Streaming", "WithStreamingBudget", "WithDarkSky",
+            "WithSeparateInventory", "WithMetadata", "RegisterStatic", "Create",
+        ];
+
+        Assert.All(existing, name => Assert.NotNull(builder.GetMethod(name)));
+        Assert.NotNull(builder.GetMethod("WithRespawnBehavior", [typeof(RespawnBehavior)]));
+    }
+
+    [Fact]
+    public void RespawnBehavior_Should_Default_To_The_Overworld()
+    {
+        // A dimension registered without the option is the zero value: a mod built before the option
+        // existed gets the safe behavior (nobody respawns stuck in the dimension).
+        Assert.Equal(0, (int)RespawnBehavior.Overworld);
+        Assert.Equal(RespawnBehavior.Overworld, default);
+    }
+
+    [Fact]
+    public void Transit_Event_Args_Should_Keep_Their_Existing_Constructors_And_Default_To_Not_A_Respawn()
+    {
+        // 0.6.1 adds IsRespawn through new overloads; the constructors mods built against older
+        // versions call must stay, and build a transit (not a respawn).
+        var player = typeof(Vintagestory.API.Server.IServerPlayer);
+        var dimension = typeof(Manifold.Api.IDimension);
+        var left = typeof(PlayerLeftDimensionEventArgs).GetConstructor([player, dimension, dimension]);
+        var entered = typeof(PlayerEnteredDimensionEventArgs).GetConstructor(
+            [player, dimension, dimension, typeof(Vintagestory.API.MathTools.BlockPos), typeof(float?)]);
+
+        Assert.NotNull(left);
+        Assert.NotNull(entered);
+        Assert.NotNull(typeof(PlayerLeftDimensionEventArgs).GetProperty("IsRespawn"));
+        Assert.NotNull(typeof(PlayerEnteredDimensionEventArgs).GetProperty("IsRespawn"));
+    }
 }

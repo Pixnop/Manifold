@@ -22,15 +22,18 @@ internal sealed class ClientTransitHandler
 {
     private readonly ClientDimensionMirror _mirror;
     private readonly ILogger? _logger;
+    private readonly Action<float>? _applyYaw;
 
     /// <summary>Initializes a new instance of the <see cref="ClientTransitHandler"/> class.</summary>
     /// <param name="mirror">Client dimension mirror used to resolve the packet's source/target codes.</param>
     /// <param name="logger">Optional logger for a packet naming a dimension unknown to the mirror.</param>
+    /// <param name="applyYaw">Optional action that turns the local player's camera to a yaw (radians); invoked when a packet carries one.</param>
     /// <exception cref="ArgumentNullException"><paramref name="mirror"/> is null.</exception>
-    public ClientTransitHandler(ClientDimensionMirror mirror, ILogger? logger = null)
+    public ClientTransitHandler(ClientDimensionMirror mirror, ILogger? logger = null, Action<float>? applyYaw = null)
     {
         _mirror = mirror ?? throw new ArgumentNullException(nameof(mirror));
         _logger = logger;
+        _applyYaw = applyYaw;
     }
 
     /// <summary>Raised on the main thread once a transit packet resolves to two known dimensions.</summary>
@@ -45,9 +48,18 @@ internal sealed class ClientTransitHandler
     /// </summary>
     /// <param name="packet">The packet received on the network channel.</param>
     /// <exception cref="ArgumentNullException"><paramref name="packet"/> is null.</exception>
+    /// <remarks>
+    /// A yaw the packet carries is applied first and regardless of whether its dimensions resolve:
+    /// facing the requested way does not depend on the client mirror knowing either dimension.
+    /// </remarks>
     public void Handle(PlayerTransitedPacket packet)
     {
         ArgumentNullException.ThrowIfNull(packet);
+
+        if (packet.Yaw is { } yaw)
+        {
+            _applyYaw?.Invoke(yaw);
+        }
 
         var source = _mirror.Get(new AssetLocation(packet.SourceCode));
         var target = _mirror.Get(new AssetLocation(packet.TargetCode));
@@ -61,6 +73,6 @@ internal sealed class ClientTransitHandler
         }
 
         var targetPosition = new BlockPos(packet.TargetX, packet.TargetY, packet.TargetZ, target.InternalId);
-        Transited?.Invoke(new LocalPlayerDimensionChangedEventArgs(source, target, targetPosition));
+        Transited?.Invoke(new LocalPlayerDimensionChangedEventArgs(source, target, targetPosition, isJoin: false, packet.IsRespawn));
     }
 }

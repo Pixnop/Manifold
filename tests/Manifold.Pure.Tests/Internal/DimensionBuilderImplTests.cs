@@ -250,6 +250,51 @@ public sealed class DimensionBuilderImplTests
         Assert.Equal(Manifold.Api.ManifoldInventory.None, request().SeparateInventory);
     }
 
+    [Fact]
+    public void RespawnBehavior_Should_Default_To_Overworld()
+    {
+        var (builder, request) = Capturing();
+
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.Equal(Manifold.Api.Transitions.RespawnBehavior.Overworld, request().RespawnBehavior);
+    }
+
+    [Fact]
+    public void WithRespawnBehavior_Should_Flow_To_Request()
+    {
+        var (builder, request) = Capturing();
+
+        builder.WithWorldgen(new FakeWorldgenStrategy())
+            .WithRespawnBehavior(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+
+        Assert.Equal(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn, request().RespawnBehavior);
+    }
+
+    [Fact]
+    public void WithRespawnBehavior_Should_Not_Change_The_Spawn_Behavior_Of_Arrivals()
+    {
+        var (builder, request) = Capturing();
+
+        builder.WithWorldgen(new FakeWorldgenStrategy())
+            .WithRespawnBehavior(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+
+        Assert.Equal(Manifold.Api.Transitions.SpawnBehavior.SameCoordinates, request().SpawnBehavior);
+        Assert.Null(request().SpawnPoint);
+    }
+
+    [Fact]
+    public void WithRespawnBehavior_Should_Throw_When_The_Builder_Was_Already_Used()
+    {
+        var (builder, _) = Capturing();
+        builder.WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
+
+        Assert.Throws<InvalidOperationException>(
+            () => builder.WithRespawnBehavior(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn));
+    }
+
     /// <summary>
     /// A builder whose completion callback captures the <see cref="DimensionImpl"/> template it was
     /// given, for the many tests that only check what a builder method put on the template.

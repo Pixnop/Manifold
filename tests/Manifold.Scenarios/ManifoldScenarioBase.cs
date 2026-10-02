@@ -119,6 +119,51 @@ public abstract class ManifoldScenarioBase : AtlasScenarioBase
                 && Math.Abs(player.Position.Z - z) <= 1,
             timeoutTicks: 600);
 
+    /// <summary>Kills the player the way the engine's own death does (the same call as the /kill command), whatever their game mode.</summary>
+    protected static void Kill(ITestPlayer player) =>
+        player.Entity.Die(
+            EnumDespawnReason.Death,
+            new DamageSource { Source = EnumDamageSource.Suicide, Type = EnumDamageType.Injury });
+
+    /// <summary>
+    /// Presses "Respawn" for a dead player: raises the engine's own respawn event, the one the
+    /// client's respawn packet reaches after the lives check. The engine's handler runs first
+    /// (it picks the spawn position and teleports the player there, reviving them once the column is
+    /// loaded), then every mod subscriber. The event manager is not part of the public game API, so
+    /// this goes through reflection: it is test plumbing, the code under test never does.
+    /// </summary>
+    protected void PressRespawn(ITestPlayer player)
+    {
+        object world = World.Api.World;
+        object events = world.GetType().GetField("EventManager")!.GetValue(world)!;
+        events.GetType().GetMethod("TriggerPlayerRespawn")!.Invoke(events, [player.Player]);
+    }
+
+    /// <summary>
+    /// Waits until the player is alive again (the engine revives them once the respawn column is
+    /// loaded), then until they are in the given dimension. Two waits so that a player who respawns
+    /// in the wrong dimension fails after a few seconds rather than after the long revive bound.
+    /// </summary>
+    protected async Task AliveIn(ITestPlayer player, int dimension)
+    {
+        await World.Until(() => player.Entity.Alive, timeoutTicks: 600);
+        await World.Until(() => player.Position.dimension == dimension, timeoutTicks: 100);
+    }
+
+    /// <summary>
+    /// The item stacks lying on the ground within eight blocks of <paramref name="at"/>, which is an
+    /// entity position (its Y carries the dimension, as <c>Pos.XYZ</c> does).
+    /// </summary>
+    protected List<ItemStack> ItemsOnTheGround(Vec3d at) =>
+        World.Api.World.GetEntitiesAround(at, 8, 8, e => e is EntityItem)
+            .Cast<EntityItem>()
+            .Select(e => e.Itemstack)
+            .ToList();
+
+    /// <summary>The total size of the stacks of <paramref name="code"/> in <paramref name="stacks"/>.</summary>
+    protected static int CountOf(IEnumerable<ItemStack> stacks, string code) =>
+        stacks.Where(s => s.Collectible.Code.ToString() == code).Sum(s => s.StackSize);
+
     protected static int HotbarCount(ITestPlayer player, string code)
     {
         IInventory hotbar = player.Player.InventoryManager.GetHotbarInventory();

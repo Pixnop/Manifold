@@ -28,6 +28,13 @@ public class DowngradeVerifyScenarios : CompatVerifyScenarioBase
         byte[]? sidecar = World.Api.WorldManager.SaveGame.GetData("manifold:schema");
         Assert.True(sidecar is { Length: > 0 }, "The manifold:schema sidecar the dev build wrote did not survive opening with 0.5.1.");
 
+        // The origins the dev build recorded (key "manifold:origins", new in 0.6.1: the fixture builder
+        // fails if the world it harvests lacks it) are in this world too, so this 0.5.1 boot really
+        // crossed an entry it has never heard of. 0.5.1 never reads or writes it: the bytes are
+        // checked again at the end, after the transits below.
+        byte[]? origins = World.Api.WorldManager.SaveGame.GetData("manifold:origins");
+        Assert.True(origins is { Length: > 0 }, "The manifold:origins entry the dev build wrote is not in the world 0.5.1 opened.");
+
         // Same persistent dimension, same internal id: the manifest round-tripped across the
         // version change, not just across an ordinary restart.
         int dimId = await CompatDimensionId();
@@ -92,5 +99,7 @@ public class DowngradeVerifyScenarios : CompatVerifyScenarioBase
         await second.TeleportTo(World.Spawn.Offset(-500, 0, -500));
         await Ok("/manicompat enter compatdev-second");
         await LandedAt(second, dimId, secondLastVisited.X, secondLastVisited.Z);
+
+        Assert.Equal(origins, World.Api.WorldManager.SaveGame.GetData("manifold:origins"));
     }
 }

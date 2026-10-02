@@ -7,10 +7,13 @@ using Vintagestory.API.MathTools;
 using Xunit;
 
 /// <summary>
-/// Issue #79: since VS 1.22.4 the server validates the pick range of every block-entity packet,
-/// and the check refuses outright when the player's dimension differs from the block's. These
-/// scenarios drive the chest's real "open inventory" packet handler (packet id 1000, what the
-/// client sends on right click) next to a player standing in a Manifold dimension.
+/// Issue #79: VS 1.22.4 added an interaction range check to every block-entity packet. In 1.22.4
+/// and 1.22.5 it measured the player's eye with the internal Y (local Y plus 32768 per dimension)
+/// against the block's local Y, so it failed in every dimension but the overworld; 1.22.6 fixed
+/// it (same-dimension test first, then local coordinates on both sides). These scenarios drive
+/// the chest's real "open inventory" packet handler (packet id 1000, what the client sends on
+/// right click) next to a player standing in a Manifold dimension: they fail on a 1.22.5 server
+/// and pass on 1.22.3 and from 1.22.6 on.
 /// </summary>
 [Trait("Category", "E2E")]
 public class InventoryAccessScenarios : ManifoldScenarioBase

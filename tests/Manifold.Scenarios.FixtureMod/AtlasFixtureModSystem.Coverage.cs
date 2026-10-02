@@ -42,6 +42,17 @@ public sealed partial class AtlasFixtureModSystem
         RegisterPolicyDimension("gate", b => b.WithMetadata("atlas-veto", "arriving"));
         RegisterPolicyDimension("faulty", b => b);
 
+        // RespawnScenarios: a dimension that keeps its dead (respawn at its fixed spawn), and one that
+        // asks for that without having a spawn point, which must fall back to the overworld.
+        RegisterPolicyDimension("bunker", b => b.WithRespawnBehavior(RespawnBehavior.DimensionSpawn));
+        IDimension nospawn = _manifold.Registry
+            .Define(new AssetLocation(Domain, "nospawn"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithRespawnBehavior(RespawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+        PublishDimensionId("nospawn", nospawn.InternalId);
+
         // Registered before the recording handlers on purpose: a subscriber that throws must not
         // keep the ones after it from running (Manifold isolates each subscriber).
         _manifold.Transitions.PlayerEntered += (_, e) =>
@@ -69,7 +80,13 @@ public sealed partial class AtlasFixtureModSystem
         _manifold.Transitions.PlayerLeft += (_, e) =>
             AppendEvent($"left:{e.SourceDimension.Code.Path}->{e.TargetDimension.Code.Path}");
         _manifold.Transitions.PlayerEntered += (_, e) =>
+        {
             AppendEvent($"entered:{e.TargetDimension.Code.Path}");
+            if (e.IsRespawn)
+            {
+                AppendEvent($"respawn:{e.TargetDimension.Code.Path}");
+            }
+        };
         _manifold.Transitions.EntityChangedDimension += (_, e) =>
             AppendEvent($"entity:{e.PreviousDimension.Code.Path}->{e.NewDimension.Code.Path}");
         _manifold.Registry.Created += (_, e) => AppendEvent($"created:{e.Dimension.Code.Path}");
@@ -169,6 +186,17 @@ public sealed partial class AtlasFixtureModSystem
             .BeginSubCommand("create-darksky")
                 .WithArgs(parsers.Word("dimpath"), parsers.Int("ceiling"))
                 .HandleWith(OnCreateDarkSky)
+            .EndSubCommand()
+            .BeginSubCommand("relight-region")
+                .WithArgs(
+                    parsers.Word("dimpath"),
+                    parsers.Int("x1"),
+                    parsers.Int("y1"),
+                    parsers.Int("z1"),
+                    parsers.Int("x2"),
+                    parsers.Int("y2"),
+                    parsers.Int("z2"))
+                .HandleWith(OnRelightRegion)
             .EndSubCommand()
             .BeginSubCommand("force-remove")
                 .WithArgs(parsers.Word("dimpath"))
@@ -277,6 +305,22 @@ public sealed partial class AtlasFixtureModSystem
         PublishDimensionId(path, dimension.InternalId);
         PregenerateSpawn(dimension);
         return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    /// <summary>Drives the public IManifoldServer.RelightRegion over the given box.</summary>
+    private TextCommandResult OnRelightRegion(TextCommandCallingArgs args)
+    {
+        var min = new BlockPos((int)args[1], (int)args[2], (int)args[3], 0);
+        var max = new BlockPos((int)args[4], (int)args[5], (int)args[6], 0);
+        try
+        {
+            _manifold.RelightRegion(ResolveTargetCode((string)args[0]), min, max);
+            return TextCommandResult.Success("relit");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private TextCommandResult OnForceRemove(TextCommandCallingArgs args)

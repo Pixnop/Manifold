@@ -21,6 +21,14 @@ internal sealed class PlayerPositionStore
 
     private readonly Dictionary<string, (int X, int Y, int Z)> _positions = new();
 
+    /// <summary>
+    /// The per-player "where did they come from" memory. It lives with the positions (same players,
+    /// same dimension lifecycle: <see cref="RemoveDimension"/> clears both) so the transit service
+    /// needs no extra collaborator, but it is a separate store: its own savegame key, schema version
+    /// and dirty flag, and nothing about this store's own blob changes.
+    /// </summary>
+    public PlayerOriginStore Origins { get; } = new();
+
     /// <summary>Whether the store has unsaved changes since the last <see cref="ClearDirty"/>.</summary>
     public bool IsDirty { get; private set; }
 
@@ -66,11 +74,13 @@ internal sealed class PlayerPositionStore
     /// <summary>
     /// Drops every recorded position for the given dimension id. Called when a dimension is
     /// destroyed so a later dimension reusing the same engine id does not inherit stale
-    /// LastVisited coordinates, and so the store does not grow unbounded over a session.
+    /// LastVisited coordinates, and so the store does not grow unbounded over a session. Also drops
+    /// the <see cref="Origins"/> recorded for it and the ones that point to it.
     /// </summary>
     /// <param name="dimId">Engine dimension id being released.</param>
     public void RemoveDimension(int dimId)
     {
+        Origins.RemoveDimension(dimId);
         string suffix = "|" + dimId.ToString(CultureInfo.InvariantCulture);
         var stale = _positions.Keys.Where(k => k.EndsWith(suffix, StringComparison.Ordinal)).ToList();
         foreach (var key in stale)

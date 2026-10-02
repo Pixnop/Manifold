@@ -20,8 +20,28 @@ public interface IDimension
 
     /// <summary>
     /// VS engine dimension id (0..1023). Built-in overworld is 0;
-    /// mod-allocated values lie in 10..1023. Rarely useful to consumers - prefer <see cref="Code"/>.
+    /// mod-allocated values lie in 10..1023. Rarely useful to consumers: prefer <see cref="Code"/>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Persistent dimensions</b> (everything registered with <c>RegisterStatic</c>, and
+    /// <c>Persistent().Create()</c>): the id is recorded in the dimension manifest in the savegame
+    /// (written when the world saves) and handed back to the same <see cref="Code"/> on every later
+    /// boot, so a consumer may persist it. It is kept even while the owning mod is absent (the
+    /// dimension is then <see cref="DimensionState.Quarantined"/> and its id stays reserved), and
+    /// the same id comes back when the owner returns and registers the code again. The id is given
+    /// up only when the dimension is purged by an admin (<c>/manifold purge</c>); registering the
+    /// code afterwards allocates an id again, not necessarily the same one. The guarantee also does not cover a manifest the server
+    /// could not read (corrupt, or written by a newer Manifold): ids are then re-allocated, and a
+    /// brand-new dimension's id is only recorded at the next world save. Persist the
+    /// <see cref="Code"/> when you can, and treat a stored id as a cache of it.
+    /// </para>
+    /// <para>
+    /// <b>Ephemeral dimensions</b>: the id is released when the dimension is destroyed and may be
+    /// handed to another dimension later, and ephemeral dimensions are discarded at shutdown, so
+    /// never persist an ephemeral dimension's id.
+    /// </para>
+    /// </remarks>
     int InternalId { get; }
 
     /// <summary><c>true</c> for the engine's overworld (<c>manifold:overworld</c>, id 0).</summary>

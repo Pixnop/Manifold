@@ -93,6 +93,20 @@ public interface IDimensionBuilder
     IDimensionBuilder WithForcedGameMode(EnumGameMode mode);
 
     /// <summary>
+    /// Sets where a player who dies in this dimension respawns. Default:
+    /// <see cref="RespawnBehavior.Overworld"/>, so a death never leaves the player stuck in the
+    /// dimension; <see cref="RespawnBehavior.DimensionSpawn"/> keeps them inside, at the point set by
+    /// <see cref="WithFixedSpawn"/>.
+    /// </summary>
+    /// <param name="behavior">The respawn behavior.</param>
+    /// <returns>This builder, for chaining.</returns>
+    /// <remarks>
+    /// Call <see cref="WithFixedSpawn"/> too for <see cref="RespawnBehavior.DimensionSpawn"/>; without
+    /// a spawn point the player respawns in the overworld and Manifold logs a warning once.
+    /// </remarks>
+    IDimensionBuilder WithRespawnBehavior(RespawnBehavior behavior);
+
+    /// <summary>
     /// Opts the dimension into streaming worldgen: chunks are generated on demand as players move,
     /// keeping at least <paramref name="loadRadius"/> chunks generated around each player. Range
     /// 1..32. The effective radius is <c>max(loadRadius, server view distance)</c>, so a value below
@@ -162,9 +176,10 @@ public interface IDimensionBuilder
     /// <returns>This builder, for chaining.</returns>
     /// <exception cref="System.ArgumentException">Thrown when the value is of an unsupported type, or the same key is set twice.</exception>
     /// <remarks>
-    /// Metadata is server-side only in v1; it is not replicated to client mirrors and not persisted
-    /// across server restarts. For static dimensions this is harmless (the owner re-declares them on
-    /// boot). For runtime <c>Create</c> dimensions, treat metadata as ephemeral.
+    /// Metadata is replicated to client mirrors (since 0.6.0) and immutable once the dimension is
+    /// registered, so a client can cache what it reads. It is not persisted across server restarts.
+    /// For static dimensions this is harmless (the owner re-declares them on boot). For runtime
+    /// <c>Create</c> dimensions, treat metadata as ephemeral.
     /// </remarks>
     IDimensionBuilder WithMetadata(string key, object? value);
 

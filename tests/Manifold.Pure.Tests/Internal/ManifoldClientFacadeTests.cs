@@ -122,6 +122,26 @@ public sealed class ManifoldClientFacadeTests
     }
 
     [Fact]
+    public void GetByInternalId_Should_Return_The_Mirrored_Dimension_With_That_Id()
+    {
+        var mirror = new ClientDimensionMirror();
+        mirror.ApplyAdded(new DimensionAddedPacket { Dimension = new DimensionDescriptor { Code = "a:overworld", InternalId = 0, OwnerModId = "manifold" } });
+        mirror.ApplyAdded(new DimensionAddedPacket { Dimension = new DimensionDescriptor { Code = "a:b", InternalId = 10, OwnerModId = "owner" } });
+        var facade = new ManifoldClientFacade(mirror);
+
+        Assert.Equal(new AssetLocation("a:b"), facade.GetByInternalId(10)!.Code);
+        Assert.Equal(new AssetLocation("a:overworld"), facade.GetByInternalId(0)!.Code);
+    }
+
+    [Fact]
+    public void GetByInternalId_Should_Return_Null_When_The_Id_Is_Unknown_To_The_Mirror()
+    {
+        var facade = new ManifoldClientFacade(new ClientDimensionMirror());
+
+        Assert.Null(facade.GetByInternalId(99));
+    }
+
+    [Fact]
     public void GetDimensionOf_Should_Throw_When_Entity_Is_Null()
     {
         var facade = new ManifoldClientFacade(new ClientDimensionMirror());

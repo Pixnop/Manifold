@@ -30,6 +30,9 @@ public sealed class ManifoldModSystem : ModSystem
     /// <summary>Savegame key for per-player per-dimension last positions.</summary>
     private const string PlayerPositionsKey = "manifold:lastpos";
 
+    /// <summary>Savegame key for per-player per-dimension origins (where the player came from), added in 0.6.1.</summary>
+    private const string PlayerOriginsKey = "manifold:origins";
+
     /// <summary>
     /// Event bus name Atlas pushes synchronously on the game thread after a world-snapshot
     /// restore, after the SaveGame (moddata included) is restored and before any chunk column
@@ -38,12 +41,20 @@ public sealed class ManifoldModSystem : ModSystem
     /// </summary>
     private const string AtlasRollbackRestoredEvent = "atlas:rollback:restored";
 
+    /// <summary>
+    /// How often pending relights are looked at again: short enough that light restored near a
+    /// player reaches clients within about half a second, and idle when nothing is pending.
+    /// </summary>
+    private const int RelightRetryIntervalMs = 250;
+
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
+    private BlockLightRestorer? _lightRestorer;
     private StreamingWorldgenDriver? _streamingDriver;
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
+    private PlayerTeleporter? _playerTeleporter;
     private SaveGameManifestStore? _manifestStore;
     private SchemaSidecar? _schemaSidecar;
     private ManifoldNetworkChannel? _network;
@@ -66,6 +77,16 @@ public sealed class ManifoldModSystem : ModSystem
         base.StartServerSide(api);
 
         _sapi = api;
+
+        string? gameVersion = BrokenInteractionVersions.RunningGameVersion();
+        if (BrokenInteractionVersions.IsAffected(gameVersion))
+        {
+            Mod.Logger.Warning(
+                "Vintage Story {0} cannot interact with blocks outside the overworld: containers close as soon as they open "
+                + "and block interactions are refused in every custom dimension. This is a game bug fixed in 1.22.6; "
+                + "update the game to 1.22.6 or later.",
+                gameVersion);
+        }
 
         var allocator = new DimensionAllocator();
         _manifestStore = new SaveGameManifestStore(api);
@@ -100,17 +121,26 @@ public sealed class ManifoldModSystem : ModSystem
                 DimensionGenerator.MaxConsecutiveFailures);
 
         var inventorySwapper = new InventorySwapper(api);
+        _playerTeleporter = new PlayerTeleporter();
         var transit = new TransitService(
             _registry,
             api,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(api), new BlockMover(api), new PlayerDismounter(api)),
+            new TransitMovers(_playerTeleporter, new EntityMover(api), new BlockMover(api), new PlayerDismounter(api)),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore,
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
+        new RespawnWatcher(transit.RespawnPlayer, (action, ms) => api.Event.RegisterCallback(_ => action(), ms), Mod.Logger)
+            .Attach(api.Event);
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator);
+        _lightRestorer = new BlockLightRestorer(new EngineRelight(api), () => api.World.ElapsedMilliseconds);
+        api.Event.RegisterGameTickListener(
+            _ => _lightRestorer.Tick(),
+            ex => Mod.Logger.Warning("[Manifold] Pending relight pass failed: {0}", ex),
+            RelightRetryIntervalMs);
+
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, _lightRestorer);
         ManifoldAccess.SetServerResolver(ServerFacade);
 
         RegisterManifoldCommand(api);
@@ -142,15 +172,26 @@ public sealed class ManifoldModSystem : ModSystem
         // The mirror and transit handler are kept alive by the channel delegates and ClientFacade
         // below; neither needs a field.
         var clientMirror = new ClientDimensionMirror(api.Logger);
-        var transitHandler = new ClientTransitHandler(clientMirror, api.Logger);
+        var transitHandler = new ClientTransitHandler(clientMirror, api.Logger, yaw => ApplyLocalPlayerYaw(api, yaw));
+        var joinNotifier = new ClientJoinNotifier(
+            clientMirror,
+            () => EntityPosAccess.PosOrNull(api.World.Player?.Entity),
+            api.Logger);
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
         _network.OnClientManifest += clientMirror.ApplyManifest;
+        _network.OnClientManifest += _ => joinNotifier.Notify();
         _network.OnClientPlayerTransited += transitHandler.Handle;
+
+        // "The local player entity exists with its position": the engine raises PlayerEntitySpawn when
+        // an entity-player is attached to its client player, whichever of the entity packet and the
+        // player-data packet arrives first. It fires for every player's entity, so the notifier
+        // itself checks that the LOCAL entity is there (and ignores every call once decided).
+        api.Event.PlayerEntitySpawn += _ => joinNotifier.Notify();
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
+        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, joinNotifier, api.Logger);
         ManifoldAccess.SetClientResolver(ClientFacade);
     }
 
@@ -216,6 +257,29 @@ public sealed class ManifoldModSystem : ModSystem
     }
 
     /// <summary>
+    /// Records where a disconnecting player is, for the <see cref="Manifold.Api.Transitions.SpawnBehavior.LastVisited"/>
+    /// behavior, then forgets any teleport still waiting for them. A player who disconnects while the
+    /// engine still has a teleport queued reports the new dimension but the coordinates they left, so
+    /// the landing that teleport asked for is what is recorded; and the completion the engine may still
+    /// run for their old entity must not apply anything afterwards.
+    /// </summary>
+    /// <param name="positionStore">Store to record the position in.</param>
+    /// <param name="teleporter">Teleporter that knows the pending landing.</param>
+    /// <param name="player">The disconnecting player.</param>
+    internal static void RecordDisconnectPosition(PlayerPositionStore positionStore, IPlayerTeleporter teleporter, IServerPlayer player)
+    {
+        var pending = teleporter.GetPendingLanding(player);
+        teleporter.Forget(player);
+        if (EntityPosAccess.PosOrNull(player.Entity) is not { } pos)
+        {
+            return;
+        }
+
+        var (x, y, z) = pending is { } landing ? (landing.X, landing.Y, landing.Z) : (pos.X, pos.Y, pos.Z);
+        positionStore.Record(player.PlayerUID, pos.Dimension, (int)x, (int)y, (int)z);
+    }
+
+    /// <summary>
     /// Persists the manifest and whichever savegame-level stores changed, then the sidecar itself.
     /// Pulled out of <see cref="OnGameWorldSave"/>, taking every dependency as a parameter instead
     /// of reading instance fields, so the refusal guards below are unit-testable without a real
@@ -260,6 +324,15 @@ public sealed class ManifoldModSystem : ModSystem
             sidecar.SetVersion(PlayerPositionsKey, PlayerPositionStore.SchemaVersion);
         }
 
+        // Persist where each player came from (the return-to-origin memory). Its own key and version,
+        // so a build that predates it simply ignores the key. Same refusal skip.
+        if (positionStore.Origins is { IsDirty: true, IsVersionRefused: false } origins)
+        {
+            manifestStore.Write(PlayerOriginsKey, origins.ToBytes());
+            origins.ClearDirty();
+            sidecar.SetVersion(PlayerOriginsKey, PlayerOriginStore.SchemaVersion);
+        }
+
         // Written whenever any of the blobs above is (re-)written, so the sidecar always matches
         // what is actually on disk for each key it names; also keeps a refused key's entry exactly
         // as loaded, since only the branches above ever advance it.
@@ -270,7 +343,9 @@ public sealed class ManifoldModSystem : ModSystem
     /// Registers the <c>/manifold</c> admin command. Currently one subcommand:
     /// <c>/manifold relight [radius]</c> relights the chunk columns around the caller in the
     /// dimension they are standing in, over the full world height. Exists because the engine's
-    /// own relight paths (including <c>/debug chunk relight</c>) are dimension-blind.
+    /// own relight paths (including <c>/debug chunk relight</c>) are dimension-blind. Same
+    /// behaviour as <c>IManifoldServer.RelightRegion</c>: sunlight at once, block light restored
+    /// through the engine's lighting queue a moment later.
     /// </summary>
     private void RegisterManifoldCommand(ICoreServerAPI api)
     {
@@ -301,9 +376,9 @@ public sealed class ManifoldModSystem : ModSystem
                         ((cz + radius) * ChunkMath.ChunkSize) + (ChunkMath.ChunkSize - 1),
                         dimId);
 
-                    // Runtime relight of already-loaded chunks: must push to clients or the
+                    // Runtime relight of already-loaded chunks: must resend to clients or the
                     // recomputed light is invisible (server-correct, client never re-meshes).
-                    bool relit = DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
+                    bool relit = _lightRestorer!.Relight(dimId, min, max, sendToClients: true);
                     return relit
                         ? TextCommandResult.Success(
                             $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.")
@@ -381,6 +456,23 @@ public sealed class ManifoldModSystem : ModSystem
         });
     }
 
+    /// <summary>
+    /// Turns the local player's camera (and entity) to <paramref name="yaw"/>. The camera is driven
+    /// by the client's own mouse state, so setting the entity's yaw alone would be overwritten on the
+    /// next frame: <c>IClientPlayer.CameraYaw</c> is the public way to move it.
+    /// </summary>
+    private static void ApplyLocalPlayerYaw(ICoreClientAPI capi, float yaw)
+    {
+        var player = capi.World.Player;
+        if (player?.Entity is null)
+        {
+            return;
+        }
+
+        player.CameraYaw = yaw;
+        EntityPosAccess.Pos(player.Entity).Yaw = yaw;
+    }
+
     private void OnRegistryDestroyed(object? sender, DimensionDestroyedEventArgs e)
     {
         _network?.BroadcastDimensionRemoved(new DimensionRemovedPacket
@@ -390,12 +482,13 @@ public sealed class ManifoldModSystem : ModSystem
         });
 
         // The engine id is released back to the allocator on removal and may be reused by a later
-        // dimension. Drop the destroyed dim's generator state, saved player positions, and generated
-        // -column markers so a reused id does not inherit a stale auto-disabled / initialised flag,
-        // stale LastVisited coords, or "already generated" markers that would make the new dimension
+        // dimension. Drop the destroyed dim's generator state, saved player positions (and the origins
+        // recorded for it or pointing to it), and generated-column markers so a reused id does not
+        // inherit a stale auto-disabled / initialised flag, stale LastVisited coords or origins, or "already generated" markers that would make the new dimension
         // load the old one's chunks instead of running its own worldgen (common now that ephemeral
         // dims reap on empty and ids recycle within a session).
         _generator?.ForgetDimension(e.Dimension.InternalId);
+        _lightRestorer?.ForgetDimension(e.Dimension.InternalId);
         _positionStore?.RemoveDimension(e.Dimension.InternalId);
         _generatedColumns?.RemoveDimension(e.Dimension.InternalId);
 
@@ -451,6 +544,8 @@ public sealed class ManifoldModSystem : ModSystem
             TargetX = e.TargetPosition.X,
             TargetY = e.TargetPosition.Y,
             TargetZ = e.TargetPosition.Z,
+            Yaw = e.Yaw,
+            IsRespawn = e.IsRespawn,
         });
 
         // When a player transits out, try to reap the dimension they left if it is an empty ephemeral
@@ -583,6 +678,7 @@ public sealed class ManifoldModSystem : ModSystem
         // modifications) instead of regenerating over them, and the per-player last positions.
         LoadStoreOrPreserveUnrecognized(_generatedColumns, GeneratedColumnsKey);
         LoadStoreOrPreserveUnrecognized(_positionStore, PlayerPositionsKey);
+        LoadStoreOrPreserveUnrecognized(_positionStore.Origins, PlayerOriginsKey);
 
         return (dropped, reseeded);
     }
@@ -614,6 +710,18 @@ public sealed class ManifoldModSystem : ModSystem
         if (store.IsVersionRefused)
         {
             PreserveUnrecognized(key, raw, version, PlayerPositionStore.SchemaVersion);
+        }
+    }
+
+    /// <summary>See <see cref="LoadStoreOrPreserveUnrecognized(GeneratedColumnStore, string)"/>.</summary>
+    private void LoadStoreOrPreserveUnrecognized(PlayerOriginStore store, string key)
+    {
+        int version = _schemaSidecar!.GetVersion(key);
+        var raw = _manifestStore!.Read(key);
+        store.LoadFromBytes(raw, Mod.Logger, version);
+        if (store.IsVersionRefused)
+        {
+            PreserveUnrecognized(key, raw, version, PlayerOriginStore.SchemaVersion);
         }
     }
 
@@ -701,12 +809,10 @@ public sealed class ManifoldModSystem : ModSystem
     private void OnPlayerDisconnect(IServerPlayer player)
     {
         // Remember where the player was so the LastVisited behavior survives logout/restart.
-        if (_positionStore is null || EntityPosAccess.PosOrNull(player.Entity) is not { } pos)
+        if (_positionStore is not null && _playerTeleporter is not null)
         {
-            return;
+            RecordDisconnectPosition(_positionStore, _playerTeleporter, player);
         }
-
-        _positionStore.Record(player.PlayerUID, pos.Dimension, (int)pos.X, (int)pos.Y, (int)pos.Z);
 
         // Deliberately NOT reaping the player's dimension on disconnect: logging out is a pause, not
         // leaving. The dimension is kept so the player reconnects straight back into it (if the server

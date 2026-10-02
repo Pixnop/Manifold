@@ -25,6 +25,39 @@ public sealed class ClientTransitHandlerTests
     }
 
     [Fact]
+    public void Handle_Should_Apply_The_Yaw_When_The_Packet_Carries_One()
+    {
+        float? applied = null;
+        var handler = new ClientTransitHandler(new ClientDimensionMirror(), applyYaw: yaw => applied = yaw);
+
+        // Neither dimension is known to the mirror: the yaw is applied anyway.
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 1.25f });
+
+        Assert.Equal(1.25f, applied);
+    }
+
+    [Fact]
+    public void Handle_Should_Not_Apply_A_Yaw_When_The_Packet_Has_None()
+    {
+        float? applied = null;
+        var handler = new ClientTransitHandler(new ClientDimensionMirror(), applyYaw: yaw => applied = yaw);
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y" });
+
+        Assert.Null(applied);
+    }
+
+    [Fact]
+    public void Handle_Should_Not_Throw_When_A_Yaw_Arrives_But_No_Applier_Was_Supplied()
+    {
+        var handler = new ClientTransitHandler(new ClientDimensionMirror());
+
+        var thrown = Record.Exception(() => handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 1f }));
+
+        Assert.Null(thrown);
+    }
+
+    [Fact]
     public void Handle_Should_Resolve_And_Raise_Transited_Synchronously()
     {
         var mirror = new ClientDimensionMirror();
@@ -38,6 +71,22 @@ public sealed class ClientTransitHandlerTests
 
         // No dispatcher indirection: the event is already raised by the time Handle returns.
         Assert.NotNull(captured);
+    }
+
+    [Fact]
+    public void Handle_Should_Flag_The_Event_As_A_Respawn_Only_When_The_Packet_Says_So()
+    {
+        var mirror = new ClientDimensionMirror();
+        Seed(mirror, "a:overworld", 0);
+        Seed(mirror, "mod:nether", 10);
+        var handler = new ClientTransitHandler(mirror);
+        var flags = new System.Collections.Generic.List<bool>();
+        handler.Transited += e => flags.Add(e.IsRespawn);
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "mod:nether", TargetCode = "a:overworld", IsRespawn = true });
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
+
+        Assert.Equal([true, false], flags);
     }
 
     [Fact]
@@ -66,6 +115,22 @@ public sealed class ClientTransitHandlerTests
         Assert.Equal(6, captured.TargetPosition.Y);
         Assert.Equal(200, captured.TargetPosition.Z);
         Assert.Equal(10, captured.TargetPosition.dimension);
+    }
+
+    [Fact]
+    public void Handle_Should_Raise_Transited_With_IsJoin_False_For_A_Real_Transit()
+    {
+        var mirror = new ClientDimensionMirror();
+        Seed(mirror, "a:overworld", 0);
+        Seed(mirror, "mod:nether", 10);
+        var handler = new ClientTransitHandler(mirror);
+        LocalPlayerDimensionChangedEventArgs? captured = null;
+        handler.Transited += e => captured = e;
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
+
+        Assert.NotNull(captured);
+        Assert.False(captured!.IsJoin);
     }
 
     [Fact]

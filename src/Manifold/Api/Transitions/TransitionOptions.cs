@@ -6,8 +6,8 @@ namespace Manifold.Api.Transitions;
 
 /// <summary>
 /// Optional knobs for <see cref="Server.ITransitionService.TeleportPlayer"/> and
-/// <see cref="Server.ITransitionService.TeleportEntity"/> (<see cref="SpawnBehavior"/> applies to
-/// players only).
+/// <see cref="Server.ITransitionService.TeleportEntity"/> (<see cref="SpawnBehavior"/> and
+/// <see cref="Yaw"/> apply to players only).
 /// </summary>
 public readonly record struct TransitionOptions
 {
@@ -42,6 +42,16 @@ public readonly record struct TransitionOptions
     /// Useful for transiting to the built-in overworld with <see cref="SpawnBehavior.LastVisited"/>.
     /// </summary>
     public SpawnBehavior? SpawnBehavior { get; init; }
+
+    /// <summary>
+    /// The yaw, in radians, the player faces on arrival; <c>null</c> (the default) keeps whatever
+    /// yaw they had. Applied as part of the teleport itself, once the engine has moved the player,
+    /// and sent to their client so the camera turns too (a server-side change alone never reaches
+    /// the client's own camera). Players only: <see cref="Server.ITransitionService.TeleportEntity"/>
+    /// ignores it. A transit made through <see cref="Server.ITransitionService.TryReturnPlayer"/>
+    /// always faces the recorded origin yaw instead.
+    /// </summary>
+    public float? Yaw { get; init; }
 
     /// <summary>
     /// Ignored: whether a player keeps their inventory follows the destination dimension's
