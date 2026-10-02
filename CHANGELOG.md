@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`TransitionOptions.Yaw` sets the way a player faces when they land.** `Yaw` is in radians; `null` (the default) keeps the player's current yaw. It is applied as part of the teleport, after the engine has moved the player, and also sent to their own client (a new optional field on Manifold's transit notification: an older client ignores it, an older server never sets it), because a player's camera is driven by their client and the server-side entity yaw alone never reaches it. `PlayerEnteredDimensionEventArgs` gained a `Yaw` property (and a constructor overload taking it; the previous constructor is kept) that reports the yaw the transit asked for. Players only: `TeleportEntity` ignores `Yaw`.
+- **`ITransitionService.GetOrigin` and `TryReturnPlayer` send a player back to where they came from.** Whenever a player transits into a different dimension, Manifold records their origin for it: the dimension they left, the exact position (doubles) and their yaw. `GetOrigin(player)` reads the origin recorded for the dimension the player is in (a new `TransitOrigin`, or `null`), and `TryReturnPlayer(player)` sends them back there with no surface search, through the normal transit pipeline (same events, cancellation, dismount, game mode and inventory policies). It returns `false`, logging which case at Notification level, when nothing is recorded, when the origin dimension no longer exists or is not active, or when the transit is cancelled. A return records no origin of its own, so a chain overworld, A, B unwinds one step per call instead of bouncing between the last two. Origins are saved under a new `manifold:origins` key with its own schema version in the sidecar, so a world saved by this version still loads in 0.6.0 and 0.5.1 (they ignore the key); a version newer than this build recognizes is refused and preserved like every other store. They are dropped, together with the ones pointing to a dimension, when that dimension is removed, since ephemeral ids are recycled.
+
 ## [0.6.0] - 2026-09-28
 
 ### Added
