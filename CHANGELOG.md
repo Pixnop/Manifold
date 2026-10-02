@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`IManifoldServer.RelightRegion` and `/manifold relight` no longer erase block light.** Since they were added in 0.4.2, both cleared the block light of the relit area (the box plus one chunk around it) and never restored it: every lamp, torch or lava source there went dark until a block next to it changed, and a light-emitting block placed without relight was never lit, which is the opposite of what the method was documented for. The engine's `FullRelight`, which they wrap, puts light sources back at doubled coordinates, so only sources in chunk (0, 0, 0) of a dimension survived; this was never noticed because the sunlight half works. Sunlight is still recomputed synchronously by `FullRelight`. Block light is now restored afterwards: every light source of the affected chunks, tracked by the engine or not, is handed to the engine's own lighting queue, with no block changed and no block entity touched. What changes for callers: block light is computed by the engine a few milliseconds after the call returns instead of inside it, and the chunks reach clients about half a second later (at once when the area holds no light source); the engine's resend, which sent the overworld's chunks instead of the dimension's, is replaced by a resend of the dimension's own chunks. The engine only computes block light for columns near a player, so light sources nobody is near stay pending in memory and are retried for up to five minutes, then dropped with one warning in the server log; pending sources do not survive a restart. Call `RelightRegion` once a player has entered the dimension to be sure it takes effect. The signature is unchanged. The worldgen article has a new section on lighting blocks placed by a worldgen strategy, with the engine limits behind all this (observed on Vintage Story 1.22.3 and 1.22.7).
+
 ## [0.6.0] - 2026-09-28
 
 ### Added

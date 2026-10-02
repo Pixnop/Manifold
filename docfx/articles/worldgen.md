@@ -115,8 +115,9 @@ manifold.Registry.ColumnGenerated += (_, e) =>
 
 `e.BlockAccessor` is a plain accessor: writes apply immediately, no `Commit()` needed. It uses the
 same `synchronize:false, relight:false` semantics as worldgen itself, so a write here does not
-queue a server relight task or a neighbour-update/resync entry the way a live player edit would;
-call `IManifoldServer.RelightRegion` afterwards if the decoration needs lighting. The column has
+queue a server relight task or a neighbour-update/resync entry the way a live player edit would.
+A light-emitting block set here stays dark until something relights it, see
+[Lighting blocks placed by your worldgen strategy](#lighting-blocks-placed-by-your-worldgen-strategy). The column has
 not been sent to any client when this event fires (sending always happens right after), so a
 block placed here is included in that first send with no separate resync. Only the event's own
 column is guaranteed loaded: a write that lands in a neighbour column not generated yet is
@@ -219,8 +220,11 @@ What that means in practice:
   within two blocks of the world's top, in which case it skips the cap for lack of headroom and lands
   the player inside the dark space below instead.
 - **Solid-filled dimensions** (terrain carved into rooms) are dark without any option.
-- **Blocks placed after generation** are not relit by the engine in a custom dimension; use
+- **Blocks written without relight** (by a worldgen strategy, a `ColumnGenerated` handler, a
+  schematic paste) are not lit by the engine: a lantern placed that way is dark. Use
   `RelightRegion` or `/manifold relight`, described below.
+- **Blocks placed by players** (a torch, a lamp) are lit by the engine as in the overworld, because
+  a player is standing there: see the engine limits below for why that matters.
 - **Per-dimension day/night** does not exist: the engine keeps a single global calendar and sky
   light uniform. Per-dimension time of day is tracked in
   [issue #55](https://github.com/Pixnop/Manifold/issues/55).
@@ -230,10 +234,9 @@ validates its argument so existing callers keep working.
 
 ### Relighting at runtime (`RelightRegion`)
 
-If your mod places blocks **after**
-generation - a schematic paste, a structure stamp, a room builder - the engine does not
-recalculate light for them in a custom dimension, and the vanilla `/debug chunk relight` command
-is dimension-blind. Request a dim-aware relight explicitly:
+If your mod places blocks **after** generation with an accessor that does not relight (a schematic
+paste, a structure stamp, a room builder), the engine does not recalculate light for them, and the
+vanilla `/debug chunk relight` command is dimension-blind. Request a dim-aware relight explicitly:
 
 ```csharp
 var manifold = sapi.GetManifoldServer(this);
@@ -243,8 +246,112 @@ manifold.RelightRegion(
     new BlockPos(47, 80, 47, 0));   // max corner
 ```
 
-The call is synchronous and best-effort; its cost scales with the relit volume, so keep the region
-bounded to what you actually changed. Throws `DimensionNotFoundException` for unknown codes.
+What the call does, in order:
+
+1. **Sunlight, synchronously.** The engine's `FullRelight` recomputes sunlight over the box plus one
+   chunk in every direction before the call returns. This is the expensive part: about 230 ms for a
+   box of a few blocks in a 256-high roofed dimension on a development machine, over a second for
+   whole columns. In a dimension open to the sky it also floods the relit columns with full
+   skylight, the same engine behaviour that made the automatic relight unusable, so in an open
+   dimension prefer the block-light recipe in the next section.
+2. **Block light, a moment later.** `FullRelight` erases block light, so Manifold hands every light
+   source of the affected chunks back to the engine's own lighting queue, the one a player placing a
+   torch goes through. That covers the sources the engine already tracked and every light-emitting
+   block it did not, such as a lantern written without relight. The engine computes the light on
+   its relight thread, within milliseconds. For a moment after the call returns, block light in the
+   area reads 0.
+3. **Clients.** The affected chunks are resent to the clients in range once the block light is
+   back, about half a second after the call, or at once when the area holds no light source.
+
+No block is changed and no block entity is touched. The call throws `DimensionNotFoundException`
+for unknown codes; a failure inside the engine's relight is logged, not thrown.
+
+**The engine only lights columns near a player.** It computes block light for a column only while
+the overworld map chunk at the same X/Z is loaded, which is the case around any player, whatever
+dimension the player is in, and not otherwise. Light sources in a column nobody is near stay
+pending in memory and are retried until a player comes near, for up to five minutes. After that
+they are dropped with one warning in the server log and stay dark until the next `RelightRegion`.
+Pending sources are not saved: a server restart forgets them, and removing the dimension drops
+them. So a relight requested at boot, or right after `GenerateRegion` with nobody around, may only
+take effect once a player is there, and not at all if nobody comes within five minutes or the
+server restarts first. Call it when a player has entered the dimension to be sure.
+
+Before 0.6.1, `RelightRegion` and `/manifold relight` erased block light and never restored it:
+every lamp in the relit area went dark until a block next to it changed.
+
+### Lighting blocks placed by your worldgen strategy
+
+A light-emitting block written by `GenerateColumn` or by a `ColumnGenerated` handler is dark: those
+writes do not relight, and Manifold does not relight a column after generating it. There is no
+worldgen-time API for it, because nothing in the game's public API computes block light at that
+moment (see the engine limits below). Light the blocks once a player is in the dimension instead.
+
+The simple way, for a roofed or solid dimension: one `RelightRegion` over the generated area when
+the first player enters.
+
+```csharp
+manifold.Transitions.PlayerEntered += (_, e) =>
+{
+    if (_pocketLit || !e.TargetDimension.Code.Equals(PocketCode))
+    {
+        return;
+    }
+
+    _pocketLit = true;
+    BlockPos at = e.TargetPosition;
+    manifold.RelightRegion(
+        PocketCode,
+        new BlockPos(at.X - 48, 0, at.Z - 48, 0),
+        new BlockPos(at.X + 48, 60, at.Z + 48, 0));
+};
+```
+
+`PlayerEntered` fires a little before the engine has loaded the overworld column under the player,
+so the light sources wait as pending for a few ticks and are lit as soon as it has. Keep your own
+"done once" flag: every call pays the sunlight pass again.
+
+The cheap way, for an open dimension (where `RelightRegion` would flood skylight) or when you know
+exactly where your lights are: skip the sunlight pass and queue the block light yourself. Exchange
+each light for itself through a relighting accessor, once the column's overworld map chunk is
+loaded:
+
+```csharp
+bool TryLight(ICoreServerAPI sapi, BlockPos pos)   // pos carries the dimension
+{
+    if (sapi.WorldManager.GetMapChunk(pos.X / 32, pos.Z / 32) == null)
+    {
+        return false;   // the engine would drop it: try again a few ticks later
+    }
+
+    IBlockAccessor relighting = sapi.World.GetBlockAccessor(synchronize: true, relight: true, strict: false);
+    relighting.ExchangeBlock(sapi.World.BlockAccessor.GetBlock(pos).BlockId, pos);
+    return true;
+}
+```
+
+Exchanging a block for itself changes nothing in the world and keeps its block entity; it only makes
+the engine queue the block-light update. `synchronize: true` sends the exchange to clients, so one
+that already holds the chunk recomputes the light on its side too. This costs well under a millisecond per light and leaves
+sunlight alone. You have to retry while `TryLight` returns `false`, which `RelightRegion` does for
+you.
+
+Do not place the blocks a second time through the normal accessor and do not call the engine's
+`FullRelight` yourself: the first only works by accident of timing, the second erases block light.
+
+#### Engine limits behind this
+
+These are engine behaviours observed on Vintage Story 1.22.3 and 1.22.7, not Manifold choices:
+
+- `FullRelight` clears block light in the box plus one chunk around it, then puts each light source
+  back at doubled coordinates (it adds the chunk's origin to a position that already contains it).
+  Only sources in chunk (0, 0, 0) come back.
+- `FullRelight` with resend resends chunks by plain chunk Y, which are the overworld's chunks, not
+  the dimension's (read in the engine's code, not measured). Manifold resends the dimension's
+  chunks itself.
+- The server's block-light queue (`ServerWorldMap.UpdateLighting`) silently drops an update when the
+  overworld map chunk at the same X/Z is not loaded. The check ignores the dimension, so a custom
+  dimension is only lit where a player, in any dimension, keeps that overworld column loaded.
+- Block light is computed on a separate engine thread and nothing signals when it is done.
 
 ### `/manifold relight` admin command
 
@@ -253,8 +360,10 @@ For in-game diagnosis, server admins (privilege `controlserver`) can run:
 <div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/manifold relight [radius]</code></div>
 
 It relights the chunk columns around the caller in the dimension they are standing in, over the
-full world height. `radius` is in chunks (default 1, max 4). Use it to confirm whether a lighting
-glitch is a stale-light problem (the command fixes it) or something else (it does not).
+full world height, exactly as `RelightRegion` does: sunlight at once, block light a moment later.
+`radius` is in chunks (default 1, max 4). Use it to confirm whether a lighting glitch is a
+stale-light problem (the command fixes it) or something else (it does not), or to light lamps a
+worldgen strategy placed. Expect a stall of a second or more: it relights whole columns.
 
 ### Load radius and render distance
 
