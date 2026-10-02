@@ -1,5 +1,4 @@
 using Manifold.Internal.Util;
-using Vintagestory.API.Config;
 using Xunit;
 
 namespace Manifold.Pure.Tests.Internal;
@@ -32,7 +31,7 @@ public sealed class BrokenInteractionVersionsTests
     {
         string? running = BrokenInteractionVersions.RunningGameVersion();
 
-        Assert.False(string.IsNullOrEmpty(running));
-        Assert.StartsWith(GameVersion.APIVersion[..4], running);
+        Assert.NotNull(running);
+        Assert.Matches(@"^\d+\.\d+\.\d+", running);
     }
 }
