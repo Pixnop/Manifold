@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-107 scenarios, one class per area:
+110 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
