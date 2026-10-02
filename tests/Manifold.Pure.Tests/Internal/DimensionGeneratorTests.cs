@@ -280,6 +280,47 @@ public sealed class DimensionGeneratorTests
         Assert.True(goodRan);
     }
 
+    /// <summary>
+    /// A column that is in memory but that Manifold never generated for this dimension is a
+    /// leftover of a destroyed dimension whose engine id was recycled: the streaming driver must
+    /// not take it for the new dimension's terrain.
+    /// </summary>
+    [Fact]
+    public void IsColumnReady_Should_BeFalse_When_ColumnIsLoadedButWasNeverGenerated()
+    {
+        var generator = NewGenerator();
+        var sapi = Substitute.For<ICoreServerAPI>();
+        sapi.WorldManager.GetChunk(3, 7 * 1024, 4).Returns(Substitute.For<IServerChunk>());
+
+        Assert.False(generator.IsColumnReady(sapi, 7, 3, 4));
+    }
+
+    /// <summary>A generated column whose chunks are in memory needs nothing more.</summary>
+    [Fact]
+    public void IsColumnReady_Should_BeTrue_When_ColumnIsGeneratedAndLoaded()
+    {
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(7, 3, 4);
+        var generator = new DimensionGenerator(new DimensionRegistry(new DimensionAllocator()), store);
+        var sapi = Substitute.For<ICoreServerAPI>();
+        sapi.WorldManager.GetChunk(3, 7 * 1024, 4).Returns(Substitute.For<IServerChunk>());
+
+        Assert.True(generator.IsColumnReady(sapi, 7, 3, 4));
+    }
+
+    /// <summary>A generated column that is only on disk (after a restart) still has to be loaded.</summary>
+    [Fact]
+    public void IsColumnReady_Should_BeFalse_When_ColumnIsGeneratedButNotLoaded()
+    {
+        var store = new GeneratedColumnStore();
+        store.MarkGenerated(7, 3, 4);
+        var generator = new DimensionGenerator(new DimensionRegistry(new DimensionAllocator()), store);
+        var sapi = Substitute.For<ICoreServerAPI>();
+        sapi.WorldManager.GetChunk(3, 7 * 1024, 4).Returns((IServerChunk?)null);
+
+        Assert.False(generator.IsColumnReady(sapi, 7, 3, 4));
+    }
+
     private static DimensionGenerator NewGenerator() =>
         new(new DimensionRegistry(new DimensionAllocator()), new GeneratedColumnStore());
 

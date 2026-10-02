@@ -41,4 +41,72 @@ public class StreamingWorldgenScenarios : ManifoldScenarioBase
         var underFarLanding = new BlockPos(512 + 192, 3, 512, streamId);
         await BlockBecomes(underFarLanding, "game:rock-granite", timeoutTicks: 2400);
     }
+
+    // Issue #136: the engine never unloads the chunks of a custom dimension, so a destroyed
+    // dimension's columns stay in memory under its engine id. The streaming driver used to skip
+    // every column already in memory: a new streaming dimension on the recycled id kept the dead
+    // one's terrain everywhere outside its landing pad. The marker sits three columns out, inside
+    // the streaming window and outside the pad (generation radius 1).
+    [AtlasScenario(TimeoutMs = 180000)]
+    public async Task StreamingDimension_Should_RegenerateLeftoverColumns_When_ReusingARecycledEngineId()
+    {
+        await Ok("/atlasfx2 create-streaming recyclestreama");
+        int idA = await DimensionId("recyclestreama");
+        ITestPlayer player = await World.JoinPlayer("atlasrecycler");
+        await Ok("/atlasfx teleport-player atlasrecycler recyclestreama");
+        await World.Until(() => player.Position.dimension == idA, timeoutTicks: 600);
+
+        var slabInA = new BlockPos(512 + 96, 3, 512, idA);
+        await BlockBecomes(slabInA, "game:rock-granite", timeoutTicks: 2400);
+        var markerInA = new BlockPos(512 + 96, 5, 512, idA);
+        World.SetBlock("game:rock-andesite", markerInA);
+        await World.Ticks(2);
+        Assert.Equal("game:rock-andesite", World.BlockAt(markerInA).Code?.ToString());
+
+        // The last occupant leaving reaps the ephemeral dimension and frees its engine id.
+        await Ok("/atlasfx teleport-player atlasrecycler overworld");
+        await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
+        Assert.Equal("unregistered", (await World.ExecuteCommand("/atlasfx state recyclestreama")).Message);
+
+        await Ok("/atlasfx2 create-streaming recyclestreamb");
+        int idB = await DimensionId("recyclestreamb");
+        Assert.Equal(idA, idB);
+        await Ok("/atlasfx teleport-player atlasrecycler recyclestreamb");
+        await World.Until(() => player.Position.dimension == idB, timeoutTicks: 600);
+
+        await BlockBecomes(new BlockPos(512 + 96, 5, 512, idB), "game:air", timeoutTicks: 2400);
+        Assert.Equal("game:rock-granite", World.BlockAt(new BlockPos(512 + 96, 3, 512, idB)).Code?.ToString());
+
+        await Ok("/atlasfx teleport-player atlasrecycler overworld");
+    }
+
+    // The other side of the same check: a column Manifold generated for a dimension that still
+    // exists is never generated again, so what a player built there is still there when they
+    // come back. The wait after the return is long enough for the streaming driver to have gone
+    // over the window out to the marker's column several times (budget of one column per tick).
+    [AtlasScenario(TimeoutMs = 180000)]
+    public async Task StreamingDimension_Should_KeepPlayerBlocks_When_PlayerLeavesAndComesBack()
+    {
+        int streamId = await DimensionId("stream");
+        ITestPlayer player = await World.JoinPlayer("atlasreturner");
+        await Ok("/atlasfx teleport-player atlasreturner stream");
+        await World.Until(() => player.Position.dimension == streamId, timeoutTicks: 600);
+
+        var slab = new BlockPos(512, 3, 512 + 96, streamId);
+        await BlockBecomes(slab, "game:rock-granite", timeoutTicks: 2400);
+        var marker = new BlockPos(512, 5, 512 + 96, streamId);
+        World.SetBlock("game:rock-andesite", marker);
+        await World.Ticks(2);
+
+        await Ok("/atlasfx teleport-player atlasreturner overworld");
+        await World.Until(() => player.Position.dimension == 0, timeoutTicks: 600);
+        await World.Ticks(100);
+
+        await Ok("/atlasfx teleport-player atlasreturner stream");
+        await World.Until(() => player.Position.dimension == streamId, timeoutTicks: 600);
+        await World.Ticks(900);
+
+        Assert.Equal("game:rock-andesite", World.BlockAt(marker).Code?.ToString());
+        Assert.Equal("game:rock-granite", World.BlockAt(slab).Code?.ToString());
+    }
 }

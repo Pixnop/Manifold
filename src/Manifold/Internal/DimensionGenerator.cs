@@ -134,6 +134,27 @@ internal sealed class DimensionGenerator
     }
 
     /// <summary>
+    /// Tells whether a column needs nothing more from the streaming driver: Manifold generated it
+    /// for this dimension and its chunks are in memory.
+    /// </summary>
+    /// <remarks>
+    /// Being in memory is not enough. The engine never unloads the chunks of a custom dimension
+    /// (its unload pass only walks the overworld's chunk Y range), so the columns of a destroyed
+    /// dimension stay loaded, and a later dimension that reuses the recycled engine id would
+    /// otherwise take them for its own terrain. Destroying a dimension drops its markers from
+    /// <see cref="GeneratedColumnStore"/>, so a loaded column with no marker is such a leftover
+    /// (or a column something else allocated) and has to go through generation, which replaces it.
+    /// </remarks>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id.</param>
+    /// <param name="cx">Chunk X.</param>
+    /// <param name="cz">Chunk Z.</param>
+    /// <returns><c>true</c> if the column is generated and loaded.</returns>
+    public bool IsColumnReady(ICoreServerAPI sapi, int dimId, int cx, int cz) =>
+        _generatedColumns.IsGenerated(dimId, cx, cz)
+        && sapi.WorldManager.GetChunk(cx, dimId * ChunkMath.DimensionChunkYStride, cz) != null;
+
+    /// <summary>
     /// Testable seam: invokes <see cref="IWorldgenStrategy.GenerateColumn"/> for the given context,
     /// handling exceptions and updating the failure / auto-disable state.
     /// </summary>
