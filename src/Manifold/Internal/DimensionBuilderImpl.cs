@@ -36,6 +36,7 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     private SpawnBehavior _spawnBehavior = SpawnBehavior.SameCoordinates;
     private BlockPos? _spawnPoint;
     private EnumGameMode? _forcedGameMode;
+    private RespawnBehavior _respawnBehavior = RespawnBehavior.Overworld;
     private int? _streamingLoadRadius;
     private ManifoldInventory _separateInventory = ManifoldInventory.None;
     private int? _streamingBudgetPerTick;
@@ -137,6 +138,14 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
     {
         ThrowIfUsed();
         _forcedGameMode = mode;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IDimensionBuilder WithRespawnBehavior(RespawnBehavior behavior)
+    {
+        ThrowIfUsed();
+        _respawnBehavior = behavior;
         return this;
     }
 
@@ -264,7 +273,10 @@ internal sealed class DimensionBuilderImpl : IDimensionBuilder
         SeparateInventory: _separateInventory,
         Metadata: BuildMetadata(),
         StreamingBudgetPerTick: _streamingBudgetPerTick,
-        SkyCapY: _skyCapY);
+        SkyCapY: _skyCapY)
+    {
+        RespawnBehavior = _respawnBehavior,
+    };
 
     private static bool IsSupportedMetadataType(Type t) =>
         t.IsPrimitive || t == typeof(string) || t.IsEnum || t == typeof(byte[]);

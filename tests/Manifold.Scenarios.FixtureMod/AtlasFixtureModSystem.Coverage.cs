@@ -42,6 +42,17 @@ public sealed partial class AtlasFixtureModSystem
         RegisterPolicyDimension("gate", b => b.WithMetadata("atlas-veto", "arriving"));
         RegisterPolicyDimension("faulty", b => b);
 
+        // RespawnScenarios: a dimension that keeps its dead (respawn at its fixed spawn), and one that
+        // asks for that without having a spawn point, which must fall back to the overworld.
+        RegisterPolicyDimension("bunker", b => b.WithRespawnBehavior(RespawnBehavior.DimensionSpawn));
+        IDimension nospawn = _manifold.Registry
+            .Define(new AssetLocation(Domain, "nospawn"))
+            .Persistent()
+            .WithWorldgen(new GraniteSlabWorldgen())
+            .WithRespawnBehavior(RespawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+        PublishDimensionId("nospawn", nospawn.InternalId);
+
         // Registered before the recording handlers on purpose: a subscriber that throws must not
         // keep the ones after it from running (Manifold isolates each subscriber).
         _manifold.Transitions.PlayerEntered += (_, e) =>

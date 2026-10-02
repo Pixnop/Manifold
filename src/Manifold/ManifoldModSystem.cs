@@ -131,6 +131,8 @@ public sealed class ManifoldModSystem : ModSystem
             _positionStore,
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
+        new RespawnWatcher(transit.RespawnPlayer, (action, ms) => api.Event.RegisterCallback(_ => action(), ms), Mod.Logger)
+            .Attach(api.Event);
 
         _lightRestorer = new BlockLightRestorer(new EngineRelight(api), () => api.World.ElapsedMilliseconds);
         api.Event.RegisterGameTickListener(

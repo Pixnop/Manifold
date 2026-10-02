@@ -197,6 +197,10 @@ facade (`manifold.Transitions`):
 (place a welcome block, attach server-side state, log arrival metadata) - it can still cancel the
 transit. `PlayerLeft` / `PlayerEntered` are post-teleport; use them for cleanup and state propagation.
 
+`PlayerLeft` and `PlayerEntered` are also raised when a player who died in a dimension respawns out
+of it (`PlayerEntering` and `PlayerArriving` are not, since a respawn cannot be refused): see
+[Death and respawn](#death-and-respawn).
+
 In `PlayerEntered`, read `e.TargetPosition` rather than `e.Player.Entity.Pos`: the engine applies the
 teleport only once the destination chunks arrive, so the entity can still report its source position.
 
@@ -441,6 +445,71 @@ How it stays safe:
 - Profiles are saved in the player's moddata, alongside the physical inventory, so a snapshot and the
   live inventory are always written together. The current inventory is serialized before any slot is
   cleared, so a swap never loses items, and the profiles survive logout and server restarts.
+
+## Death and respawn
+
+When a player dies and presses Respawn, the game picks a spawn position (the temporal gear they used,
+else the world spawn, which can be a random spot within the world's spawn radius) and teleports them
+there with X, Y and Z only. It never changes the dimension. Left alone, a player who died in a custom
+dimension would come back in that dimension at the overworld spawn's coordinates: in a void dimension
+that is empty air and a possible death loop, in a solid one it can be inside rock.
+
+Manifold takes the player out. By default (`RespawnBehavior.Overworld`) they respawn in the overworld
+at the position the game chose, as the game means a respawn. The move goes through the same machinery
+as any other way out of a dimension:
+
+- The game mode is handed back and the inventory profile is swapped back, exactly as when walking out.
+- `PlayerLeft` and `PlayerEntered` are raised, and `PlayerEntered.TargetPosition` is the landing block
+  (`Yaw` is `null`: the game does not turn a respawning player, and neither does Manifold). The client
+  gets Manifold's usual transit notification, and an ephemeral dimension left empty is reaped.
+- `PlayerEntering` and `PlayerArriving` are not raised. A respawn cannot be refused, and a veto would
+  leave the player stuck in the dimension they died in.
+- No origin is recorded, so `TryReturnPlayer` cannot send a respawned player back to where they died,
+  and the dimension's last-visited position is left as it was: the respawn coordinates are not a place
+  the player walked to, and recording them would drop a `LastVisited` player into the void next time.
+
+The engine's own death handling is untouched. With a separate inventory (`WithSeparateInventory`),
+whatever the game does with the items at death happens first: by default the hotbar and backpack are
+dropped where the player fell, in the dimension, and with the world's keep-inventory penalty they stay
+on the player. Manifold then swaps to the overworld's set as on any exit, so nothing is duplicated and
+nothing is lost: kept items wait in the dimension's own set for the next visit, dropped ones are on the
+ground in the dimension.
+
+The move happens once the game has revived the player. When the spawn column is loaded that is within
+the respawn request itself; otherwise the game waits for the column and Manifold follows a few ticks
+later. A death in the overworld is never touched, a respawn request from a player who is alive is
+ignored (the game ignores it too), and a player who disconnects while dead is handled when they come
+back. If their dimension no longer exists by then, the join rescue has already taken them to the
+overworld and the respawn is an ordinary overworld one.
+
+### A spawn point inside a dimension
+
+The temporal gear stores the player's position through the engine's dimension-aware Y (the Y plus
+32768 times the dimension id). Used inside a custom dimension, it gives the game a spawn whose Y
+carries that dimension, and the game's respawn does not decode it: the player would stand at a Y far
+above the dimension. Manifold decodes it. The player respawns in the dimension the spawn designates,
+under that dimension's own policies, or at the world's default spawn in the overworld when that
+dimension is gone or not active.
+
+### Keeping the dead inside
+
+A dimension that wants its players back where they were (an arena, a hub) opts in:
+
+```csharp
+manifold.Registry
+    .Define(new AssetLocation("mymod", "arena"))
+    .Persistent()
+    .WithWorldgen(new BasicVoidWorldgenStrategy())
+    .WithFixedSpawn(new BlockPos(0, 64, 0, 0))
+    .WithRespawnBehavior(RespawnBehavior.DimensionSpawn)
+    .RegisterStatic();
+```
+
+The player respawns inside the dimension at its fixed spawn, wherever the game would have put them
+(a spawn from a temporal gear included). This is a move within the dimension and nothing else: no
+event is raised and no policy changes. Without `WithFixedSpawn` the option has nothing to land on:
+the player respawns in the overworld and Manifold logs a warning once per dimension. A quarantined
+dimension is never kept: its dead respawn in the overworld.
 
 ## PortalBlockBase
 

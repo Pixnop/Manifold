@@ -69,4 +69,30 @@ public sealed class BinaryCompatibilityTests
         Assert.Null(new TransitionOptions().Yaw);
         Assert.Equal(1f, new TransitionOptions { Yaw = 1f }.Yaw);
     }
+
+    [Fact]
+    public void IDimensionBuilder_Should_Only_Have_Gained_Members_Since_0_6_0()
+    {
+        // Mods built against 0.4.1..0.6.0 call these through the interface; 0.6.1 adds
+        // WithRespawnBehavior next to them and must not have moved or removed any.
+        var builder = typeof(Manifold.Api.Server.IDimensionBuilder);
+        string[] existing =
+        [
+            "WithWorldgen", "Persistent", "Ephemeral", "WithGenerationRadius", "WithRelightHeight", "WithSpawnBehavior",
+            "WithFixedSpawn", "WithForcedGameMode", "Streaming", "WithStreamingBudget", "WithDarkSky",
+            "WithSeparateInventory", "WithMetadata", "RegisterStatic", "Create",
+        ];
+
+        Assert.All(existing, name => Assert.NotNull(builder.GetMethod(name)));
+        Assert.NotNull(builder.GetMethod("WithRespawnBehavior", [typeof(RespawnBehavior)]));
+    }
+
+    [Fact]
+    public void RespawnBehavior_Should_Default_To_The_Overworld()
+    {
+        // A dimension registered without the option is the zero value: a mod built before the option
+        // existed gets the safe behavior (nobody respawns stuck in the dimension).
+        Assert.Equal(0, (int)RespawnBehavior.Overworld);
+        Assert.Equal(RespawnBehavior.Overworld, default);
+    }
 }

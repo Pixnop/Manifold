@@ -180,6 +180,32 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         Assert.Equal(leaveId, removed.InternalId);
     }
 
+    // The client's mirror (and any map or minimap mod that follows LocalPlayerChangedDimension) has
+    // to learn that a player who died and respawned is no longer in the dimension they died in, and
+    // an ephemeral dimension they were the last occupant of is reaped like after any other way out.
+    [AtlasScenario]
+    public async Task Client_Should_ReceiveTransitedAndRemoved_When_LastOccupantRespawnsOutOfEphemeral()
+    {
+        await Ok("/atlasfx create-ephemeral mirrordie");
+        int dieId = await DimensionId("mirrordie");
+        ITestPlayer player = await JoinSurvivalPlayer("atlas_mdie");
+        await Ok("/atlasfx teleport-player atlas_mdie mirrordie");
+        await LandedAt(player, dieId, 512, 512);
+        Kill(player);
+        await World.Until(() => !player.Entity.Alive, timeoutTicks: 200);
+        await World.Ticks(5);
+        player.Client.Clear();
+
+        PressRespawn(player);
+        await AliveIn(player, 0);
+
+        PlayerTransitedPacket transited = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
+        Assert.Equal("atlasfixture:mirrordie", transited.SourceCode);
+        Assert.Equal("manifold:overworld", transited.TargetCode);
+        DimensionRemovedPacket removed = Assert.Single(player.Client.Packets<DimensionRemovedPacket>(Channel));
+        Assert.Equal("atlasfixture:mirrordie", removed.Code);
+    }
+
     private static MetadataEntry Single(DimensionDescriptor descriptor, string key) =>
         Assert.Single(descriptor.Metadata, e => e.Key == key);
 

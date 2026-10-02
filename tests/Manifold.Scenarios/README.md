@@ -47,7 +47,7 @@ Classes with joined players cannot roll back yet. Six of them
 carry a `rollback-stage2-candidate` comment stating what a future rollback stage
 would need; the others that join players (`ClientMirrorScenarios`,
 `CommandBuilderScenarios`, `InventoryAccessScenarios`, `QuarantineScenarios`,
-`ReconnectScenarios`, `TeardownScenarios`, `TravelPolicyScenarios`) do not
+`ReconnectScenarios`, `RespawnScenarios`, `TeardownScenarios`, `TravelPolicyScenarios`) do not
 carry that comment yet.
 
 Persistence scenarios use `RestartWorld = true` (Atlas 0.7.0): the class host
@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-118 scenarios, one class per area:
+135 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
@@ -72,6 +72,7 @@ self-sufficient in any order.
 | Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
 | Transit events: order, vetoes, a throwing subscriber | `TransitEventScenarios` |
 | Travel policy, forced game mode, command builders | `TravelPolicyScenarios`, `CommandBuilderScenarios` |
+| Death and respawn: a player who dies in a custom dimension and presses Respawn (the engine's own respawn event, driven after a real death) lands in the overworld at the engine's spawn with the game mode, inventory and events handled, stays at the fixed spawn when the dimension keeps its dead, and is left alone in the overworld | `RespawnScenarios` (and one in `ClientMirrorScenarios` for the client notification) |
 | Arrival yaw, return to origin (a chain unwound step by step, the origin saved with the world and reloaded after a restart) | `OriginScenarios`, `OriginPersistenceScenarios` |
 | Per-dimension inventory, concurrent players, reconnection | `PlayerInventoryScenarios`, `MultiPlayerScenarios`, `ReconnectScenarios` |
 | Metadata, id recycling | `DimensionMetadataScenarios`, `RecyclingScenarios` |

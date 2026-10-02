@@ -287,6 +287,44 @@ public sealed class DimensionRegistryTests
     }
 
     [Fact]
+    public void DefineForOwner_RegisterStatic_Should_Propagate_RespawnBehavior_To_DimensionImpl()
+    {
+        var registry = NewRegistry();
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithRespawnBehavior(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+
+        Assert.Equal(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn, ((Manifold.Internal.DimensionImpl)dim).RespawnBehavior);
+    }
+
+    [Fact]
+    public void DefineForOwner_Should_Keep_RespawnBehavior_When_Completing_A_Pending_Entry()
+    {
+        var registry = NewRegistry();
+        registry.SeedFromManifest(
+            new ManifestEntry(Code("a:b"), 12, DimensionLifetime.Persistent, "testmod"), DimensionState.Pending);
+
+        var dim = registry.DefineForOwner(Code("a:b"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .WithRespawnBehavior(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn)
+            .RegisterStatic();
+
+        Assert.Equal(Manifold.Api.Transitions.RespawnBehavior.DimensionSpawn, ((Manifold.Internal.DimensionImpl)dim).RespawnBehavior);
+        Assert.Equal(12, dim.InternalId);
+    }
+
+    [Fact]
+    public void Overworld_Should_Respawn_Its_Players_In_The_Overworld()
+    {
+        var registry = NewRegistry();
+
+        var overworld = (Manifold.Internal.DimensionImpl)registry.Get(DimensionRegistry.OverworldCode)!;
+
+        Assert.Equal(Manifold.Api.Transitions.RespawnBehavior.Overworld, overworld.RespawnBehavior);
+    }
+
+    [Fact]
     public void DefineForOwner_RegisterStatic_Should_Use_Default_GenerationRadius_When_Not_Configured()
     {
         var registry = NewRegistry();

@@ -46,6 +46,13 @@ internal sealed record DimensionImpl(
     int? SkyCapY) : IDimension
 {
     /// <summary>
+    /// Gets where a player who dies in this dimension respawns. An init property rather than a
+    /// constructor parameter: the record's constructor is already past what a reader can take in, and
+    /// every record built without it (the overworld, a manifest placeholder) wants the default.
+    /// </summary>
+    public RespawnBehavior RespawnBehavior { get; init; } = RespawnBehavior.Overworld;
+
+    /// <summary>
     /// Builds a dimension record with no worldgen and every builder-configurable field at its
     /// default: the shape shared by the built-in overworld and a manifest-seeded Pending/Quarantined
     /// entry, both of which gain their real worldgen/spawn/etc. settings later (the overworld never

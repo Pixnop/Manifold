@@ -14,7 +14,7 @@ namespace Manifold.Internal;
 
 /// <summary>Server-side implementation of <see cref="ITransitionService"/>.</summary>
 /// <remarks>Main thread only.</remarks>
-internal sealed class TransitService : ITransitionService
+internal sealed partial class TransitService : ITransitionService
 {
     private const string InventoryModdataKey = "manifold:inv";
     private const string InventoryCorruptModdataKey = "manifold:inv.corrupt";
@@ -290,12 +290,24 @@ internal sealed class TransitService : ITransitionService
             _movers.Player.Teleport(player, targetPos, yaw);
         }
 
+        CompleteTransit(player, source, target, targetImpl, targetPos, yaw);
+        return true;
+    }
+
+    /// <summary>
+    /// What follows the move itself in every player transit into a different dimension: the target's
+    /// game mode and inventory policies, then <c>PlayerLeft</c> and <c>PlayerEntered</c>. Shared by
+    /// <see cref="TransitPlayer"/> and the respawn path, so a player who leaves a dimension by dying
+    /// gets the same policies undone and the same events as one who walked out.
+    /// </summary>
+    private void CompleteTransit(
+        IServerPlayer player, IDimension source, IDimension target, DimensionImpl? targetImpl, BlockPos targetPos, float? yaw)
+    {
         ApplyGameModePolicy(player, targetImpl);
         ApplyInventoryPolicy(player, target, targetImpl);
 
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
         SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos, yaw), LogSubscriberError);
-        return true;
     }
 
     /// <summary>
