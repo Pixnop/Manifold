@@ -227,8 +227,9 @@ public class OriginScenarios : ManifoldScenarioBase
         await Ok("/atlasfx teleport-player atlas_save flat");
         await LandedAt(player, flatId, 512, 512);
 
-        await Ok("/autosavenow");
-        await World.Until(() => World.Api.WorldManager.SaveGame.GetData("manifold:origins") is { Length: > 0 }, timeoutTicks: 600);
+        // SaveNow completes once the engine's save is written out: no poll for the blob afterwards.
+        await World.SaveNow();
+        Assert.True(World.Api.WorldManager.SaveGame.GetData("manifold:origins") is { Length: > 0 }, "The save did not write the origins blob.");
 
         // Read back what a real world save wrote, through the same schema version the sidecar records.
         var sidecar = SchemaSidecar.Load(World.Api.WorldManager.SaveGame.GetData("manifold:schema"));

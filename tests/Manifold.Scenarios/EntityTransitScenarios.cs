@@ -24,7 +24,8 @@ public class EntityTransitScenarios : ManifoldScenarioBase
         Assert.True(result.Ok, "teleport-entity reported failure.");
 
         var arrival = new BlockPos(512, 6, 512, flatId);
-        await EntityReaches(chicken, arrival);
+        EntityPos landed = await World.WaitForPosition(chicken, p => p.Dimension == flatId);
+        Assert.Equal(flatId, landed.Dimension);
 
         Entity arrived = World.EntitiesIn(arrival.Area(16)).Single(e => e.EntityId == chicken.EntityId);
         Assert.True(arrived.Alive, "Entity died during transit.");
