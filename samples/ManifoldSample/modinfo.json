@@ -2,12 +2,12 @@
   "type": "code",
   "modid": "manifoldsample",
   "name": "Manifold Sample",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Demo consumer mod for Manifold. Registers void + flat + dark + streaming + vault (separate-inventory) + a resettable mining dimension with travel policies and the /voiddim, /flatdim, /darkdim, /streamdim, /vaultdim, /overworlddim, /sendtestitem, /sendtestblock, /createtempdim, /destroytempdim, /miningdim and /miningreset commands, plus a portal block.",
   "authors": ["Pixnop"],
   "side": "Universal",
   "dependencies": {
     "game": "1.22.0",
-    "manifold": "0.6.0"
+    "manifold": "0.6.1"
   }
 }
