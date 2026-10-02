@@ -34,4 +34,11 @@ internal interface IPlayerTeleporter
     /// <param name="player">Player to look up.</param>
     /// <returns>The pending landing, or <c>null</c> when none is waiting.</returns>
     PendingLanding? GetPendingLanding(IServerPlayer player);
+
+    /// <summary>
+    /// Forgets everything pending for <paramref name="player"/>: they disconnected, so completions
+    /// the engine still runs for their old entity must not apply anything.
+    /// </summary>
+    /// <param name="player">Player to forget.</param>
+    void Forget(IServerPlayer player);
 }

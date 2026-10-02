@@ -18,6 +18,14 @@ public sealed class PlayerTransitedPacketTests
     }
 
     [Fact]
+    public void Yaw_Should_Round_Trip_Zero_As_Face_Yaw_Zero_Not_As_Keep_The_Yaw()
+    {
+        var restored = RoundTrip(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 0f });
+
+        Assert.Equal(0f, restored.Yaw);
+    }
+
+    [Fact]
     public void Yaw_Should_Stay_Null_When_The_Sender_Did_Not_Set_One()
     {
         // What a pre-0.6.1 server sends: no field 6 at all.

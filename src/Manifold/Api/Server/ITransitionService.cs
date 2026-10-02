@@ -96,7 +96,8 @@ public interface ITransitionService
     /// </summary>
     /// <param name="player">Server player to send back.</param>
     /// <returns>
-    /// <c>true</c> if the player was moved. <c>false</c> (each case is logged) when nothing is
+    /// <c>true</c> if the transit went through (the engine may apply the position some ticks later, once
+    /// the destination has loaded). <c>false</c> (each case is logged) when nothing is
     /// recorded for the dimension the player is in, when the origin dimension no longer exists or is
     /// not Active, when a <see cref="PlayerEntering"/> or <see cref="PlayerArriving"/> subscriber
     /// cancelled the transit, or when the player was riding a mount whose seat refused to release them.

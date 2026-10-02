@@ -162,9 +162,7 @@ internal sealed class TransitService : ITransitionService
     public TransitOrigin? GetOrigin(IServerPlayer player)
     {
         ArgumentNullException.ThrowIfNull(player);
-        int currentId = EntityPosAccess.Pos(player.Entity).Dimension;
-        if (_positionStore.Origins.TryGet(player.PlayerUID, currentId, out var origin)
-            && ResolveOriginDimension(origin) is { } dimension)
+        if (FindOrigin(player) is { } origin && ResolveOriginDimension(origin) is { } dimension)
         {
             return new TransitOrigin(dimension, origin.X, origin.Y, origin.Z, origin.Yaw);
         }
@@ -176,13 +174,12 @@ internal sealed class TransitService : ITransitionService
     public bool TryReturnPlayer(IServerPlayer player)
     {
         ArgumentNullException.ThrowIfNull(player);
-        int currentId = EntityPosAccess.Pos(player.Entity).Dimension;
-        if (!_positionStore.Origins.TryGet(player.PlayerUID, currentId, out var origin))
+        if (FindOrigin(player) is not { } origin)
         {
             _sapi.Logger?.Notification(
                 "[Manifold] Return of {0} refused: no origin is recorded for the dimension they are in (id {1}).",
                 player.PlayerName,
-                currentId);
+                EntityPosAccess.Pos(player.Entity).Dimension);
             return false;
         }
 
@@ -280,7 +277,7 @@ internal sealed class TransitService : ITransitionService
             _positionStore.Origins.Record(
                 player.PlayerUID,
                 target.InternalId,
-                new OriginEntry(source.InternalId, source.Code.ToString(), departure.X, departure.Y, departure.Z, departure.Yaw));
+                new OriginEntry(source.InternalId, source.Code.ToString(), target.Code.ToString(), departure.X, departure.Y, departure.Z, departure.Yaw));
         }
 
         float? yaw = returning?.Yaw ?? options.Yaw;
@@ -313,6 +310,21 @@ internal sealed class TransitService : ITransitionService
         return _movers.Player.GetPendingLanding(player) is { } pending
             ? (pending.X, pending.Y, pending.Z, pending.Yaw ?? pos.Yaw)
             : (pos.X, pos.Y, pos.Z, pos.Yaw);
+    }
+
+    /// <summary>
+    /// The origin recorded for the dimension the player is in now. The recorded code of that dimension
+    /// must match too: ids are recycled, and a blob that went through a build that never prunes it
+    /// could otherwise hand a dimension the origin of whichever one held its id before.
+    /// </summary>
+    private OriginEntry? FindOrigin(IServerPlayer player)
+    {
+        int currentId = EntityPosAccess.Pos(player.Entity).Dimension;
+        return _positionStore.Origins.TryGet(player.PlayerUID, currentId, out var origin)
+            && _registry.GetByInternalId(currentId) is { } current
+            && string.Equals(current.Code.ToString(), origin.DestCode, StringComparison.Ordinal)
+                ? origin
+                : null;
     }
 
     /// <summary>

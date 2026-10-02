@@ -85,6 +85,7 @@ internal sealed class PlayerOriginStore
             w.Write(key);
             w.Write(o.SourceId);
             w.Write(o.SourceCode);
+            w.Write(o.DestCode);
             w.Write(o.X);
             w.Write(o.Y);
             w.Write(o.Z);
@@ -118,7 +119,7 @@ internal sealed class PlayerOriginStore
                 for (int i = 0; i < count; i++)
                 {
                     string key = r.ReadString();
-                    _origins[key] = new OriginEntry(r.ReadInt32(), r.ReadString(), r.ReadDouble(), r.ReadDouble(), r.ReadDouble(), r.ReadSingle());
+                    _origins[key] = new OriginEntry(r.ReadInt32(), r.ReadString(), r.ReadString(), r.ReadDouble(), r.ReadDouble(), r.ReadDouble(), r.ReadSingle());
                 }
             }
             catch (Exception ex)

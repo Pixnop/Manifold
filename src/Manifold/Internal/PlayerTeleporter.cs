@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
@@ -14,7 +12,7 @@ namespace Manifold.Internal;
 /// </remarks>
 internal sealed class PlayerTeleporter : IPlayerTeleporter
 {
-    private readonly Dictionary<string, PendingLanding> _pending = new();
+    private readonly LandingTracker _tracker = new();
 
     /// <inheritdoc/>
     public void Teleport(IServerPlayer player, BlockPos target, float? yaw = null)
@@ -29,47 +27,45 @@ internal sealed class PlayerTeleporter : IPlayerTeleporter
         // Step 1: rebind entity to the destination dimension (chunk membership + PlayerDimensionChanged event).
         player.Entity.ChangeDimension(dimension);
 
-        // Step 2: positional teleport. The engine tests whether the DIMENSION 0 column at this X/Z is
-        // loaded: if so it applies the move right away, if not it queues it until that column loads.
-        // Either way it then runs the callback, so the pending landing is recorded first and cleared
-        // there, and the yaw is set there too: after the move and after the engine bumped the player's
-        // position version, so a late packet from the client's old orientation cannot undo it. The
-        // engine never pushes a player's yaw to their own client (its camera is client-driven):
-        // TransitService's PlayerEntered handler sends it through Manifold's channel instead.
-        var landing = new PendingLanding(x, y, z, yaw);
-        string uid = player.PlayerUID;
-        _pending[uid] = landing;
-        player.Entity.TeleportToDouble(x, y, z, () =>
-        {
-            if (yaw is { } facing)
-            {
-                EntityPosAccess.Pos(player.Entity).Yaw = facing;
-            }
-
-            // A newer teleport may have replaced this one before it was applied: leave that one pending.
-            if (_pending.TryGetValue(uid, out var current) && current == landing)
-            {
-                _pending.Remove(uid);
-            }
-        });
+        // Step 2: positional teleport.
+        Issue(player, new PendingLanding(x, y, z, yaw));
     }
 
     /// <inheritdoc/>
-    public PendingLanding? GetPendingLanding(IServerPlayer player)
+    public PendingLanding? GetPendingLanding(IServerPlayer player) => _tracker.GetPending(player.PlayerUID);
+
+    /// <inheritdoc/>
+    public void Forget(IServerPlayer player) => _tracker.Forget(player.PlayerUID);
+
+    /// <summary>
+    /// The engine tests whether the DIMENSION 0 column at this X/Z is loaded: if so it applies the move
+    /// right away, if not it queues it until that column loads, and a second call never replaces the
+    /// first. Either way it then runs the completion, which is where the yaw is set (after the move and
+    /// after the engine bumped the player's position version, so a late packet from the client's old
+    /// orientation cannot undo it) and where a superseded teleport is undone: it just moved the player
+    /// to coordinates a newer one had already left, so the latest landing is issued again. The engine
+    /// never pushes a player's yaw to their own client (its camera is client-driven): TransitService's
+    /// PlayerEntered handler sends it through Manifold's channel instead.
+    /// </summary>
+    private void Issue(IServerPlayer player, PendingLanding landing)
     {
-        if (!_pending.TryGetValue(player.PlayerUID, out var landing))
+        string uid = player.PlayerUID;
+        long id = _tracker.Begin(uid, landing);
+        player.Entity.TeleportToDouble(landing.X, landing.Y, landing.Z, () => OnApplied(player, uid, id));
+    }
+
+    private void OnApplied(IServerPlayer player, string uid, long id)
+    {
+        var pos = EntityPosAccess.Pos(player.Entity);
+        var outcome = _tracker.Complete(uid, id, pos.X, pos.Y, pos.Z);
+        if (outcome.ApplyYaw is { } yaw)
         {
-            return null;
+            pos.Yaw = yaw;
         }
 
-        // The engine's own flag is the truth: a callback that never ran (the player disconnected
-        // before the column loaded) must not leave a landing pending forever.
-        if (player.Entity.Teleporting)
+        if (outcome.Reissue is { } again)
         {
-            return landing;
+            Issue(player, again);
         }
-
-        _pending.Remove(player.PlayerUID);
-        return null;
     }
 }

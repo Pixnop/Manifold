@@ -139,6 +139,34 @@ public class OriginScenarios : ManifoldScenarioBase
         await ArrivesAt(player, spot);
     }
 
+    // Step in and straight back out. The way in is deferred (its column is far off), the way back is
+    // applied at once (the origin column is loaded). The engine still runs the first teleport when
+    // its column finally loads: that must not drag the player, now back in the overworld, to the
+    // first landing's coordinates, nor turn them to its yaw.
+    [AtlasScenario]
+    public async Task Player_Should_StayAtTheOrigin_When_ASupersededDeferredTeleportFinallyLoads()
+    {
+        ITestPlayer player = await World.JoinPlayer("atlas_yank");
+        await World.Ticks(2);
+        var spot = new Spot(0, player.Entity.Pos.X + 1.625, player.Entity.Pos.Y, player.Entity.Pos.Z - 1.375, 0.4f);
+        Place(player, spot);
+        await LoadOverworldColumn((int)spot.X, (int)spot.Z);
+
+        Assert.Equal("ok:True:True", (await Ok("/atlasfx3 hop-and-return atlas_yank flat 2.0 90000 90000")).Message);
+        await ArrivesAt(player, spot);
+
+        // A second load of the first landing's column is queued behind the first teleport's: once it
+        // reports in, the first teleport's completion has run.
+        await LoadOverworldColumn(90000, 90000);
+        await World.Ticks(20);
+
+        Assert.Equal(0, player.Entity.Pos.Dimension);
+        Assert.Equal(spot.X, player.Entity.Pos.X, Tolerance);
+        Assert.Equal(spot.Y, player.Entity.Pos.Y, Tolerance);
+        Assert.Equal(spot.Z, player.Entity.Pos.Z, Tolerance);
+        Assert.Equal(spot.Yaw, player.Entity.Pos.Yaw, (float)Tolerance);
+    }
+
     // The second transit starts in the same tick, before the engine applied the first, so the entity
     // still reports the coordinates it left. The origin must be where the first transit was taking
     // the player, not those stale coordinates.
@@ -160,6 +188,32 @@ public class OriginScenarios : ManifoldScenarioBase
 
         Assert.StartsWith("returned:", (await Ok("/atlasfx3 return atlas_hop")).Message);
         await ArrivesAt(player, flatLanding);
+    }
+
+    // Teleports A then B are queued by the engine (both columns far off), A's lands first, and a third
+    // transit starts while B's is still waiting: the entity then holds A's coordinates inside B. The
+    // origin recorded for the third dimension must be B's landing, where the player was heading.
+    [AtlasScenario]
+    public async Task Origin_Should_BeTheLatestLanding_When_AnEarlierQueuedTeleportWasAppliedAndTheLatestIsStillWaiting()
+    {
+        int flatId = await DimensionId("flat");
+        int voidId = await DimensionId("void");
+        ITestPlayer player = await World.JoinPlayer("atlas_chain3");
+        await World.Ticks(2);
+        float yaw = 0.65f;
+        player.Entity.Pos.Yaw = yaw;
+
+        await Ok("/atlasfx3 chain-hop atlas_chain3 flat 100000 100000 void 110000 110000 flat");
+        string key = "atlasfixture:chainhop:atlas_chain3";
+        await World.Until(() => World.Api.WorldManager.SaveGame.GetData(key) is { Length: > 0 }, timeoutTicks: 1200);
+        Assert.Equal("done", System.Text.Encoding.UTF8.GetString(World.Api.WorldManager.SaveGame.GetData(key)!));
+
+        await ArrivesAt(player, new Spot(flatId, 512.5, 6, 512.5, yaw));
+        var voidLanding = new Spot(voidId, 110000.5, 6, 110000.5, yaw);
+        AssertOrigin(await Ok("/atlasfx3 origin atlas_chain3"), "atlasfixture:void", voidLanding);
+
+        Assert.StartsWith("returned:", (await Ok("/atlasfx3 return atlas_chain3")).Message);
+        await ArrivesAt(player, voidLanding);
     }
 
     [AtlasScenario]

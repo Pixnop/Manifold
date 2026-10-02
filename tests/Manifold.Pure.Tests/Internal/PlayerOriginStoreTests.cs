@@ -10,7 +10,7 @@ namespace Manifold.Pure.Tests.Internal;
 
 public sealed class PlayerOriginStoreTests
 {
-    private static readonly OriginEntry Sample = new(0, "manifold:overworld", 10.25, 64.5, -3.75, 1.5f);
+    private static readonly OriginEntry Sample = new(0, "manifold:overworld", "mod:entered", 10.25, 64.5, -3.75, 1.5f);
 
     [Fact]
     public void TryGet_Should_Return_False_When_Nothing_Is_Recorded()
@@ -60,7 +60,7 @@ public sealed class PlayerOriginStoreTests
     {
         var store = new PlayerOriginStore();
         store.Record("alice", 10, Sample);
-        store.Record("bob", 11, new OriginEntry(10, "mod:a", 0.1, -0.2, 1e9 + 0.5, -2.5f));
+        store.Record("bob", 11, new OriginEntry(10, "mod:a", "mod:b", 0.1, -0.2, 1e9 + 0.5, -2.5f));
 
         var restored = new PlayerOriginStore();
         restored.LoadFromBytes(store.ToBytes());
@@ -68,7 +68,7 @@ public sealed class PlayerOriginStoreTests
         Assert.True(restored.TryGet("alice", 10, out var alice));
         Assert.Equal(Sample, alice);
         Assert.True(restored.TryGet("bob", 11, out var bob));
-        Assert.Equal(new OriginEntry(10, "mod:a", 0.1, -0.2, 1e9 + 0.5, -2.5f), bob);
+        Assert.Equal(new OriginEntry(10, "mod:a", "mod:b", 0.1, -0.2, 1e9 + 0.5, -2.5f), bob);
         Assert.False(restored.IsDirty);
     }
 
@@ -76,7 +76,7 @@ public sealed class PlayerOriginStoreTests
     public void ToBytes_Should_Match_The_Documented_Version_1_Layout()
     {
         // Golden bytes, hand-built so a change of layout cannot slip through by changing both sides:
-        // count:int, then per entry key:string, sourceId:int, sourceCode:string, x,y,z:double, yaw:float.
+        // count:int, then per entry key:string, sourceId:int, sourceCode:string, destCode:string, x,y,z:double, yaw:float.
         var store = new PlayerOriginStore();
         store.Record("alice", 10, Sample);
 
@@ -87,6 +87,7 @@ public sealed class PlayerOriginStoreTests
             w.Write("alice|10");
             w.Write(0);
             w.Write("manifold:overworld");
+            w.Write("mod:entered");
             w.Write(10.25);
             w.Write(64.5);
             w.Write(-3.75);

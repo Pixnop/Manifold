@@ -226,12 +226,14 @@ transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new Tran
 });
 ```
 
-Manifold applies it as part of the teleport: once the engine has moved the player it sets the
-entity's yaw, and it tells the player's own client to turn the camera. Both halves matter: a
-player's camera is driven by their client, so changing the server-side entity yaw alone (which is all
-`TeleportToDouble` followed by `Entity.Pos.Yaw = ...` does) never reaches the screen, and a client
-would also send its old orientation straight back. `PlayerEntered` reports the requested yaw as
-`e.Yaw` (`null` when none was asked for).
+Manifold applies it in two halves. It tells the player's own client to turn the camera when the
+transit completes (`PlayerEntered` time), and it sets the entity's yaw once the engine has actually
+moved the player. When the engine has to wait for the destination to load, that move comes some ticks
+later, so the camera turns first and the position follows. Both halves matter: a player's camera is
+driven by their client, so changing the server-side entity yaw alone (which is all `TeleportToDouble`
+followed by `Entity.Pos.Yaw = ...` does) never reaches the screen, and a client would also send its
+old orientation straight back. `PlayerEntered` reports the requested yaw as `e.Yaw` (`null` when none
+was asked for).
 
 ## Returning a player to where they came from
 
@@ -260,7 +262,8 @@ if (!transitions.TryReturnPlayer(player))
 }
 ```
 
-`TryReturnPlayer` returns `false`, and logs which case it was at Notification level, when:
+`TryReturnPlayer` returns `true` when the transit went through. The engine may apply the position some
+ticks later, so do not read the entity's coordinates as final straight away. It returns `false`, and logs which case it was at Notification level, when:
 
 - nothing is recorded for the dimension the player is in;
 - the origin dimension no longer exists, or is not `Active` (an ephemeral dimension that was reaped,
@@ -277,10 +280,19 @@ transit within the same dimension records nothing.
 The engine applies a teleport once the destination column is loaded, which can be some ticks after
 the call. A player who transits again in the meantime still has the coordinates they left on their
 entity, so Manifold records the landing the earlier transit asked for as their position instead: the
-origin is where the player was heading, never a stale position from another dimension.
+origin is where the player was heading, not the coordinates they left. A player who disconnects
+while such a teleport is waiting is recorded the same way.
 
-Origins are stored by dimension id plus code, and dropped when either end is removed: ephemeral
-dimension ids are recycled, so a stale origin can never send a player somewhere unrelated.
+For the same reason, a transit that is overtaken before the engine applied it (step into a dimension
+whose terrain is far away, then straight back out with `TryReturnPlayer`) does not drag the player
+away when the engine finally gets to it: Manifold sends them back to the landing of the transit that
+overtook it, and the overtaken transit's yaw is not applied. The engine moves the player once more
+in that case, so a client may see the player at the overtaken landing for a moment before the
+correction.
+
+Origins are stored by dimension id plus the codes of both dimensions, and dropped when either end is
+removed. Ephemeral dimension ids are recycled, so an origin whose id now belongs to another dimension
+is ignored (it reads as "nothing recorded") instead of being followed.
 
 ## SpawnBehavior
 

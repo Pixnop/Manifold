@@ -86,5 +86,12 @@ public class DowngradeFixtureBuilderScenarios : CompatFixtureScenarioBase
         await Ok("/manicompat leave compatdev-second");
         await World.Until(() => second.Position.dimension == 0, timeoutTicks: 600);
         PublishPosition("secondlastvisited", secondLastVisited);
+
+        // The dev build records where each player came from on every transit (the "manifold:origins"
+        // key, new in 0.6.1, which 0.5.1 has never heard of). Force a real world save and fail the
+        // build here if the key is not in the world about to be harvested: the downgrade verifier
+        // would otherwise load a world that never crossed it.
+        await Ok("/autosavenow");
+        await World.Until(() => World.Api.WorldManager.SaveGame.GetData("manifold:origins") is { Length: > 0 }, timeoutTicks: 600);
     }
 }

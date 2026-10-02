@@ -18,6 +18,7 @@ public sealed class TransitOriginTests
 {
     private static readonly AssetLocation A = new("owner:a");
     private static readonly AssetLocation B = new("owner:b");
+    private static readonly AssetLocation C = new("owner:c");
 
     [Fact]
     public void TeleportPlayer_Should_Forward_The_Yaw_Option_To_The_Teleporter()
@@ -276,7 +277,7 @@ public sealed class TransitOriginTests
         int bId = fx.Registry.Get(B)!.InternalId;
 
         // An origin whose id is B's but whose recorded code is some long-gone dimension.
-        fx.Store.Origins.Record(fx.Player.PlayerUID, fx.Player.Entity.Pos.Dimension, new OriginEntry(bId, "gone:dim", 1, 2, 3, 0f));
+        fx.Store.Origins.Record(fx.Player.PlayerUID, fx.Player.Entity.Pos.Dimension, new OriginEntry(bId, "gone:dim", "owner:a", 1, 2, 3, 0f));
 
         Assert.Null(fx.Service.GetOrigin(fx.Player));
         Assert.False(fx.Service.TryReturnPlayer(fx.Player));
@@ -289,7 +290,7 @@ public sealed class TransitOriginTests
         fx.Service.TeleportPlayer(fx.Player, A);
         var pending = new AssetLocation("ghost:pending");
         fx.Registry.SeedFromManifest(new ManifestEntry(pending, 77, DimensionLifetime.Persistent, "ghost"), DimensionState.Pending);
-        fx.Store.Origins.Record(fx.Player.PlayerUID, fx.Player.Entity.Pos.Dimension, new OriginEntry(77, "ghost:pending", 1, 2, 3, 0f));
+        fx.Store.Origins.Record(fx.Player.PlayerUID, fx.Player.Entity.Pos.Dimension, new OriginEntry(77, "ghost:pending", "owner:a", 1, 2, 3, 0f));
 
         Assert.False(fx.Service.TryReturnPlayer(fx.Player));
         Assert.Equal(0, fx.Teleporter.ExactCalls);
@@ -379,10 +380,10 @@ public sealed class TransitOriginTests
         fx.Stand(0, 5.5, 70, 6.5, 0.5f);
         fx.Service.TeleportPlayer(fx.Player, A);
         fx.Service.TeleportPlayer(fx.Player, B);
-        fx.Teleporter.Land(fx.Player);
+        fx.Teleporter.LandAll();
 
         Assert.True(fx.Service.TryReturnPlayer(fx.Player));
-        fx.Teleporter.Land(fx.Player);
+        fx.Teleporter.LandAll();
 
         int aId = fx.Registry.Get(A)!.InternalId;
         Assert.Equal(aId, fx.Player.Entity.Pos.Dimension);
@@ -390,10 +391,98 @@ public sealed class TransitOriginTests
         Assert.Equal(100.5, fx.Player.Entity.Pos.Z);
     }
 
+    [Fact]
+    public void TeleportPlayer_Should_Record_The_Pending_Landing_When_An_Earlier_Teleport_Was_Applied_But_The_Latest_Is_Still_Queued()
+    {
+        var fx = NewFixture();
+        fx.Teleporter.Defer = true;
+        fx.Stand(0, 5.5, 70, 6.5, 0.5f);
+        fx.Service.TeleportPlayer(fx.Player, A, At(1000, 1000)); // T1
+        fx.Service.TeleportPlayer(fx.Player, B, At(2000, 2000)); // T2
+
+        // The engine applies T1 first, but T2 is still waiting: the entity now has T1's coordinates
+        // inside dimension B.
+        fx.Teleporter.LandNext();
+        Assert.Equal(1000.5, fx.Player.Entity.Pos.X);
+        Assert.Equal(1, fx.Teleporter.QueuedCount);
+
+        fx.Service.TeleportPlayer(fx.Player, C); // T3
+
+        // C's origin is where the player was heading (T2's landing in B), not T1's coordinates.
+        var origin = fx.GetOriginIn(C);
+        Assert.Equal(fx.Registry.Get(B)!.InternalId, origin!.Dimension.InternalId);
+        Assert.Equal(2000.5, origin.X);
+        Assert.Equal(2000.5, origin.Z);
+        Assert.True(fx.Store.TryGet(fx.Player.PlayerUID, fx.Registry.Get(B)!.InternalId, out int x, out _, out int z));
+        Assert.Equal((2000, 2000), (x, z));
+    }
+
+    [Fact]
+    public void Teleporter_Should_Not_Issue_Anything_Again_When_A_Superseded_Teleport_Lands_Before_The_Latest()
+    {
+        var fx = NewFixture();
+        fx.Teleporter.Defer = true;
+        fx.Service.TeleportPlayer(fx.Player, A, At(1000, 1000));
+        fx.Service.TeleportPlayer(fx.Player, B, At(2000, 2000));
+
+        fx.Teleporter.LandNext(); // T1, superseded, latest still queued: its own completion will fix it
+        Assert.NotNull(fx.Teleporter.GetPendingLanding(fx.Player));
+        fx.Teleporter.LandNext(); // T2
+
+        Assert.Equal(0, fx.Teleporter.QueuedCount);
+        Assert.Null(fx.Teleporter.GetPendingLanding(fx.Player));
+        Assert.Equal(2000.5, fx.Player.Entity.Pos.X);
+    }
+
+    [Fact]
+    public void TryReturnPlayer_Should_Put_The_Player_Back_When_A_Superseded_Deferred_Teleport_Finally_Lands()
+    {
+        var fx = NewFixture();
+        fx.Stand(0, 5.5, 70, 6.5, 0.4f);
+        fx.Teleporter.Defer = true;
+        fx.Service.TeleportPlayer(fx.Player, A, new TransitionOptions { OverridePosition = new BlockPos(1000, 70, 1000, 0), Yaw = 2f });
+        fx.Teleporter.Defer = false; // the way back is applied at once, the way in is still queued
+        Assert.True(fx.Service.TryReturnPlayer(fx.Player));
+        Assert.Equal(5.5, fx.Player.Entity.Pos.X);
+
+        fx.Teleporter.LandNext(); // the engine finally runs the first teleport
+
+        var pos = fx.Player.Entity.Pos;
+        Assert.Equal(0, pos.Dimension);
+        Assert.Equal((5.5, 70.0, 6.5), (pos.X, pos.Y, pos.Z));
+        Assert.Equal(0.4f, pos.Yaw); // the first teleport's yaw was not applied
+        Assert.Equal(0, fx.Teleporter.QueuedCount);
+        Assert.Null(fx.Teleporter.GetPendingLanding(fx.Player));
+    }
+
+    [Fact]
+    public void GetOrigin_Should_Return_Null_When_The_Recorded_Entered_Code_Is_Not_The_Dimension_The_Player_Is_In()
+    {
+        var fx = NewFixture();
+        fx.Service.TeleportPlayer(fx.Player, A);
+
+        // Same engine id, but the origin was recorded for another dimension that once held it.
+        fx.Store.Origins.Record(fx.Player.PlayerUID, fx.Player.Entity.Pos.Dimension, new OriginEntry(0, "manifold:overworld", "old:dimension", 1, 2, 3, 0f));
+
+        Assert.Null(fx.Service.GetOrigin(fx.Player));
+        Assert.False(fx.Service.TryReturnPlayer(fx.Player));
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Not_Record_An_Origin_When_PlayerEntering_Cancels()
+    {
+        var fx = NewFixture();
+        fx.Service.PlayerEntering += (_, e) => e.Cancel = true;
+
+        fx.Service.TeleportPlayer(fx.Player, A);
+
+        Assert.Null(fx.StoreOrigin(A));
+    }
+
     private static Fixture NewFixture()
     {
         var registry = new DimensionRegistry(new DimensionAllocator());
-        foreach (var code in new[] { A, B })
+        foreach (var code in new[] { A, B, C })
         {
             registry.DefineForOwner(code, "owner").WithWorldgen(new FakeWorldgenStrategy()).RegisterStatic();
         }
@@ -417,6 +506,9 @@ public sealed class TransitOriginTests
             new InventorySwapper(sapi));
         return new Fixture(service, registry, store, teleporter, dismounter, sapi, NewPlayerAt("alice", 0, 0, 64, 0, 0f));
     }
+
+    private static TransitionOptions At(int x, int z) =>
+        new() { OverridePosition = new BlockPos(x, 70, z, 0) };
 
     private static IServerPlayer NewPlayerAt(string uid, int dimension, double x, double y, double z, float yaw)
     {

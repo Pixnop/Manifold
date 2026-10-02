@@ -1,5 +1,6 @@
 namespace AtlasFixture;
 
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -27,6 +28,11 @@ public sealed partial class AtlasFixtureModSystem
     /// <returns>The key.</returns>
     internal static string ColumnLoadedKey(int chunkX, int chunkZ) => $"{Domain}:column:{chunkX}:{chunkZ}";
 
+    /// <summary>Savegame key <c>chain-hop</c> publishes its outcome under, per player name.</summary>
+    /// <param name="playerName">Player name.</param>
+    /// <returns>The key.</returns>
+    internal static string ChainHopKey(string playerName) => $"{Domain}:chainhop:{playerName}";
+
     private void RegisterOriginCommands(ICoreServerAPI api)
     {
         var parsers = api.ChatCommands.Parsers;
@@ -37,6 +43,22 @@ public sealed partial class AtlasFixtureModSystem
             .BeginSubCommand("teleport-player-yaw-at")
                 .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"), parsers.Double("yaw"), parsers.Int("x"), parsers.Int("z"))
                 .HandleWith(OnTeleportPlayerYawAt)
+            .EndSubCommand()
+            .BeginSubCommand("hop-and-return")
+                .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"), parsers.Double("yaw"), parsers.Int("x"), parsers.Int("z"))
+                .HandleWith(OnHopAndReturn)
+            .EndSubCommand()
+            .BeginSubCommand("chain-hop")
+                .WithArgs(
+                    parsers.Word("playername"),
+                    parsers.Word("dimpatha"),
+                    parsers.Int("ax"),
+                    parsers.Int("az"),
+                    parsers.Word("dimpathb"),
+                    parsers.Int("bx"),
+                    parsers.Int("bz"),
+                    parsers.Word("dimpathc"))
+                .HandleWith(OnChainHop)
             .EndSubCommand()
             .BeginSubCommand("load-column")
                 .WithArgs(parsers.Int("x"), parsers.Int("z"))
@@ -85,6 +107,7 @@ public sealed partial class AtlasFixtureModSystem
             w.Write(SeededOriginPlayerUid + "|0");
             w.Write(flatInternalId);
             w.Write(Domain + ":flat");
+            w.Write("manifold:overworld");
             w.Write(515.25);
             w.Write(6.0);
             w.Write(509.75);
@@ -128,6 +151,101 @@ public sealed partial class AtlasFixtureModSystem
                 OnLoaded = () => _sapi.WorldManager.SaveGame.StoreData(ColumnLoadedKey(chunkX, chunkZ), new byte[] { 1 }),
             });
         return TextCommandResult.Success("loading");
+    }
+
+    /// <summary>
+    /// A transit with a Yaw to (x, 6, z) of the target followed, in the same tick, by an immediate
+    /// <c>TryReturnPlayer</c>: step in and straight back out. Reports "ok:" plus whether the first
+    /// hop was still queued (<c>Entity.Teleporting</c>) and whether the return was accepted.
+    /// </summary>
+    private TextCommandResult OnHopAndReturn(TextCommandCallingArgs args)
+    {
+        IServerPlayer? player = FindPlayer((string)args[0]);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {args[0]}.");
+        }
+
+        try
+        {
+            _manifold.Transitions.TeleportPlayer(
+                player,
+                ResolveTargetCode((string)args[1]),
+                new TransitionOptions
+                {
+                    OverridePosition = new BlockPos((int)args[3], FixedSpawn.Y - 2, (int)args[4], 0),
+                    Yaw = (float)(double)args[2],
+                });
+            bool deferred = player.Entity.Teleporting;
+            bool returned = _manifold.Transitions.TryReturnPlayer(player);
+            return TextCommandResult.Success($"ok:{deferred}:{returned}");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Two transits in the same tick (A, then B: both far off, so both are queued by the engine), then
+    /// a third (C) started by a tick listener the moment the engine has applied the first but not the
+    /// second: the entity then holds A's coordinates inside B while B's landing is still waiting.
+    /// Publishes <see cref="ChainHopKey"/> as "done" when the third transit started in that window, or
+    /// "late" when the second had already landed (the scenario fails on that: it proved nothing).
+    /// </summary>
+    private TextCommandResult OnChainHop(TextCommandCallingArgs args)
+    {
+        IServerPlayer? player = FindPlayer((string)args[0]);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {args[0]}.");
+        }
+
+        var codeB = ResolveTargetCode((string)args[4]);
+        var codeC = ResolveTargetCode((string)args[7]);
+        double ax = (int)args[2] + 0.5;
+        double bx = (int)args[5] + 0.5;
+        try
+        {
+            _manifold.Transitions.TeleportPlayer(
+                player,
+                ResolveTargetCode((string)args[1]),
+                new TransitionOptions { OverridePosition = new BlockPos((int)args[2], FixedSpawn.Y - 2, (int)args[3], 0) });
+            _manifold.Transitions.TeleportPlayer(
+                player,
+                codeB,
+                new TransitionOptions { OverridePosition = new BlockPos((int)args[5], FixedSpawn.Y - 2, (int)args[6], 0) });
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
+
+        string key = ChainHopKey((string)args[0]);
+        long listener = 0;
+        listener = _sapi.Event.RegisterGameTickListener(
+            _ =>
+            {
+                double x = player.Entity.Pos.X;
+                bool firstApplied = Math.Abs(x - ax) < 1e-6;
+                bool secondApplied = Math.Abs(x - bx) < 1e-6;
+                if (!firstApplied && !secondApplied)
+                {
+                    return;
+                }
+
+                _sapi.Event.UnregisterGameTickListener(listener);
+                if (secondApplied)
+                {
+                    _sapi.WorldManager.SaveGame.StoreData(key, "late"u8.ToArray());
+                    return;
+                }
+
+                _manifold.Transitions.TeleportPlayer(player, codeC, new TransitionOptions { OverridePosition = DefaultLanding((string)args[7]) });
+                _sapi.WorldManager.SaveGame.StoreData(key, "done"u8.ToArray());
+            },
+            1);
+        return TextCommandResult.Success("started");
     }
 
     private TextCommandResult TransitWith(TextCommandCallingArgs args, TransitionOptions options)

@@ -47,6 +47,7 @@ public sealed class ManifoldModSystem : ModSystem
     private StreamingWorldgenDriver? _streamingDriver;
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
+    private PlayerTeleporter? _playerTeleporter;
     private SaveGameManifestStore? _manifestStore;
     private SchemaSidecar? _schemaSidecar;
     private ManifoldNetworkChannel? _network;
@@ -103,10 +104,11 @@ public sealed class ManifoldModSystem : ModSystem
                 DimensionGenerator.MaxConsecutiveFailures);
 
         var inventorySwapper = new InventorySwapper(api);
+        _playerTeleporter = new PlayerTeleporter();
         var transit = new TransitService(
             _registry,
             api,
-            new TransitMovers(new PlayerTeleporter(), new EntityMover(api), new BlockMover(api), new PlayerDismounter(api)),
+            new TransitMovers(_playerTeleporter, new EntityMover(api), new BlockMover(api), new PlayerDismounter(api)),
             TargetPositionResolvers.SameXZSurfaceY,
             _generator,
             _positionStore,
@@ -216,6 +218,29 @@ public sealed class ManifoldModSystem : ModSystem
         }
 
         return (evacuated, remaining);
+    }
+
+    /// <summary>
+    /// Records where a disconnecting player is, for the <see cref="Manifold.Api.Transitions.SpawnBehavior.LastVisited"/>
+    /// behavior, then forgets any teleport still waiting for them. A player who disconnects while the
+    /// engine still has a teleport queued reports the new dimension but the coordinates they left, so
+    /// the landing that teleport asked for is what is recorded; and the completion the engine may still
+    /// run for their old entity must not apply anything afterwards.
+    /// </summary>
+    /// <param name="positionStore">Store to record the position in.</param>
+    /// <param name="teleporter">Teleporter that knows the pending landing.</param>
+    /// <param name="player">The disconnecting player.</param>
+    internal static void RecordDisconnectPosition(PlayerPositionStore positionStore, IPlayerTeleporter teleporter, IServerPlayer player)
+    {
+        var pending = teleporter.GetPendingLanding(player);
+        teleporter.Forget(player);
+        if (EntityPosAccess.PosOrNull(player.Entity) is not { } pos)
+        {
+            return;
+        }
+
+        var (x, y, z) = pending is { } landing ? (landing.X, landing.Y, landing.Z) : (pos.X, pos.Y, pos.Z);
+        positionStore.Record(player.PlayerUID, pos.Dimension, (int)x, (int)y, (int)z);
     }
 
     /// <summary>
@@ -744,12 +769,10 @@ public sealed class ManifoldModSystem : ModSystem
     private void OnPlayerDisconnect(IServerPlayer player)
     {
         // Remember where the player was so the LastVisited behavior survives logout/restart.
-        if (_positionStore is null || EntityPosAccess.PosOrNull(player.Entity) is not { } pos)
+        if (_positionStore is not null && _playerTeleporter is not null)
         {
-            return;
+            RecordDisconnectPosition(_positionStore, _playerTeleporter, player);
         }
-
-        _positionStore.Record(player.PlayerUID, pos.Dimension, (int)pos.X, (int)pos.Y, (int)pos.Z);
 
         // Deliberately NOT reaping the player's dimension on disconnect: logging out is a pause, not
         // leaving. The dimension is kept so the player reconnects straight back into it (if the server
