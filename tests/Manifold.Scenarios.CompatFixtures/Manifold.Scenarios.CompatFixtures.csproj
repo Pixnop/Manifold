@@ -22,8 +22,8 @@
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
     </Reference>
     <!-- Assembly-default mod set (the dev build): DowngradeFixtureBuilderScenarios, the only
-         class here, uses it as-is. CompatFixtureMod is tagged here too so it is staged as its
-         own named folder by StageAtlasFolderMods below. The upgrade direction (which needs the
+         class here, uses it as-is. CompatFixtureMod is tagged here too so Atlas stages it as its
+         own named folder, atlas-mods/CompatFixture. The upgrade direction (which needs the
          0.5.1 release zip instead of the dev build) lives in its own project,
          Manifold.Scenarios.CompatFixturesUpgrade, with no ProjectReference to src/Manifold at
          all; see README.md for why booting both builds from one project is unsafe. -->
@@ -34,24 +34,5 @@
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
   </ItemGroup>
-
-  <!-- Same staging as Manifold.Scenarios.csproj (see its comment): both tagged references build
-       into a net10.0 output directory, so native AtlasMod staging would merge them into one
-       folder. Assemble one distinctly-named folder mod per reference instead, so
-       "atlas-mods/Manifold" and "atlas-mods/CompatFixture" are fixed, Configuration-independent
-       paths a class can also name directly in [AtlasWorld(Mods = [...])]. -->
-  <Target Name="StageAtlasFolderMods" AfterTargets="WriteAtlasModManifest" Condition="'$(TargetFramework)' != ''">
-    <ItemGroup>
-      <_AtlasFolderModDll Include="@(_ResolvedProjectReferencePaths)" Condition="'%(_ResolvedProjectReferencePaths.AtlasMod)' == 'true'">
-        <StageDir>$(TargetDir)atlas-mods\%(Filename)</StageDir>
-        <ModInfoPath>%(RootDir)%(Directory)modinfo.json</ModInfoPath>
-      </_AtlasFolderModDll>
-    </ItemGroup>
-    <Copy SourceFiles="@(_AtlasFolderModDll)" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_AtlasFolderModDll->'%(ModInfoPath)')" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
-                      Lines="@(_AtlasFolderModDll->'%(StageDir)')"
-                      Overwrite="true" />
-  </Target>
 
 </Project>

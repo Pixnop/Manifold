@@ -114,9 +114,8 @@ position packet drives, reachable via `Entity.SidedProperties.Behaviors`),
 so replaying it with a moved entity position is a real collision. The
 boot scenario also asserts the portal block itself resolves
 (`World.GetBlock(manifoldsample:voidportal)`), proving the portal's own
-asset staging (the `StageAtlasFolderMods` target had to learn to copy
-`samples/ManifoldSample/assets/` too, since neither the fixture nor
-Manifold itself ships assets).
+asset staging (Atlas stages the project's `assets/` folder with the folder mod,
+since neither the fixture nor Manifold itself ships assets).
 
 Cross-version compatibility (a world moving between the published 0.5.1 release and this
 dev build, in both directions) is a separate concern from this project's restart coverage

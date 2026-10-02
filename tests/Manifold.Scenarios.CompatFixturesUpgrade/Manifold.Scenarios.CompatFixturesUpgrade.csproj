@@ -41,23 +41,6 @@
     </ProjectReference>
   </ItemGroup>
 
-  <!-- Same staging as Manifold.Scenarios.CompatFixtures (see its comment): stages CompatFixtureMod
-       as "atlas-mods/CompatFixture", a fixed, Configuration-independent path named directly in
-       BuildTheUpgradeFixture's [AtlasWorld(Mods = [...])]. -->
-  <Target Name="StageAtlasFolderMods" AfterTargets="WriteAtlasModManifest" Condition="'$(TargetFramework)' != ''">
-    <ItemGroup>
-      <_AtlasFolderModDll Include="@(_ResolvedProjectReferencePaths)" Condition="'%(_ResolvedProjectReferencePaths.AtlasMod)' == 'true'">
-        <StageDir>$(TargetDir)atlas-mods\%(Filename)</StageDir>
-        <ModInfoPath>%(RootDir)%(Directory)modinfo.json</ModInfoPath>
-      </_AtlasFolderModDll>
-    </ItemGroup>
-    <Copy SourceFiles="@(_AtlasFolderModDll)" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_AtlasFolderModDll->'%(ModInfoPath)')" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
-                      Lines="@(_AtlasFolderModDll->'%(StageDir)')"
-                      Overwrite="true" />
-  </Target>
-
   <!-- Downloads the published Manifold release zip once (cached under obj/) and stages it next
        to the test assembly under a version-independent name, for BuildTheUpgradeFixture's
        explicit Mods list. -->
