@@ -108,5 +108,9 @@ public class StreamingWorldgenScenarios : ManifoldScenarioBase
 
         Assert.Equal("game:rock-andesite", World.BlockAt(marker).Code?.ToString());
         Assert.Equal("game:rock-granite", World.BlockAt(slab).Code?.ToString());
+
+        // The stream dimension is persistent and shared by the class: leave it as it was found.
+        World.SetBlock("game:air", marker);
+        await Ok("/atlasfx teleport-player atlasreturner overworld");
     }
 }
