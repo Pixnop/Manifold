@@ -40,7 +40,7 @@ with the same code - see [Dimension States](#dimension-states) and [Quarantine](
 | `Persistent` | Yes | Yes |
 | `Ephemeral` | No | No (reaped on transit-out, and at shutdown) |
 
-An `Ephemeral` dimension is reaped automatically when its last occupant **transits out** (`Destroyed` fires and its chunks are discarded), and it is removed at shutdown. **Disconnecting does not reap it** - a logged-out player keeps the dimension and reconnects straight back into it while the server is up. For a dimension a player must be able to leave and return to (including across a restart), use `Persistent`.
+An `Ephemeral` dimension is reaped automatically when its last occupant **transits out** (`Destroyed` fires and its terrain is gone for good; its chunks stay in server memory until the restart, see [Chunk lifecycle](worldgen.md#chunk-lifecycle-engine-limits)), and it is removed at shutdown. **Disconnecting does not reap it**: a logged-out player keeps the dimension and reconnects straight back into it while the server is up. For a dimension a player must be able to leave and return to (including across a restart), use `Persistent`.
 
 A dimension is **never destroyed while a player is inside it**. See [Removing dimensions](#removing-dimensions) below for `TryRemove`, `ForceRemoveDimension`, ephemeral auto-reap, and the admin purge command.
 
@@ -185,7 +185,7 @@ once the owner re-declares it, exactly like any other `Pending` entry.
 <div class="mf-console"><span class="mf-console__prompt">&gt;</span><code>/manifold purge mymod:vault</code></div>
 
 An `Ephemeral` dimension also reaps itself automatically: when its last occupant **transits out** (not
-on disconnect), `Destroyed` fires and its chunks are discarded - see [Persistent vs.
+on disconnect), `Destroyed` fires and its terrain is gone for good, see [Persistent vs.
 Ephemeral](#persistent-vs-ephemeral) above.
 
 Whenever a dimension disappears (any of the above, or a savegame that no longer has it), a player

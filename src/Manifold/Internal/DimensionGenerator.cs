@@ -134,6 +134,29 @@ internal sealed class DimensionGenerator
     }
 
     /// <summary>
+    /// Tells whether a column needs nothing more from the streaming driver: Manifold generated it
+    /// for this dimension and its chunks are in memory.
+    /// </summary>
+    /// <remarks>
+    /// Being in memory is not enough. The engine never unloads the chunks of a custom dimension
+    /// (its unload pass only walks the overworld's chunk Y range), so the columns of a destroyed
+    /// dimension stay loaded, and a later dimension that reuses the recycled engine id would
+    /// otherwise take them for its own terrain. Destroying a dimension drops its markers from
+    /// <see cref="GeneratedColumnStore"/>, so a loaded column with no marker is such a leftover and
+    /// has to go through generation, which replaces it. A column a consumer mod allocated or loaded
+    /// by itself has no marker either and is replaced the same way: content belongs in the worldgen
+    /// strategy or in a <c>ColumnGenerated</c> handler.
+    /// </remarks>
+    /// <param name="sapi">Server API.</param>
+    /// <param name="dimId">Engine dimension id.</param>
+    /// <param name="cx">Chunk X.</param>
+    /// <param name="cz">Chunk Z.</param>
+    /// <returns><c>true</c> if the column is generated and loaded.</returns>
+    public bool IsColumnReady(ICoreServerAPI sapi, int dimId, int cx, int cz) =>
+        _generatedColumns.IsGenerated(dimId, cx, cz)
+        && sapi.WorldManager.GetChunk(cx, dimId * ChunkMath.DimensionChunkYStride, cz) != null;
+
+    /// <summary>
     /// Testable seam: invokes <see cref="IWorldgenStrategy.GenerateColumn"/> for the given context,
     /// handling exceptions and updating the failure / auto-disable state.
     /// </summary>
@@ -262,6 +285,11 @@ internal sealed class DimensionGenerator
             return false;
         }
 
+        // Clients that hold chunks of this column got them from a destroyed dimension that used this
+        // engine id (the engine never unloads a dimension's chunks, on either side). Noted before
+        // the column is replaced, resent once it is generated.
+        List<IServerPlayer> staleHolders = PlayersHoldingColumn(sapi, dimId, cx, cz);
+
         // First-ever visit: allocate empty chunk slots, populate via strategy. No server relight:
         // the client lights freshly-received columns itself; see EnsureRegion.
         sapi.WorldManager.CreateChunkColumnForDimension(cx, cz, dimId);
@@ -298,7 +326,44 @@ internal sealed class DimensionGenerator
             _registry.RaiseColumnGenerated(dim, cx, cz, postProcessAccessor);
         }
 
+        // The engine's own send ring will never do it: it considers a chunk it sent once as held
+        // for good, and a client replaces a chunk it already holds when it receives it again.
+        foreach (var holder in staleHolders)
+        {
+            sapi.WorldManager.ForceSendChunkColumn(holder, cx, cz, dimId);
+        }
+
         return true;
+    }
+
+    /// <summary>
+    /// Lists the online players the server has already sent at least one chunk of this column to.
+    /// For a column about to be generated, those chunks can only come from a previous dimension on
+    /// the same engine id.
+    /// </summary>
+    private static List<IServerPlayer> PlayersHoldingColumn(ICoreServerAPI sapi, int dimId, int cx, int cz)
+    {
+        var holders = new List<IServerPlayer>();
+        int baseY = dimId * ChunkMath.DimensionChunkYStride;
+        int slices = sapi.WorldManager.MapSizeY / ChunkMath.ChunkSize;
+        foreach (var online in sapi.World.AllOnlinePlayers)
+        {
+            if (online is not IServerPlayer player)
+            {
+                continue;
+            }
+
+            for (int y = 0; y < slices; y++)
+            {
+                if (sapi.WorldManager.HasChunk(cx, baseY + y, cz, player))
+                {
+                    holders.Add(player);
+                    break;
+                }
+            }
+        }
+
+        return holders;
     }
 
     /// <summary>
