@@ -32,4 +32,11 @@ internal sealed class PlayerTransitedPacket
     /// </summary>
     [ProtoMember(6)]
     public float? Yaw { get; set; }
+
+    /// <summary>
+    /// Whether the player arrived by dying and respawning rather than by a transit.
+    /// Added in 0.6.1: an older client ignores the field, an older server never sets it.
+    /// </summary>
+    [ProtoMember(7)]
+    public bool IsRespawn { get; set; }
 }

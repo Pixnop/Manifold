@@ -12,20 +12,33 @@ namespace Manifold.Api.Server;
 /// <remarks>Server-side. All members must be invoked on the main thread.</remarks>
 public interface ITransitionService
 {
-    /// <summary>Raised before transit completes; set <c>Cancel = true</c> to abort.</summary>
+    /// <summary>
+    /// Raised before transit completes; set <c>Cancel = true</c> to abort. Not raised when a player
+    /// who died in a dimension respawns out of it: a respawn cannot be refused (see
+    /// <see cref="PlayerEnteredDimensionEventArgs.IsRespawn"/>).
+    /// </summary>
     event EventHandler<PlayerEnteringDimensionEventArgs> PlayerEntering;
 
     /// <summary>
     /// Raised after the destination region has been generated but before the actual teleport.
     /// Cancellable: setting <c>Cancel = true</c> aborts the transit and leaves the player in the
-    /// source dimension. Fires only on the player-transit path (<see cref="TeleportPlayer"/>).
+    /// source dimension. Fires only on the player-transit path (<see cref="TeleportPlayer"/>), never
+    /// for a respawn out of a dimension.
     /// </summary>
     event EventHandler<PlayerArrivingDimensionEventArgs> PlayerArriving;
 
-    /// <summary>Raised after the player has entered the target dimension.</summary>
+    /// <summary>
+    /// Raised after the player has entered the target dimension. Also raised, with
+    /// <see cref="PlayerEnteredDimensionEventArgs.IsRespawn"/> set, when a player who died in a custom
+    /// dimension respawns out of it; <see cref="PlayerEntering"/> and <see cref="PlayerArriving"/> are not.
+    /// </summary>
     event EventHandler<PlayerEnteredDimensionEventArgs> PlayerEntered;
 
-    /// <summary>Raised after the player has left the source dimension.</summary>
+    /// <summary>
+    /// Raised after the player has left the source dimension. Also raised, with
+    /// <see cref="PlayerLeftDimensionEventArgs.IsRespawn"/> set, when a player who died in a custom
+    /// dimension respawns out of it; <see cref="PlayerEntering"/> and <see cref="PlayerArriving"/> are not.
+    /// </summary>
     event EventHandler<PlayerLeftDimensionEventArgs> PlayerLeft;
 
     /// <summary>

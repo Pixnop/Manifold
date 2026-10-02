@@ -93,6 +93,20 @@ public interface IDimensionBuilder
     IDimensionBuilder WithForcedGameMode(EnumGameMode mode);
 
     /// <summary>
+    /// Sets where a player who dies in this dimension respawns. Default:
+    /// <see cref="RespawnBehavior.Overworld"/>, so a death never leaves the player stuck in the
+    /// dimension; <see cref="RespawnBehavior.DimensionSpawn"/> keeps them inside, at the point set by
+    /// <see cref="WithFixedSpawn"/>.
+    /// </summary>
+    /// <param name="behavior">The respawn behavior.</param>
+    /// <returns>This builder, for chaining.</returns>
+    /// <remarks>
+    /// Call <see cref="WithFixedSpawn"/> too for <see cref="RespawnBehavior.DimensionSpawn"/>; without
+    /// a spawn point the player respawns in the overworld and Manifold logs a warning once.
+    /// </remarks>
+    IDimensionBuilder WithRespawnBehavior(RespawnBehavior behavior);
+
+    /// <summary>
     /// Opts the dimension into streaming worldgen: chunks are generated on demand as players move,
     /// keeping at least <paramref name="loadRadius"/> chunks generated around each player. Range
     /// 1..32. The effective radius is <c>max(loadRadius, server view distance)</c>, so a value below

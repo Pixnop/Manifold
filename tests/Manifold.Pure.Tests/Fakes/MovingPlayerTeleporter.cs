@@ -23,6 +23,9 @@ internal sealed class MovingPlayerTeleporter : IPlayerTeleporter
     /// <summary>Gets or sets a value indicating whether teleports wait for <see cref="LandNext"/> instead of applying at once.</summary>
     public bool Defer { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether every teleport throws, like an engine call that fails.</summary>
+    public bool ThrowOnMove { get; set; }
+
     /// <summary>Gets the number of block-position teleports received.</summary>
     public int BlockCalls { get; private set; }
 
@@ -73,6 +76,11 @@ internal sealed class MovingPlayerTeleporter : IPlayerTeleporter
 
     private void Move(IServerPlayer player, int dimension, PendingLanding landing)
     {
+        if (ThrowOnMove)
+        {
+            throw new System.InvalidOperationException("The engine teleport failed.");
+        }
+
         LastYaw = landing.Yaw;
         player.Entity.Pos.Dimension = dimension;
         Issue(player, landing);

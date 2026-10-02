@@ -32,6 +32,15 @@ public sealed class PlayerTransitedPacketTests
         Assert.Null(RoundTrip(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y" }).Yaw);
     }
 
+    [Fact]
+    public void IsRespawn_Should_Round_Trip_And_Be_False_When_The_Sender_Did_Not_Set_It()
+    {
+        Assert.True(RoundTrip(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", IsRespawn = true }).IsRespawn);
+
+        // What a pre-0.6.1 server sends: no field 7 at all.
+        Assert.False(RoundTrip(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y" }).IsRespawn);
+    }
+
     private static PlayerTransitedPacket RoundTrip(PlayerTransitedPacket packet)
     {
         using var ms = new MemoryStream();

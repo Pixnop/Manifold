@@ -74,6 +74,22 @@ public sealed class ClientTransitHandlerTests
     }
 
     [Fact]
+    public void Handle_Should_Flag_The_Event_As_A_Respawn_Only_When_The_Packet_Says_So()
+    {
+        var mirror = new ClientDimensionMirror();
+        Seed(mirror, "a:overworld", 0);
+        Seed(mirror, "mod:nether", 10);
+        var handler = new ClientTransitHandler(mirror);
+        var flags = new System.Collections.Generic.List<bool>();
+        handler.Transited += e => flags.Add(e.IsRespawn);
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "mod:nether", TargetCode = "a:overworld", IsRespawn = true });
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
+
+        Assert.Equal([true, false], flags);
+    }
+
+    [Fact]
     public void Handle_Should_Raise_Transited_With_Resolved_Dimensions_And_TargetPosition()
     {
         var mirror = new ClientDimensionMirror();

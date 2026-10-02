@@ -42,6 +42,17 @@ internal sealed class PlayerOriginStore
         IsDirty = true;
     }
 
+    /// <summary>Forget where a player came from when they entered a dimension.</summary>
+    /// <param name="playerUid">Player unique id.</param>
+    /// <param name="dimId">Engine id of the dimension the player entered.</param>
+    public void Remove(string playerUid, int dimId)
+    {
+        if (_origins.Remove(Key(playerUid, dimId)))
+        {
+            IsDirty = true;
+        }
+    }
+
     /// <summary>Look up where a player came from when they entered a dimension.</summary>
     /// <param name="playerUid">Player unique id.</param>
     /// <param name="dimId">Engine id of the dimension the player entered.</param>
