@@ -40,7 +40,7 @@ public interface IManifoldClient
     /// </para>
     /// <para>
     /// The join notification (<see cref="LocalPlayerDimensionChangedEventArgs.IsJoin"/> is
-    /// <c>true</c>) is raised exactly once per client session, as soon as both the manifest snapshot
+    /// <c>true</c>) is raised at most once per client session, as soon as both the manifest snapshot
     /// has reached the mirror and the local player entity exists with its position, whichever comes
     /// last. Its <see cref="LocalPlayerDimensionChangedEventArgs.Source"/> is synthetic: the mirror's
     /// overworld, standing in for "where the player was before", because the player did not actually
@@ -48,8 +48,12 @@ public interface IManifoldClient
     /// is in and <see cref="LocalPlayerDimensionChangedEventArgs.TargetPosition"/> their current block
     /// position. It is not raised when the player joins in the overworld (start from the overworld
     /// state), and not at all if the player's dimension id is unknown to the mirror (a warning is
-    /// logged). A mod that subscribes after the join has already happened does not receive it; ask
-    /// <see cref="GetDimensionOf"/> for the local player entity instead.
+    /// logged). A player who logs in inside a quarantined dimension (its owning mod is gone) gets the
+    /// join notification for that dimension, typically followed by a real transit to the overworld
+    /// when the server rescues them. A real transit that arrives before the join notification has been
+    /// decided cancels it, so a stale join is never raised on top of it. A mod that subscribes after
+    /// the join has already happened does not receive it; ask <see cref="GetDimensionOf"/> for the
+    /// local player entity instead.
     /// </para>
     /// </remarks>
     event EventHandler<LocalPlayerDimensionChangedEventArgs> LocalPlayerChangedDimension;

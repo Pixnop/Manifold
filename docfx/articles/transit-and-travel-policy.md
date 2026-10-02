@@ -42,17 +42,22 @@ The transit is **synchronous**: it runs entirely on the calling main thread. You
 for `PlayerEntered` to know what happened, because by the time `TryTeleportPlayer` returns:
 
 - `true`: the player entity has been rebound to the target dimension (its `Pos.Dimension` is already
-  the target's id), the engine teleport to the landing position has been issued, the target's
+  the target's id), the engine teleport to the landing position has been requested, the target's
   game-mode and inventory policies have been applied, and `PlayerLeft` then `PlayerEntered` have
-  been raised, with every subscriber already run. The landing coordinates are applied by the engine's
-  own teleport, which completes immediately for a column that is already loaded (and Manifold
-  generates or loads the destination region first).
+  been raised, with every subscriber already run.
 - `false`: the player was not moved, and neither `PlayerLeft` nor `PlayerEntered` was raised. A cancel
   at `PlayerArriving` or a refused dismount happens after the destination region was generated, so
   that region may exist and the player's position in the source dimension is already recorded for
   `LastVisited`, but the player has not moved.
 
-`TeleportPlayer` has the same ordering without the return value. Two things are outside the
+**Not guaranteed on return: the entity's X/Y/Z.** The engine applies the landing coordinates from a
+callback that is queued when the dimension 0 chunk column at the landing X/Z is not loaded (typical
+with `WithFixedSpawn`, `LastVisited` or `OverridePosition` far from where the player stands), so
+they can arrive a few ticks later and the entity may still hold its source coordinates when
+`PlayerEntered` fires. Use `PlayerEnteredDimensionEventArgs.TargetPosition` for the landing
+position instead of reading the entity.
+
+`TeleportPlayer` has the same ordering without the return value. Two further things are outside the
 guarantee: a client-side mod hears about the transit through a network packet and so sees
 `LocalPlayerChangedDimension` slightly later, and an unknown or inactive target throws before
 anything happens.

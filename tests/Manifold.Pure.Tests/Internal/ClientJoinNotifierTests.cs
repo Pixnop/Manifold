@@ -154,6 +154,39 @@ public sealed class ClientJoinNotifierTests
     }
 
     [Fact]
+    public void Suppress_Should_Prevent_A_Later_Join()
+    {
+        var mirror = new ClientDimensionMirror();
+        Snapshot(mirror, ("a:overworld", 0), ("mod:nether", 10));
+        var notifier = new ClientJoinNotifier(mirror, () => At(10, 1, 2, 3));
+        var raised = Capture(notifier);
+
+        notifier.Suppress();
+        notifier.Notify();
+
+        Assert.Empty(raised);
+    }
+
+    [Fact]
+    public void Facade_Should_Not_Raise_A_Stale_Join_After_A_Real_Transit()
+    {
+        var mirror = new ClientDimensionMirror();
+        var handler = new ClientTransitHandler(mirror);
+        var notifier = new ClientJoinNotifier(mirror, () => At(10, 1, 2, 3));
+        var facade = new ManifoldClientFacade(mirror, handler, notifier);
+        var received = new List<LocalPlayerDimensionChangedEventArgs>();
+        facade.LocalPlayerChangedDimension += (_, e) => received.Add(e);
+        Snapshot(mirror, ("a:overworld", 0), ("mod:nether", 10));
+
+        // A real transit lands before the player entity is ready to be evaluated.
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
+        notifier.Notify();
+
+        var only = Assert.Single(received);
+        Assert.False(only.IsJoin);
+    }
+
+    [Fact]
     public void Facade_Should_Republish_The_Join_Through_LocalPlayerChangedDimension()
     {
         var mirror = new ClientDimensionMirror();

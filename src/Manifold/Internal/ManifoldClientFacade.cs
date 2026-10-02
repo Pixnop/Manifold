@@ -52,6 +52,13 @@ internal sealed class ManifoldClientFacade : IManifoldClient
         {
             joinNotifier.Joined += args =>
                 SafeEvent.Raise(LocalPlayerChangedDimension, this, args, LogSubscriberError);
+
+            // A real transit already tells subscribers where the player is: a join decided after it
+            // would be stale.
+            if (transitHandler is not null)
+            {
+                transitHandler.Transited += _ => joinNotifier.Suppress();
+            }
         }
     }
 

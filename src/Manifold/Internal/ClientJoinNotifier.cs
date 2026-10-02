@@ -45,6 +45,13 @@ internal sealed class ClientJoinNotifier
     public event Action<LocalPlayerDimensionChangedEventArgs>? Joined;
 
     /// <summary>
+    /// Marks the join as decided without raising anything. Called when a real transit has been raised:
+    /// the player's dimension is then already reported by that event, so a later <see cref="Notify"/>
+    /// must not raise a stale join on top of it.
+    /// </summary>
+    public void Suppress() => _decided = true;
+
+    /// <summary>
     /// Re-evaluates the join state. Call after the manifest snapshot has been applied to the mirror
     /// and whenever the local player entity may have just become available. Idempotent once decided.
     /// </summary>

@@ -109,7 +109,7 @@ turn it back into the dimension, so there is no need to scan the whole list.
   It also survives the owning mod being removed and added back: while the mod is absent the
   dimension is `Quarantined` and its id stays reserved, and the same id returns once the mod
   registers the code again. The id is given up only when an admin purges the dimension with
-  `/manifold purge`; registering the code afterwards allocates a new id.
+  `/manifold purge`; registering the code afterwards allocates an id again, not necessarily the same one.
 - **An `Ephemeral` dimension's id is recycled.** It is released when the dimension is destroyed and
   can be given to a different dimension later, and ephemeral dimensions do not outlive the server, so
   never persist one.
@@ -211,8 +211,10 @@ public override void StartClientSide(ICoreClientAPI capi)
 {
     IManifoldClient manifold = capi.GetManifoldClient();
 
-    // Start from the overworld; the join notification corrects it if the player logs in elsewhere.
-    IDimension current = manifold.GetByInternalId(0)!;
+    // Null until the first event: a player who joins in the overworld never gets one, so null
+    // means "the overworld". (The mirror is still empty during StartClientSide, so do not look
+    // the overworld up here.)
+    IDimension? current = null;
 
     manifold.LocalPlayerChangedDimension += (_, e) =>
     {
@@ -226,7 +228,12 @@ public override void StartClientSide(ICoreClientAPI capi)
 ```
 
 If you need the answer at an arbitrary moment (for example from a hotkey handler), ask the mirror
-directly: `manifold.GetDimensionOf(capi.World.Player.Entity)`.
+directly: `manifold.GetDimensionOf(capi.World.Player.Entity)`. Once the world has loaded it returns
+the overworld for a player standing in it.
+
+A player who logs in inside a quarantined dimension (its owning mod was uninstalled) gets the join
+notification for that dimension, typically followed by a real transit to the overworld when the
+server rescues them.
 
 ## Dimension Metadata (0.4.0)
 

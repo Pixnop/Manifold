@@ -72,11 +72,17 @@ public interface ITransitionService
     /// <para>
     /// When it returns <c>true</c>: the player entity has been rebound to the target dimension (its
     /// <c>Pos.Dimension</c> is already the target's id), the engine teleport to the landing position
-    /// has been issued, the target's game-mode and inventory policies have been applied, and
+    /// has been requested, the target's game-mode and inventory policies have been applied, and
     /// <see cref="PlayerLeft"/> then <see cref="PlayerEntered"/> have been raised, every subscriber
-    /// having run. The landing coordinates themselves are applied by the engine's own teleport, which
-    /// completes immediately for a destination column that is already loaded (Manifold generates or
-    /// loads the destination region first).
+    /// having run.
+    /// </para>
+    /// <para>
+    /// Not guaranteed on return: the entity's X/Y/Z. The engine applies the landing coordinates from a
+    /// callback that is queued when the dimension 0 chunk column at the landing X/Z is not loaded, so
+    /// they can arrive a few ticks later and the entity may still hold its source coordinates when
+    /// <see cref="PlayerEntered"/> fires. Read the landing position from
+    /// <see cref="Manifold.Api.Events.PlayerEnteredDimensionEventArgs.TargetPosition"/>, not from the
+    /// entity.
     /// </para>
     /// <para>
     /// When it returns <c>false</c>: the player was not moved, and neither <see cref="PlayerLeft"/>
