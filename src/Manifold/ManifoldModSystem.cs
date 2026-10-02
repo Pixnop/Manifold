@@ -38,9 +38,16 @@ public sealed class ManifoldModSystem : ModSystem
     /// </summary>
     private const string AtlasRollbackRestoredEvent = "atlas:rollback:restored";
 
+    /// <summary>
+    /// How often pending relights are looked at again: short enough that a restored light reaches
+    /// clients within about half a second, and idle (an empty list) when nothing is pending.
+    /// </summary>
+    private const int RelightRetryIntervalMs = 250;
+
     private DimensionPersistence? _persistence;
     private DimensionRegistry? _registry;
     private DimensionGenerator? _generator;
+    private BlockLightRestorer? _lightRestorer;
     private StreamingWorldgenDriver? _streamingDriver;
     private GeneratedColumnStore? _generatedColumns;
     private PlayerPositionStore? _positionStore;
@@ -110,7 +117,10 @@ public sealed class ManifoldModSystem : ModSystem
             inventorySwapper);
         transit.PlayerEntered += OnTransitPlayerEntered;
 
-        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator);
+        _lightRestorer = new BlockLightRestorer(new EngineRelight(api), () => api.World.ElapsedMilliseconds);
+        api.Event.RegisterGameTickListener(_ => _lightRestorer.Tick(), RelightRetryIntervalMs);
+
+        ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, _lightRestorer);
         ManifoldAccess.SetServerResolver(ServerFacade);
 
         RegisterManifoldCommand(api);
@@ -270,7 +280,9 @@ public sealed class ManifoldModSystem : ModSystem
     /// Registers the <c>/manifold</c> admin command. Currently one subcommand:
     /// <c>/manifold relight [radius]</c> relights the chunk columns around the caller in the
     /// dimension they are standing in, over the full world height. Exists because the engine's
-    /// own relight paths (including <c>/debug chunk relight</c>) are dimension-blind.
+    /// own relight paths (including <c>/debug chunk relight</c>) are dimension-blind. Same
+    /// behaviour as <c>IManifoldServer.RelightRegion</c>: sunlight at once, block light restored
+    /// through the engine's lighting queue a moment later.
     /// </summary>
     private void RegisterManifoldCommand(ICoreServerAPI api)
     {
@@ -301,9 +313,9 @@ public sealed class ManifoldModSystem : ModSystem
                         ((cz + radius) * ChunkMath.ChunkSize) + (ChunkMath.ChunkSize - 1),
                         dimId);
 
-                    // Runtime relight of already-loaded chunks: must push to clients or the
+                    // Runtime relight of already-loaded chunks: must resend to clients or the
                     // recomputed light is invisible (server-correct, client never re-meshes).
-                    bool relit = DimensionGenerator.RelightBlockBounds(api, dimId, min, max, sendToClients: true);
+                    bool relit = _lightRestorer!.Relight(dimId, min, max, sendToClients: true);
                     return relit
                         ? TextCommandResult.Success(
                             $"Relit dim {dimId}, chunks ({cx - radius},{cz - radius}) to ({cx + radius},{cz + radius}), full height.")
@@ -396,6 +408,7 @@ public sealed class ManifoldModSystem : ModSystem
         // load the old one's chunks instead of running its own worldgen (common now that ephemeral
         // dims reap on empty and ids recycle within a session).
         _generator?.ForgetDimension(e.Dimension.InternalId);
+        _lightRestorer?.ForgetDimension(e.Dimension.InternalId);
         _positionStore?.RemoveDimension(e.Dimension.InternalId);
         _generatedColumns?.RemoveDimension(e.Dimension.InternalId);
 

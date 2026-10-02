@@ -170,6 +170,17 @@ public sealed partial class AtlasFixtureModSystem
                 .WithArgs(parsers.Word("dimpath"), parsers.Int("ceiling"))
                 .HandleWith(OnCreateDarkSky)
             .EndSubCommand()
+            .BeginSubCommand("relight-region")
+                .WithArgs(
+                    parsers.Word("dimpath"),
+                    parsers.Int("x1"),
+                    parsers.Int("y1"),
+                    parsers.Int("z1"),
+                    parsers.Int("x2"),
+                    parsers.Int("y2"),
+                    parsers.Int("z2"))
+                .HandleWith(OnRelightRegion)
+            .EndSubCommand()
             .BeginSubCommand("force-remove")
                 .WithArgs(parsers.Word("dimpath"))
                 .HandleWith(OnForceRemove)
@@ -277,6 +288,22 @@ public sealed partial class AtlasFixtureModSystem
         PublishDimensionId(path, dimension.InternalId);
         PregenerateSpawn(dimension);
         return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    /// <summary>Drives the public IManifoldServer.RelightRegion over the given box.</summary>
+    private TextCommandResult OnRelightRegion(TextCommandCallingArgs args)
+    {
+        var min = new BlockPos((int)args[1], (int)args[2], (int)args[3], 0);
+        var max = new BlockPos((int)args[4], (int)args[5], (int)args[6], 0);
+        try
+        {
+            _manifold.RelightRegion(ResolveTargetCode((string)args[0]), min, max);
+            return TextCommandResult.Success("relit");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private TextCommandResult OnForceRemove(TextCommandCallingArgs args)
