@@ -162,9 +162,10 @@ public interface IDimensionBuilder
     /// <returns>This builder, for chaining.</returns>
     /// <exception cref="System.ArgumentException">Thrown when the value is of an unsupported type, or the same key is set twice.</exception>
     /// <remarks>
-    /// Metadata is server-side only in v1; it is not replicated to client mirrors and not persisted
-    /// across server restarts. For static dimensions this is harmless (the owner re-declares them on
-    /// boot). For runtime <c>Create</c> dimensions, treat metadata as ephemeral.
+    /// Metadata is replicated to client mirrors (since 0.6.0) and immutable once the dimension is
+    /// registered, so a client can cache what it reads. It is not persisted across server restarts.
+    /// For static dimensions this is harmless (the owner re-declares them on boot). For runtime
+    /// <c>Create</c> dimensions, treat metadata as ephemeral.
     /// </remarks>
     IDimensionBuilder WithMetadata(string key, object? value);
 

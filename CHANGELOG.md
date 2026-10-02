@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`IDimensionBuilder.WithMetadata`'s XML documentation still said metadata was not replicated to client mirrors.** It has been since 0.6.0, as `IDimension.Metadata` and the 0.6.0 notes say; the remark now matches.
+
 ## [0.6.0] - 2026-09-28
 
 ### Added
