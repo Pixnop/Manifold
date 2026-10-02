@@ -27,14 +27,34 @@ public interface IManifoldClient
     event EventHandler<PlayerEnteredDimensionEventArgs> LocalPlayerTransited;
 
     /// <summary>
-    /// Raised on the client main thread after the local player transits to a new dimension,
-    /// resolved from the server's notification through the client dimension mirror.
+    /// Raised on the client main thread when the local player changes dimension, and once more when
+    /// the player joins a world while already inside a custom dimension. Both are resolved through
+    /// the client dimension mirror.
     /// </summary>
     /// <remarks>
-    /// Not raised for a transit whose source or target dimension code is not (yet) known to the
-    /// client mirror - for example immediately after joining, before the manifest snapshot has
-    /// arrived, or during a rare resync race. Subscribe to <see cref="Created"/> as well if you
-    /// need to handle that case.
+    /// <para>
+    /// A real transit (<see cref="LocalPlayerDimensionChangedEventArgs.IsJoin"/> is <c>false</c>) is
+    /// raised after the server's transit notification arrives. It is not raised for a transit whose
+    /// source or target dimension code is not (yet) known to the client mirror, for example during a
+    /// rare resync race.
+    /// </para>
+    /// <para>
+    /// The join notification (<see cref="LocalPlayerDimensionChangedEventArgs.IsJoin"/> is
+    /// <c>true</c>) is raised at most once per client session, as soon as both the manifest snapshot
+    /// has reached the mirror and the local player entity exists with its position, whichever comes
+    /// last. Its <see cref="LocalPlayerDimensionChangedEventArgs.Source"/> is synthetic: the mirror's
+    /// overworld, standing in for "where the player was before", because the player did not actually
+    /// leave it. <see cref="LocalPlayerDimensionChangedEventArgs.Target"/> is the dimension the player
+    /// is in and <see cref="LocalPlayerDimensionChangedEventArgs.TargetPosition"/> their current block
+    /// position. It is not raised when the player joins in the overworld (start from the overworld
+    /// state), and not at all if the player's dimension id is unknown to the mirror (a warning is
+    /// logged). A player who logs in inside a quarantined dimension (its owning mod is gone) gets the
+    /// join notification for that dimension, typically followed by a real transit to the overworld
+    /// when the server rescues them. A real transit that arrives before the join notification has been
+    /// decided cancels it, so a stale join is never raised on top of it. A mod that subscribes after
+    /// the join has already happened does not receive it; ask <see cref="GetDimensionOf"/> for the
+    /// local player entity instead.
+    /// </para>
     /// </remarks>
     event EventHandler<LocalPlayerDimensionChangedEventArgs> LocalPlayerChangedDimension;
 
@@ -48,6 +68,14 @@ public interface IManifoldClient
     /// <param name="code">Asset code.</param>
     /// <returns>The dimension or <c>null</c>.</returns>
     IDimension? Get(AssetLocation code);
+
+    /// <summary>
+    /// Finds a mirrored dimension by its engine dimension id (<see cref="IDimension.InternalId"/>).
+    /// The overworld is id 0.
+    /// </summary>
+    /// <param name="internalId">Engine dimension id, as found in an entity's <c>Pos.Dimension</c> or a block position.</param>
+    /// <returns>The dimension, or <c>null</c> if the mirror does not know that id (yet).</returns>
+    IDimension? GetByInternalId(int internalId);
 
     /// <summary>
     /// Finds the mirrored dimension containing <paramref name="entity"/>, by its position's engine

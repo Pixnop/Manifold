@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using Manifold.Api;
+using Manifold.Api.Server;
 using Manifold.Internal;
 using Manifold.Pure.Tests.Fakes;
 using NSubstitute;
@@ -686,6 +688,101 @@ public sealed class DimensionRegistryTests
 
         Assert.Null(registry.GetDimensionOf(entity));
     }
+
+    [Fact]
+    public void GetByInternalId_Should_Return_Registered_Dimension_And_The_Overworld_Through_The_Public_Interface()
+    {
+        IDimensionRegistry registry = NewRegistry();
+        var dim = ((DimensionRegistry)registry).DefineForOwner(Code("testmod:nether"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Same(dim, registry.GetByInternalId(dim.InternalId));
+        Assert.Equal(Code("manifold:overworld"), registry.GetByInternalId(0)!.Code);
+    }
+
+    [Fact]
+    public void GetByInternalId_Should_Return_Null_Through_The_Public_Interface_When_No_Dimension_Has_That_Id()
+    {
+        IDimensionRegistry registry = NewRegistry();
+
+        Assert.Null(registry.GetByInternalId(999));
+    }
+
+    [Fact]
+    public void OwnerScopedRegistry_GetByInternalId_Should_Delegate_To_The_Shared_Registry()
+    {
+        var shared = NewRegistry();
+        var dim = shared.DefineForOwner(Code("testmod:nether"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        IDimensionRegistry scoped = new OwnerScopedRegistry(shared, "othermod");
+
+        Assert.Same(dim, scoped.GetByInternalId(dim.InternalId));
+        Assert.Null(scoped.GetByInternalId(999));
+    }
+
+    [Fact]
+    public void RegisterStatic_Should_Keep_Its_Id_When_The_Owner_Mod_Is_Removed_And_Added_Back_Across_Restarts()
+    {
+        // Boot 1: the owner registers a static dimension and the world saves its manifest.
+        var store = new InMemoryManifestStore();
+        var boot1 = NewRegistry();
+        var original = boot1.DefineForOwner(Code("testmod:vault"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        new DimensionPersistence(store, _ => true).Save(boot1.All.Select(ToEntry));
+
+        // Boot 2: the owner mod is gone. The entry is quarantined and keeps its id reserved, so a
+        // dimension registered meanwhile never takes it; saving again keeps the quarantined entry.
+        var boot2 = NewRegistry();
+        var absent = new DimensionPersistence(store, _ => false);
+        foreach (var entry in absent.LoadOrEmpty())
+        {
+            boot2.SeedFromManifest(entry, absent.Classify(entry));
+        }
+
+        Assert.Equal(DimensionState.Quarantined, boot2.Get(Code("testmod:vault"))!.State);
+        var other = boot2.DefineForOwner(Code("other:place"), "other")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+        Assert.NotEqual(original.InternalId, other.InternalId);
+        absent.Save(boot2.All.Select(ToEntry));
+
+        // Boot 3: the owner is back and registers the same code again: same id.
+        var boot3 = NewRegistry();
+        var present = new DimensionPersistence(store, m => m is "testmod" or "other");
+        foreach (var entry in present.LoadOrEmpty())
+        {
+            boot3.SeedFromManifest(entry, present.Classify(entry));
+        }
+
+        var again = boot3.DefineForOwner(Code("testmod:vault"), "testmod")
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .RegisterStatic();
+
+        Assert.Equal(original.InternalId, again.InternalId);
+    }
+
+    [Fact]
+    public void Ephemeral_Id_Should_Be_Recycled_For_The_Next_Dimension_After_It_Is_Destroyed()
+    {
+        var registry = NewRegistry();
+        var first = registry.DefineForOwner(Code("testmod:scratch"), "testmod")
+            .Ephemeral()
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Create();
+        registry.TryRemove(first.Code);
+
+        var second = registry.DefineForOwner(Code("testmod:other"), "testmod")
+            .Ephemeral()
+            .WithWorldgen(new FakeWorldgenStrategy())
+            .Create();
+
+        Assert.Equal(first.InternalId, second.InternalId);
+    }
+
+    private static ManifestEntry ToEntry(IDimension d) => new(d.Code, d.InternalId, d.Lifetime, d.OwnerModId);
 
     private static AssetLocation Code(string s) => new(s);
 
