@@ -108,6 +108,10 @@ public sealed class ManifoldSampleModSystem : ModSystem
             .WithSpawnBehavior(SpawnBehavior.LastVisited)
             .WithGenerationRadius(4)
             .WithDarkSky(ceilingY: 12)
+
+            // A hint for the Chart map companion: scan from the ceiling down, so the map shows
+            // the floor under the roof instead of the roof. Ignored when Chart is not installed.
+            .WithMetadata("chart:scanTopY", 12)
             .RegisterStatic();
 
         new DimensionCommandBuilder()
