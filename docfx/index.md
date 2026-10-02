@@ -173,7 +173,7 @@ The full walkthrough, load order and all, is in [Getting Started](articles/getti
 <div class="mf-card"><strong>Streaming worldgen</strong><p><code>.Streaming(loadRadius)</code> generates chunks on demand as players move, with no invisible walls at the edge.</p></div>
 <div class="mf-card"><strong>Per-dimension inventory</strong><p><code>WithSeparateInventory</code> swaps the hotbar, backpack or character slots per dimension, with no item loss.</p></div>
 <div class="mf-card"><strong>Dark dimensions</strong><p><code>WithDarkSky(ceilingY)</code> seals a dimension under an opaque ceiling, lit only by block light.</p></div>
-<div class="mf-card"><strong>Relight on demand</strong><p><code>RelightRegion</code> and <code>/manifold relight</code> recalculate light after a mod places blocks in a custom dimension.</p></div>
+<div class="mf-card"><strong>Relight on demand</strong><p><code>RelightRegion</code> and <code>/manifold relight</code> recalculate light after a mod places blocks in a custom dimension, light sources included.</p></div>
 <div class="mf-card"><strong>Savegame persistence</strong><p>The manifest, generated-column set and per-player last-visited positions all survive a restart.</p></div>
 <div class="mf-card"><strong>Opt-in helpers</strong><p><code>PortalBlockBase</code> and <code>DimensionCommandBuilder</code> cut the boilerplate for a portal block or a transit command.</p></div>
 </div>

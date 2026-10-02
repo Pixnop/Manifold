@@ -62,12 +62,13 @@ self-sufficient in any order.
 
 ## What is covered
 
-112 scenarios, one class per area:
+118 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
 | Boot, registration, per-dimension worldgen, streaming, dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
 | Lifecycle, teardown, admin commands | `DimensionLifecycleScenarios`, `EphemeralDimensionScenarios`, `TeardownScenarios`, `AdminCommandScenarios` |
+| Relight: block light kept (also from a source just outside the relit chunks), sources placed without relight, block entities untouched, pending sources lit when a player arrives | `RelightScenarios`, `RelightPendingScenarios` |
 | Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
 | Transit events: order, vetoes, a throwing subscriber | `TransitEventScenarios` |
 | Travel policy, forced game mode, command builders | `TravelPolicyScenarios`, `CommandBuilderScenarios` |

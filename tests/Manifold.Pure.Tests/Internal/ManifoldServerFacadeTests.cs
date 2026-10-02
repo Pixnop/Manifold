@@ -53,14 +53,14 @@ public sealed class ManifoldServerFacadeTests
         facade.RelightRegion(
             new AssetLocation("owner:target"), new BlockPos(0, 0, 0, 0), new BlockPos(31, 64, 31, 0));
 
-        // Runtime relight must push to clients (sendToClients: true) and target the dimension's own
-        // internal id - a BlockPos built without one defaults to dim 0, which would relight the
-        // overworld instead.
+        // The relight must target the dimension's own internal id (a BlockPos built without one
+        // defaults to dim 0, which would relight the overworld instead), and must not use the
+        // engine's resend, which resends the overworld's chunks (EngineRelightTests covers Manifold's own).
         var id = facade.Registry.Get(new AssetLocation("owner:target"))!.InternalId;
         sapi.WorldManager.Received(1).FullRelight(
             Arg.Is<BlockPos>(p => p.dimension == id),
             Arg.Is<BlockPos>(p => p.dimension == id && p.X == 31),
-            true);
+            false);
     }
 
     [Fact]
@@ -231,7 +231,9 @@ public sealed class ManifoldServerFacadeTests
         sapi.World.AllOnlinePlayers.Returns(System.Array.Empty<IPlayer>());
         var transitions = Substitute.For<Manifold.Api.Server.ITransitionService>();
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
-        var facade = new ManifoldServerFacade(registry, transitions, sapi, generator);
+        sapi.WorldManager.GetChunk(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns((IServerChunk?)null);
+        var facade = new ManifoldServerFacade(
+            registry, transitions, sapi, generator, new BlockLightRestorer(new EngineRelight(sapi), () => 0));
         return (facade, sapi);
     }
 
@@ -249,7 +251,8 @@ public sealed class ManifoldServerFacadeTests
         sapi = Substitute.For<ICoreServerAPI>();
         var transitions = Substitute.For<Manifold.Api.Server.ITransitionService>();
         var generator = new DimensionGenerator(registry, new GeneratedColumnStore());
-        var facade = new ManifoldServerFacade(registry, transitions, sapi, generator);
+        var facade = new ManifoldServerFacade(
+            registry, transitions, sapi, generator, new BlockLightRestorer(new EngineRelight(sapi), () => 0));
         return (facade, transitions, ephemeral.InternalId);
     }
 

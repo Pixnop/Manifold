@@ -134,42 +134,6 @@ internal sealed class DimensionGenerator
     }
 
     /// <summary>
-    /// Dim-aware wrapper over the engine's <c>FullRelight</c>: relights the block bounds in the
-    /// given dimension. The dimension field of both positions is overwritten with
-    /// <paramref name="dimId"/> so callers cannot accidentally relight the overworld (which is
-    /// exactly the bug this guards against - a <c>BlockPos</c> built without a dimension targets
-    /// dim 0). Best-effort: a lighting failure is logged and reported, never thrown.
-    /// </summary>
-    /// <param name="sapi">Server API.</param>
-    /// <param name="dimId">Engine dimension id to relight in.</param>
-    /// <param name="min">Minimum corner (local coordinates).</param>
-    /// <param name="max">Maximum corner (local coordinates).</param>
-    /// <param name="sendToClients">
-    /// When <c>true</c>, the recomputed light is pushed to clients immediately. Required for
-    /// runtime relights of chunks already loaded on the client (e.g. the relight command, or
-    /// after a runtime block placement) - otherwise the server light is correct but the client
-    /// never re-meshes and the change is invisible. Worldgen passes <c>false</c> because the
-    /// freshly generated column is sent to the client separately (on transit / by the streaming
-    /// driver).
-    /// </param>
-    /// <returns><c>true</c> if the relight succeeded; <c>false</c> if it threw (logged as a warning).</returns>
-    public static bool RelightBlockBounds(ICoreServerAPI sapi, int dimId, BlockPos min, BlockPos max, bool sendToClients)
-    {
-        var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
-        var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
-        try
-        {
-            sapi.WorldManager.FullRelight(minPos, maxPos, sendToClients);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            sapi.Logger.Warning("[Manifold] Relight of dim {0} {1}..{2} failed: {3}", dimId, minPos, maxPos, ex);
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Testable seam: invokes <see cref="IWorldgenStrategy.GenerateColumn"/> for the given context,
     /// handling exceptions and updating the failure / auto-disable state.
     /// </summary>
