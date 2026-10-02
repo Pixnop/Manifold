@@ -257,20 +257,27 @@ What the call does, in order:
 2. **Block light, a moment later.** `FullRelight` erases block light, so Manifold hands every light
    source of the affected chunks back to the engine's own lighting queue, the one a player placing a
    torch goes through. That covers the sources the engine already tracked and every light-emitting
-   block it did not, such as a lantern written without relight. The engine computes the light on
-   its relight thread, within milliseconds. For a moment after the call returns, block light in the
-   area reads 0.
-3. **Clients.** The affected chunks are resent to the clients in range once the block light is
-   back, about half a second after the call, or at once when the area holds no light source.
+   block it did not, such as a lantern written without relight. Finding them is a scan of the
+   affected chunks on the main thread, so it adds to the stall: within measurement noise for nine
+   columns (up to 72 non-empty chunks) on a development machine, not measured for larger areas.
+   The engine computes the light on its relight thread, within milliseconds. For a moment after
+   the call returns, block light in the area reads 0.
+3. **Clients.** The affected chunks are resent to the players in that dimension as soon as no light
+   source is still being computed: about half a second after the call when every source is near a
+   player, at once when the area holds none. Sources still waiting for a player (see below) do not
+   delay that resend; their chunks are resent again when they are finally lit.
 
-No block is changed and no block entity is touched. The call throws `DimensionNotFoundException`
-for unknown codes; a failure inside the engine's relight is logged, not thrown.
+No block is changed. A light source's block entity is kept, and its `OnExchanged` is invoked with
+the same block, which does nothing unless a mod's block entity overrides it. The call throws
+`DimensionNotFoundException` for unknown codes; a failure inside the engine's relight or in a
+block's own code is logged, not thrown, and block light is still restored where it can be.
 
 **The engine only lights columns near a player.** It computes block light for a column only while
 the overworld map chunk at the same X/Z is loaded, which is the case around any player, whatever
 dimension the player is in, and not otherwise. Light sources in a column nobody is near stay
 pending in memory and are retried until a player comes near, for up to five minutes. After that
 they are dropped with one warning in the server log and stay dark until the next `RelightRegion`.
+At most 100000 sources wait at a time; beyond that the rest of a relight is not restored.
 Pending sources are not saved: a server restart forgets them, and removing the dimension drops
 them. So a relight requested at boot, or right after `GenerateRegion` with nobody around, may only
 take effect once a player is there, and not at all if nobody comes within five minutes or the
@@ -329,10 +336,12 @@ bool TryLight(ICoreServerAPI sapi, BlockPos pos)   // pos carries the dimension
 }
 ```
 
-Exchanging a block for itself changes nothing in the world and keeps its block entity; it only makes
-the engine queue the block-light update. `synchronize: true` sends the exchange to clients, so one
-that already holds the chunk recomputes the light on its side too. This costs well under a millisecond per light and leaves
-sunlight alone. You have to retry while `TryLight` returns `false`, which `RelightRegion` does for
+Exchanging a block for itself changes no block and keeps its block entity, whose `OnExchanged` is
+invoked with the same block; it makes the engine queue the block-light update. Exchange light
+sources only: on any other block it does nothing useful and still runs that block entity's
+`OnExchanged`. `synchronize: true` sends the exchange to clients, so one that already holds the
+chunk recomputes the light on its side too. This costs well under a millisecond per light and
+leaves sunlight alone. You have to retry while `TryLight` returns `false`, which `RelightRegion` does for
 you.
 
 Do not place the blocks a second time through the normal accessor and do not call the engine's

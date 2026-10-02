@@ -24,8 +24,9 @@ internal sealed class EngineRelight : IRelightEngine
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
     }
 
-    // synchronize:false: clients get the result as a chunk resend once the light is computed, not
-    // as a block packet (a client ignores a set-block packet that does not change the block id).
+    // synchronize:false: an exchange packet would make each client recompute the block light on
+    // its side, but clients need the chunks resent anyway for the sunlight FullRelight changed, and
+    // the resend carries the block light the server computed.
     private IBlockAccessor RelightAccessor =>
         _relightAccessor ??= _sapi.World.GetBlockAccessor(synchronize: false, relight: true, strict: false);
 
@@ -37,6 +38,10 @@ internal sealed class EngineRelight : IRelightEngine
             // Never the resending overload: it resends by plain chunk Y, which is the overworld's
             // chunks, not this dimension's. Broadcast does the resend with the dimension's own.
             _sapi.WorldManager.FullRelight(min, max, false);
+
+            // The engine's resend used to mark the relit chunks dirty (with the overworld's chunk Y);
+            // without it nothing does, and the recomputed sunlight would not be saved.
+            ForEachChunk(min, max, ChunkMath.ChunkSize, (cx, cy, cz) => ChunkAt(cx, cy, cz, min.dimension)?.MarkModified());
             return true;
         }
         catch (Exception ex)
@@ -58,8 +63,7 @@ internal sealed class EngineRelight : IRelightEngine
     }
 
     /// <inheritdoc/>
-    public bool IsGateOpen(BlockPos pos) =>
-        _sapi.WorldManager.GetMapChunk(pos.X / ChunkMath.ChunkSize, pos.Z / ChunkMath.ChunkSize) != null;
+    public bool IsGateOpen(int chunkX, int chunkZ) => _sapi.WorldManager.GetMapChunk(chunkX, chunkZ) != null;
 
     /// <inheritdoc/>
     public bool QueueBlockLight(BlockPos pos)
@@ -70,25 +74,58 @@ internal sealed class EngineRelight : IRelightEngine
             return false;
         }
 
-        // Exchanging a block for itself changes nothing in the world (no placed/removed handler, the
-        // block entity stays) but makes the engine queue its block-light update for the position.
+        // Exchanging a block for itself leaves the world as it is (no placed/removed handler, the
+        // block entity is kept and only gets its OnExchanged call, with the same block) but makes
+        // the engine queue its block-light update for the position.
         RelightAccessor.ExchangeBlock(block.BlockId, pos);
         return true;
     }
+
+    /// <inheritdoc/>
+    public bool EmitsLight(BlockPos pos) => EmittingBlockAt(pos) is not null;
 
     /// <inheritdoc/>
     public bool IsLit(BlockPos pos) =>
         _sapi.World.BlockAccessor.GetLightLevel(pos, EnumLightLevelType.OnlyBlockLight) > 0;
 
     /// <inheritdoc/>
-    public void Broadcast(BlockPos min, BlockPos max)
+    public void CollectAffectedChunks(BlockPos min, BlockPos max, ISet<(int Cx, int Cy, int Cz)> chunks)
     {
-        int stride = min.dimension * ChunkMath.DimensionChunkYStride;
-        ForEachChunk(
-            min,
-            max,
-            ChunkMath.ChunkSize,
-            (cx, cy, cz) => _sapi.WorldManager.BroadcastChunk(cx, cy + stride, cz, true));
+        ForEachChunk(min, max, ChunkMath.ChunkSize, (cx, cy, cz) =>
+        {
+            if (ChunkAt(cx, cy, cz, min.dimension) is not null)
+            {
+                chunks.Add((cx, cy, cz));
+            }
+        });
+    }
+
+    /// <inheritdoc/>
+    public void Resend(int dimId, IReadOnlyCollection<(int Cx, int Cy, int Cz)> chunks)
+    {
+        // Not BroadcastChunk: it only tests horizontal range, so a player at the same X/Z in another
+        // dimension would be sent this dimension's chunks.
+        var players = new List<IServerPlayer>(OccupancyScan.PlayersIn(_sapi, dimId));
+        if (players.Count == 0)
+        {
+            return;
+        }
+
+        int stride = dimId * ChunkMath.DimensionChunkYStride;
+        foreach (var (cx, cy, cz) in chunks)
+        {
+            // A chunk unloaded since it was listed must not be queued: the engine would keep the
+            // request for it forever.
+            if (ChunkAt(cx, cy, cz, dimId) is null)
+            {
+                continue;
+            }
+
+            foreach (var player in players)
+            {
+                _sapi.WorldManager.SendChunk(cx, cy + stride, cz, player, true);
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -131,28 +168,62 @@ internal sealed class EngineRelight : IRelightEngine
     /// </summary>
     private void CollectSources(int cx, int cy, int cz, int dimId, List<BlockPos> found)
     {
-        IWorldChunk? chunk = _sapi.WorldManager.GetChunk(cx, cy + (dimId * ChunkMath.DimensionChunkYStride), cz);
+        IWorldChunk? chunk = ChunkAt(cx, cy, cz, dimId);
         if (chunk is null || chunk.Empty)
         {
             return;
         }
 
-        chunk.Unpack();
-        var indices = new HashSet<int>(chunk.LightPositions ?? new HashSet<int>());
-        bool[] emits = EmittingBlockIds();
-        for (int index = 0; index < BlocksPerChunk; index++)
+        try
         {
-            if (emits[chunk.Data.GetBlockId(index, BlockLayersAccess.Solid)] || emits[chunk.Data.GetFluid(index)])
+            chunk.Unpack();
+            HashSet<int> indices = TrackedLights(chunk);
+            bool[] emits = EmittingBlockIds();
+
+            // Most chunks hold no light-emitting solid block: the chunk's palette says so without
+            // reading its 32768 cells. The fluid layer has no palette to ask, but reads are cheap.
+            var palette = new List<int>();
+            chunk.Data.FuzzyListBlockIds(palette);
+            bool solidEmitter = palette.Exists(id => id >= 0 && id < emits.Length && emits[id]);
+            for (int index = 0; index < BlocksPerChunk; index++)
             {
-                indices.Add(index);
+                if ((solidEmitter && emits[chunk.Data.GetBlockId(index, BlockLayersAccess.Solid)]) || emits[chunk.Data.GetFluid(index)])
+                {
+                    indices.Add(index);
+                }
+            }
+
+            foreach (int index in indices)
+            {
+                found.Add(PosOf(cx, cy, cz, index, dimId));
             }
         }
-
-        foreach (int index in indices)
+        catch (Exception ex)
         {
-            found.Add(PosOf(cx, cy, cz, index, dimId));
+            _sapi.Logger.Warning(
+                "[Manifold] Relight of dim {0}: chunk ({1}, {2}, {3}) could not be scanned for light sources: {4}", dimId, cx, cy, cz, ex);
         }
     }
+
+    /// <summary>
+    /// Copies the positions the engine tracks as lights. The engine's relight thread adds to and
+    /// removes from that set while it works, so the copy can fail; the block scan that follows
+    /// finds every source whose block type emits light anyway.
+    /// </summary>
+    private static HashSet<int> TrackedLights(IWorldChunk chunk)
+    {
+        try
+        {
+            return new HashSet<int>(chunk.LightPositions ?? new HashSet<int>());
+        }
+        catch (InvalidOperationException)
+        {
+            return new HashSet<int>();
+        }
+    }
+
+    private IWorldChunk? ChunkAt(int cx, int cy, int cz, int dimId) =>
+        _sapi.WorldManager.GetChunk(cx, cy + (dimId * ChunkMath.DimensionChunkYStride), cz);
 
     private bool[] EmittingBlockIds()
     {

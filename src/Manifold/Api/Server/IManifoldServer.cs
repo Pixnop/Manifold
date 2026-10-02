@@ -42,22 +42,31 @@ public interface IManifoldServer
     /// Asynchronous part: block light. <c>FullRelight</c> erases block light and cannot put it back
     /// in a custom dimension, so Manifold then hands every light source of the affected chunks
     /// (those the engine already tracks, and every light-emitting block, including ones written
-    /// without relight) to the engine's own lighting queue. The engine computes it on its relight
-    /// thread, typically within milliseconds, and the affected chunks are resent to the clients in
-    /// range once it is done, about half a second after the call. Block light therefore reads 0 for
-    /// a moment right after the call returns. No block is changed and no block entity is touched.
+    /// without relight) to the engine's own lighting queue. Finding them is a scan of the affected
+    /// chunks on the main thread, which adds to the stall of a large box. The engine computes the
+    /// light on its relight thread, typically within milliseconds, so block light reads 0 for a
+    /// moment right after the call returns. The affected chunks are resent to the players in that
+    /// dimension as soon as no light source is still being computed: about half a second after the
+    /// call when every source is near a player, at once when the area holds none. Sources waiting
+    /// for a player (next paragraph) do not delay that resend; their chunks are resent again when
+    /// they are finally lit. No block is changed. A light source's block entity is kept, and its
+    /// <c>OnExchanged</c> is invoked with the same block (a no-op unless a mod overrides it).
     /// </para>
     /// <para>
     /// The engine only computes block light for a column whose overworld map chunk (same X/Z) is
     /// loaded, which is the case around any player, whatever dimension the player is in. Light
     /// sources in a column nobody is near stay pending in memory and are retried until a player
     /// comes near, for up to five minutes; after that they are dropped with one warning in the
-    /// server log and stay dark until the next call. Pending sources are not saved: a server
+    /// server log and stay dark until the next call. At most 100000 sources wait at a time; beyond
+    /// that the rest of a relight is not restored (one warning). Pending sources are not saved: a server
     /// restart forgets them, and removing the dimension drops them. A relight requested for an area
     /// nobody is near (at boot, right after <c>GenerateRegion</c>) may therefore only take effect
     /// once a player is there; call it when a player has entered the dimension to be sure.
     /// </para>
-    /// <para>Best-effort: a failure inside the engine's relight is logged, never thrown.</para>
+    /// <para>
+    /// Best-effort: a failure inside the engine's relight or in a block's own code is logged, never
+    /// thrown, and the block light is still restored where it can be.
+    /// </para>
     /// </remarks>
     /// <param name="dimension">Dimension code to relight in (e.g. <c>mymod:vault</c>).</param>
     /// <param name="min">Minimum corner of the region (local coordinates).</param>

@@ -39,8 +39,8 @@ public sealed class ManifoldModSystem : ModSystem
     private const string AtlasRollbackRestoredEvent = "atlas:rollback:restored";
 
     /// <summary>
-    /// How often pending relights are looked at again: short enough that a restored light reaches
-    /// clients within about half a second, and idle (an empty list) when nothing is pending.
+    /// How often pending relights are looked at again: short enough that light restored near a
+    /// player reaches clients within about half a second, and idle when nothing is pending.
     /// </summary>
     private const int RelightRetryIntervalMs = 250;
 
@@ -118,7 +118,10 @@ public sealed class ManifoldModSystem : ModSystem
         transit.PlayerEntered += OnTransitPlayerEntered;
 
         _lightRestorer = new BlockLightRestorer(new EngineRelight(api), () => api.World.ElapsedMilliseconds);
-        api.Event.RegisterGameTickListener(_ => _lightRestorer.Tick(), RelightRetryIntervalMs);
+        api.Event.RegisterGameTickListener(
+            _ => _lightRestorer.Tick(),
+            ex => Mod.Logger.Warning("[Manifold] Pending relight pass failed: {0}", ex),
+            RelightRetryIntervalMs);
 
         ServerFacade = new ManifoldServerFacade(_registry, transit, api, _generator, _lightRestorer);
         ManifoldAccess.SetServerResolver(ServerFacade);

@@ -55,13 +55,12 @@ public sealed class ManifoldServerFacadeTests
 
         // The relight must target the dimension's own internal id (a BlockPos built without one
         // defaults to dim 0, which would relight the overworld instead), and must not use the
-        // engine's resend, which resends the overworld's chunks: Manifold resends the dimension's.
+        // engine's resend, which resends the overworld's chunks (EngineRelightTests covers Manifold's own).
         var id = facade.Registry.Get(new AssetLocation("owner:target"))!.InternalId;
         sapi.WorldManager.Received(1).FullRelight(
             Arg.Is<BlockPos>(p => p.dimension == id),
             Arg.Is<BlockPos>(p => p.dimension == id && p.X == 31),
             false);
-        sapi.WorldManager.Received().BroadcastChunk(0, id * 1024, 0, true);
     }
 
     [Fact]

@@ -26,6 +26,22 @@ public sealed class EngineRelightTests
     }
 
     [Fact]
+    public void FullRelight_Should_Mark_The_Dimensions_Relit_Chunks_Modified()
+    {
+        var sapi = NewSapi();
+        IServerChunk inside = Substitute.For<IServerChunk>();
+        IServerChunk overworld = Substitute.For<IServerChunk>();
+        sapi.WorldManager.GetChunk(16, Dim * 1024, 16).Returns(inside);
+        sapi.WorldManager.GetChunk(16, 0, 16).Returns(overworld);
+
+        new EngineRelight(sapi).FullRelight(new BlockPos(520, 6, 520, Dim), new BlockPos(520, 6, 520, Dim));
+
+        // Otherwise the recomputed sunlight is not saved; and never the overworld's chunk at the same X/Y/Z.
+        inside.Received(1).MarkModified();
+        overworld.DidNotReceive().MarkModified();
+    }
+
+    [Fact]
     public void FullRelight_Should_Return_False_And_Log_A_Warning_When_The_Engine_Throws()
     {
         var sapi = NewSapi();
@@ -55,6 +71,7 @@ public sealed class EngineRelightTests
         const int untracked = 4;
         chunk.LightPositions.Returns(new HashSet<int> { tracked });
         chunk.Data.GetBlockId(untracked, BlockLayersAccess.Solid).Returns(LampId);
+        chunk.Data.When(d => d.FuzzyListBlockIds(Arg.Any<List<int>>())).Do(c => c.Arg<List<int>>().Add(LampId));
 
         // Chunk (16, 0, 16) of the dimension; every other chunk around is absent or empty.
         sapi.WorldManager.GetChunk(16, Dim * 1024, 16).Returns(chunk);
@@ -72,14 +89,66 @@ public sealed class EngineRelightTests
     }
 
     [Fact]
+    public void FindLightSources_Should_Not_Read_Solid_Cells_When_The_Palette_Has_No_Emitter_But_Still_Find_Fluid_Lights()
+    {
+        var sapi = NewSapi();
+        IServerChunk chunk = Substitute.For<IServerChunk>();
+        chunk.Empty.Returns(false);
+        chunk.LightPositions.Returns(new HashSet<int>());
+        chunk.Data.When(d => d.FuzzyListBlockIds(Arg.Any<List<int>>())).Do(c => c.Arg<List<int>>().Add(1));
+        chunk.Data.GetFluid(4).Returns(LampId);
+        sapi.WorldManager.GetChunk(16, Dim * 1024, 16).Returns(chunk);
+
+        var found = new EngineRelight(sapi).FindLightSources(
+            new BlockPos(520, 6, 520, Dim), new BlockPos(520, 6, 520, Dim));
+
+        Assert.Equal(new BlockPos(516, 0, 512, Dim), Assert.Single(found));
+        chunk.Data.DidNotReceive().GetBlockId(Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    [Fact]
+    public void FindLightSources_Should_Skip_A_Chunk_That_Cannot_Be_Read_And_Log_It()
+    {
+        var sapi = NewSapi();
+        IServerChunk broken = Substitute.For<IServerChunk>();
+        broken.Empty.Returns(false);
+        broken.When(c => c.Unpack()).Do(_ => throw new InvalidOperationException("corrupt"));
+        sapi.WorldManager.GetChunk(16, Dim * 1024, 16).Returns(broken);
+
+        var found = new EngineRelight(sapi).FindLightSources(
+            new BlockPos(520, 6, 520, Dim), new BlockPos(520, 6, 520, Dim));
+
+        Assert.Empty(found);
+        sapi.Logger.Received(1).Warning(Arg.Any<string>(), Arg.Any<object[]>());
+    }
+
+    [Fact]
+    public void FindLightSources_Should_Still_Scan_Blocks_When_The_Tracked_Set_Is_Being_Changed()
+    {
+        // The engine's relight thread mutates LightPositions while it works; copying it can throw.
+        var sapi = NewSapi();
+        IServerChunk chunk = Substitute.For<IServerChunk>();
+        chunk.Empty.Returns(false);
+        chunk.LightPositions.Returns(_ => throw new InvalidOperationException("Collection was modified"));
+        chunk.Data.GetBlockId(4, BlockLayersAccess.Solid).Returns(LampId);
+        chunk.Data.When(d => d.FuzzyListBlockIds(Arg.Any<List<int>>())).Do(c => c.Arg<List<int>>().Add(LampId));
+        sapi.WorldManager.GetChunk(16, Dim * 1024, 16).Returns(chunk);
+
+        var found = new EngineRelight(sapi).FindLightSources(
+            new BlockPos(520, 6, 520, Dim), new BlockPos(520, 6, 520, Dim));
+
+        Assert.Equal(new BlockPos(516, 0, 512, Dim), Assert.Single(found));
+    }
+
+    [Fact]
     public void IsGateOpen_Should_Follow_The_Overworld_Map_Chunk_Of_The_Column()
     {
         var sapi = NewSapi();
         sapi.WorldManager.GetMapChunk(16, 17).Returns(Substitute.For<IServerMapChunk>());
         var engine = new EngineRelight(sapi);
 
-        Assert.True(engine.IsGateOpen(new BlockPos(520, 6, 550, Dim)));
-        Assert.False(engine.IsGateOpen(new BlockPos(550, 6, 550, Dim)));
+        Assert.True(engine.IsGateOpen(16, 17));
+        Assert.False(engine.IsGateOpen(17, 17));
     }
 
     [Fact]
@@ -128,6 +197,23 @@ public sealed class EngineRelightTests
     }
 
     [Fact]
+    public void EmitsLight_Should_Tell_A_Light_Source_From_Any_Other_Block()
+    {
+        var sapi = NewSapi();
+        var lampPos = new BlockPos(520, 6, 520, Dim);
+        var rockPos = new BlockPos(521, 6, 520, Dim);
+        IBlockAccessor accessor = sapi.World.BlockAccessor;
+        Block lamp = NewBlock(LampId, 21, accessor);
+        Block rock = NewBlock(1, 0, accessor);
+        accessor.GetBlock(lampPos, BlockLayersAccess.Solid).Returns(lamp);
+        accessor.GetBlock(rockPos, Arg.Any<int>()).Returns(rock);
+        var engine = new EngineRelight(sapi);
+
+        Assert.True(engine.EmitsLight(lampPos));
+        Assert.False(engine.EmitsLight(rockPos));
+    }
+
+    [Fact]
     public void IsLit_Should_Read_Block_Light_Only()
     {
         var sapi = NewSapi();
@@ -140,28 +226,49 @@ public sealed class EngineRelightTests
     }
 
     [Fact]
-    public void Broadcast_Should_Resend_The_Dimensions_Own_Chunks_One_Chunk_Around_The_Box()
+    public void CollectAffectedChunks_Should_List_Loaded_Chunks_One_Chunk_Around_The_Box_Clamped_To_The_Map()
     {
         var sapi = NewSapi();
+        IServerChunk loaded = Substitute.For<IServerChunk>();
+        sapi.WorldManager.GetChunk(Arg.Any<int>(), Arg.Is<int>(cy => cy >= Dim * 1024 && cy < (Dim * 1024) + 8), Arg.Any<int>())
+            .Returns(loaded);
+        var chunks = new HashSet<(int Cx, int Cy, int Cz)>();
 
-        new EngineRelight(sapi).Broadcast(new BlockPos(520, 40, 520, Dim), new BlockPos(520, 40, 520, Dim));
+        new EngineRelight(sapi).CollectAffectedChunks(new BlockPos(0, 0, 0, Dim), new BlockPos(0, 32767, 0, Dim), chunks);
 
-        // 3 x 3 x 3 chunks around chunk (16, 1, 16), at the dimension's chunk-Y offset.
-        sapi.WorldManager.Received(27).BroadcastChunk(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), true);
-        sapi.WorldManager.Received(1).BroadcastChunk(15, (Dim * 1024) + 0, 15, true);
-        sapi.WorldManager.Received(1).BroadcastChunk(17, (Dim * 1024) + 2, 17, true);
-        sapi.WorldManager.DidNotReceive().BroadcastChunk(Arg.Any<int>(), Arg.Is<int>(cy => cy < Dim * 1024), Arg.Any<int>(), true);
+        // X and Z: chunks 0..1 (nothing below 0); Y: chunks 0..7 (nothing above the 256-block map).
+        Assert.Equal(2 * 2 * 8, chunks.Count);
+        Assert.Contains((1, 7, 1), chunks);
     }
 
     [Fact]
-    public void Broadcast_Should_Clamp_To_The_Map()
+    public void CollectAffectedChunks_Should_Leave_Out_Chunks_That_Are_Not_Loaded()
     {
         var sapi = NewSapi();
+        sapi.WorldManager.GetChunk(16, (Dim * 1024) + 1, 16).Returns(Substitute.For<IServerChunk>());
+        var chunks = new HashSet<(int Cx, int Cy, int Cz)>();
 
-        new EngineRelight(sapi).Broadcast(new BlockPos(0, 0, 0, Dim), new BlockPos(0, 255, 0, Dim));
+        new EngineRelight(sapi).CollectAffectedChunks(new BlockPos(520, 40, 520, Dim), new BlockPos(520, 40, 520, Dim), chunks);
 
-        // X and Z: chunks 0..1 (nothing below 0); Y: chunks 0..7 (nothing above the 256-block map).
-        sapi.WorldManager.Received(2 * 2 * 8).BroadcastChunk(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), true);
+        Assert.Equal((16, 1, 16), Assert.Single(chunks));
+    }
+
+    [Fact]
+    public void Resend_Should_Send_Loaded_Chunks_Only_To_Players_In_That_Dimension()
+    {
+        var sapi = NewSapi();
+        IServerPlayer inside = PlayerIn(Dim);
+        IServerPlayer elsewhere = PlayerIn(0);
+        sapi.World.AllOnlinePlayers.Returns(new IPlayer[] { inside, elsewhere });
+        sapi.WorldManager.GetChunk(16, (Dim * 1024) + 1, 16).Returns(Substitute.For<IServerChunk>());
+
+        new EngineRelight(sapi).Resend(Dim, new[] { (16, 1, 16), (17, 1, 16) });
+
+        // The dimension's own chunk index, the loaded chunk only, and never a player standing at
+        // the same X/Z in another dimension.
+        sapi.WorldManager.Received(1).SendChunk(16, (Dim * 1024) + 1, 16, inside, true);
+        sapi.WorldManager.Received(1).SendChunk(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<IServerPlayer>(), Arg.Any<bool>());
+        sapi.WorldManager.DidNotReceive().BroadcastChunk(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>());
     }
 
     [Fact]
@@ -185,6 +292,16 @@ public sealed class EngineRelightTests
         IBlockAccessor accessor = sapi.World.BlockAccessor;
         sapi.World.Blocks.Returns(new List<Block> { NewBlock(0, 0, accessor), NewBlock(1, 0, accessor), NewBlock(LampId, 21, accessor) });
         return sapi;
+    }
+
+    private static IServerPlayer PlayerIn(int dimension)
+    {
+        // Entity.Pos is not virtual: the substitute carries a real EntityPos whose Dimension is set directly.
+        var entity = Substitute.For<EntityPlayer>();
+        entity.Pos.Dimension = dimension;
+        var player = Substitute.For<IServerPlayer>();
+        player.Entity.Returns(entity);
+        return player;
     }
 
     private static Block NewBlock(int id, byte light, IBlockAccessor accessor)

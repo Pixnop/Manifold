@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Manifold.Internal.Util;
 using Vintagestory.API.MathTools;
 
 namespace Manifold.Internal;
@@ -10,9 +11,10 @@ namespace Manifold.Internal;
 /// coordinates, so every light source outside chunk (0, 0, 0) ends up dark. After it runs, this
 /// class hands each light source of the affected chunks back to the engine's own lighting queue
 /// (the path a player placing a torch takes), which is asynchronous and silently drops work for a
-/// column whose overworld map chunk is not loaded. Sources in such a column stay pending here and
-/// are retried from <see cref="Tick"/> until the engine accepts them or <see cref="TimeoutMs"/>
-/// passes. Nothing is persisted: a server restart forgets the pending sources.
+/// column whose overworld map chunk is not loaded. Sources in such a column stay pending here, one
+/// entry per position whatever the number of requests that listed it, and are retried from
+/// <see cref="Tick"/> until the engine accepts them or <see cref="TimeoutMs"/> passes. Nothing is
+/// persisted: a server restart forgets the pending sources.
 /// </summary>
 /// <remarks>Server-side, main thread.</remarks>
 internal sealed class BlockLightRestorer
@@ -26,9 +28,22 @@ internal sealed class BlockLightRestorer
     /// </summary>
     internal const long TimeoutMs = 5 * 60 * 1000;
 
+    /// <summary>
+    /// Upper bound on the pending light sources, all dimensions together: about 10 MB of bookkeeping.
+    /// Only a relight of a huge lit volume (a lava sea) with nobody near can reach it; what does
+    /// not fit is not restored and stays dark until the next relight.
+    /// </summary>
+    internal const int MaxPendingSources = 100_000;
+
+    /// <summary>A Y above any map height (the engine reserves 32768 blocks of Y per dimension).</summary>
+    private const int ColumnTop = 32767;
+
     private readonly IRelightEngine _engine;
     private readonly Func<long> _clockMs;
-    private readonly List<Request> _requests = new();
+    private readonly Dictionary<(int Dim, int Cx, int Cz), Column> _columns = new();
+    private readonly Dictionary<int, Resend> _resends = new();
+    private bool _capWarned;
+    private bool _failureWarned;
 
     /// <summary>Initializes a new instance of the <see cref="BlockLightRestorer"/> class.</summary>
     /// <param name="engine">Engine operations.</param>
@@ -40,159 +55,339 @@ internal sealed class BlockLightRestorer
     }
 
     /// <summary>Gets the number of light sources still waiting for the engine to light them.</summary>
-    public int PendingSourceCount
-    {
-        get
-        {
-            int count = 0;
-            foreach (var request in _requests)
-            {
-                count += request.Sources.Count;
-            }
-
-            return count;
-        }
-    }
+    public int PendingSourceCount { get; private set; }
 
     /// <summary>
     /// Relights the box in <paramref name="dimId"/>: sunlight synchronously, then block light
     /// through the engine's queue. The dimension of both corners is overwritten with
     /// <paramref name="dimId"/>, so a position built without one cannot relight the overworld.
+    /// Never throws.
     /// </summary>
     /// <param name="dimId">Engine dimension id.</param>
     /// <param name="min">Minimum corner (local coordinates).</param>
     /// <param name="max">Maximum corner (local coordinates).</param>
     /// <param name="sendToClients">
-    /// Whether to resend the affected chunks to clients in range once their block light is back
-    /// (at once when the box holds no light source).
+    /// Whether to resend the affected chunks to the players in that dimension once no light source
+    /// is being computed (at once when there is none to compute).
     /// </param>
     /// <returns><c>false</c> if the engine's relight threw (logged as a warning).</returns>
     public bool Relight(int dimId, BlockPos min, BlockPos max, bool sendToClients)
     {
         var minPos = new BlockPos(min.X, min.Y, min.Z, dimId);
         var maxPos = new BlockPos(max.X, max.Y, max.Z, dimId);
-        if (!_engine.FullRelight(minPos, maxPos))
+
+        // Whatever FullRelight returns, carry on: it clears the light before anything in it can
+        // throw, so stopping here would leave the area dark for good.
+        bool relit = _engine.FullRelight(minPos, maxPos);
+        try
         {
-            return false;
-        }
-
-        var sources = new List<Source>();
-        foreach (var pos in _engine.FindLightSources(minPos, maxPos))
-        {
-            sources.Add(new Source(pos));
-        }
-
-        var request = new Request(minPos, maxPos, sendToClients, _clockMs() + TimeoutMs, sources);
-        if (!Advance(request))
-        {
-            _requests.Add(request);
-        }
-
-        return true;
-    }
-
-    /// <summary>Retries the pending light sources. Call regularly from a server tick listener.</summary>
-    public void Tick() => _requests.RemoveAll(Advance);
-
-    /// <summary>Drops everything pending for a dimension that is being removed.</summary>
-    /// <param name="dimId">Engine dimension id.</param>
-    public void ForgetDimension(int dimId) => _requests.RemoveAll(r => r.Min.dimension == dimId);
-
-    /// <summary>Moves a request forward. Returns <c>true</c> once it is finished.</summary>
-    private bool Advance(Request request)
-    {
-        request.Sources.RemoveAll(IsSettled);
-        if (request.Sources.Count == 0)
-        {
-            // The engine writes a source's own position first and the rest of its sphere right
-            // after, on another thread: wait one more pass before resending so clients do not get
-            // a half-lit chunk. Nothing to wait for when the box never had a light source.
-            if (request.Settled)
+            AddSources(_engine.FindLightSources(minPos, maxPos), sendToClients);
+            if (sendToClients)
             {
-                return Finish(request);
+                _engine.CollectAffectedChunks(minPos, maxPos, ResendFor(dimId).Chunks);
             }
-
-            request.Settled = true;
-            return false;
         }
-
-        if (_clockMs() < request.DeadlineMs)
+        catch (Exception ex)
         {
-            return false;
+            WarnFailureOnce("listing the light sources", ex);
         }
 
-        _engine.Warn(
-            $"[Manifold] Relight of dim {request.Min.dimension} {request.Min}..{request.Max}: {request.Sources.Count} "
-            + $"light source(s) were not lit within {TimeoutMs / 1000} s because no player came near them "
-            + "(the engine only lights a column whose overworld map chunk is loaded). They stay dark until the next relight.");
-        return Finish(request);
-    }
-
-    private bool Finish(Request request)
-    {
-        if (request.SendToClients)
-        {
-            _engine.Broadcast(request.Min, request.Max);
-        }
-
-        return true;
+        Tick();
+        return relit;
     }
 
     /// <summary>
-    /// Whether a source needs no more attention: queued and lit, or no longer a light source. Queues
-    /// it the first time its column's gate is found open, even when it already reads as lit: a
-    /// source just outside the cleared chunks kept its own light but lost what it shone into them.
+    /// Moves the pending light sources forward and resends what is ready. Call regularly from a
+    /// server tick listener. Never throws.
     /// </summary>
-    private bool IsSettled(Source source)
+    public void Tick()
     {
-        if (!source.Queued)
+        if (_columns.Count == 0 && _resends.Count == 0)
         {
-            if (!_engine.IsGateOpen(source.Pos))
+            return;
+        }
+
+        long now = _clockMs();
+        var busyDimensions = new HashSet<int>();
+        var finished = new List<(int Dim, int Cx, int Cz)>();
+        int expired = 0;
+        foreach (var (key, column) in _columns)
+        {
+            AdvanceColumn(key, column, busyDimensions);
+            if (column.Sources.Count > 0 && now >= column.DeadlineMs)
             {
-                return false;
+                expired += column.Sources.Count;
+                column.Sources.Clear();
             }
 
-            source.Queued = true;
-            if (!_engine.QueueBlockLight(source.Pos))
+            if (column.Sources.Count == 0)
             {
-                return true;
+                finished.Add(key);
             }
         }
 
-        return _engine.IsLit(source.Pos);
-    }
-
-    private sealed class Source
-    {
-        public Source(BlockPos pos) => Pos = pos;
-
-        public BlockPos Pos { get; }
-
-        public bool Queued { get; set; }
-    }
-
-    private sealed class Request
-    {
-        public Request(BlockPos min, BlockPos max, bool sendToClients, long deadlineMs, List<Source> sources)
+        foreach (var key in finished)
         {
-            Min = min;
-            Max = max;
-            SendToClients = sendToClients;
-            DeadlineMs = deadlineMs;
-            Sources = sources;
-            Settled = sources.Count == 0;
+            _columns.Remove(key);
         }
 
-        public BlockPos Min { get; }
+        RecountPending();
+        if (expired > 0)
+        {
+            _engine.Warn(
+                $"[Manifold] Relight: {expired} light source(s) were still not lit after {TimeoutMs / 1000} s and were "
+                + "dropped. The engine only lights a column whose overworld map chunk is loaded, which needs a player "
+                + "near it; they stay dark until the next relight.");
+        }
 
-        public BlockPos Max { get; }
+        FlushResends(busyDimensions);
+    }
 
-        public bool SendToClients { get; }
+    /// <summary>Drops everything pending for a dimension that is being removed.</summary>
+    /// <param name="dimId">Engine dimension id.</param>
+    public void ForgetDimension(int dimId)
+    {
+        var keys = new List<(int Dim, int Cx, int Cz)>();
+        foreach (var key in _columns.Keys)
+        {
+            if (key.Dim == dimId)
+            {
+                keys.Add(key);
+            }
+        }
 
-        public long DeadlineMs { get; }
+        foreach (var key in keys)
+        {
+            _columns.Remove(key);
+        }
 
-        public List<Source> Sources { get; }
+        _resends.Remove(dimId);
+        RecountPending();
+    }
 
-        public bool Settled { get; set; }
+    private void AddSources(IReadOnlyList<BlockPos> sources, bool sendToClients)
+    {
+        long deadline = _clockMs() + TimeoutMs;
+        foreach (var pos in sources)
+        {
+            var key = (pos.dimension, pos.X / ChunkMath.ChunkSize, pos.Z / ChunkMath.ChunkSize);
+            if (!_columns.TryGetValue(key, out var column))
+            {
+                column = new Column();
+                _columns[key] = column;
+            }
+
+            column.DeadlineMs = deadline;
+            column.SendToClients |= sendToClients;
+
+            // A position listed again was cleared again: it goes back to waiting, in the same entry.
+            if (column.Sources.ContainsKey(pos))
+            {
+                column.Sources[pos] = false;
+            }
+            else if (PendingSourceCount < MaxPendingSources)
+            {
+                column.Sources[pos] = false;
+                PendingSourceCount++;
+            }
+            else
+            {
+                WarnCapOnce();
+            }
+        }
+    }
+
+    /// <summary>
+    /// One pass over a column: tests its gate once, queues the waiting sources when it is open,
+    /// and drops the queued ones the engine has lit. A closed column costs one gate test.
+    /// </summary>
+    private void AdvanceColumn((int Dim, int Cx, int Cz) key, Column column, HashSet<int> busyDimensions)
+    {
+        if (!_engine.IsGateOpen(key.Cx, key.Cz))
+        {
+            // The engine may have dropped what was queued just before the column closed.
+            if (column.AnyQueued)
+            {
+                column.MarkAllWaiting();
+            }
+
+            return;
+        }
+
+        bool queuedAny = false;
+        foreach (var pos in new List<BlockPos>(column.Sources.Keys))
+        {
+            bool wasQueued = column.Sources[pos];
+            if (IsSettled(pos, wasQueued))
+            {
+                column.Sources.Remove(pos);
+                continue;
+            }
+
+            column.Sources[pos] = true;
+            queuedAny |= !wasQueued;
+            busyDimensions.Add(key.Dim);
+        }
+
+        column.AnyQueued = column.Sources.Count > 0;
+        if (queuedAny && column.SendToClients)
+        {
+            NoteQueued(key);
+        }
+    }
+
+    /// <summary>
+    /// Whether a source needs no more attention. A waiting source is queued (even when it already
+    /// reads as lit: a source just outside the cleared chunks kept its own light but lost what it
+    /// shone into them) and is settled only if nothing emits light there. A queued source is
+    /// settled once it is lit, or once the block is gone. A source that throws (third-party block
+    /// code runs here) is logged once and treated as settled so it cannot be retried forever.
+    /// </summary>
+    private bool IsSettled(BlockPos pos, bool queued)
+    {
+        try
+        {
+            return queued
+                ? _engine.IsLit(pos) || !_engine.EmitsLight(pos)
+                : !_engine.QueueBlockLight(pos);
+        }
+        catch (Exception ex)
+        {
+            WarnFailureOnce($"the light source at {pos}", ex);
+            return true;
+        }
+    }
+
+    /// <summary>Light was queued in a column: its chunks, and those it shines into, need a resend when it lands.</summary>
+    private void NoteQueued((int Dim, int Cx, int Cz) key)
+    {
+        Resend resend = ResendFor(key.Dim);
+        resend.AwaitingLight = true;
+        try
+        {
+            // The whole column, whatever the height of its sources: the engine clamps to the map.
+            int x = key.Cx * ChunkMath.ChunkSize;
+            int z = key.Cz * ChunkMath.ChunkSize;
+            int last = ChunkMath.ChunkSize - 1;
+            _engine.CollectAffectedChunks(
+                new BlockPos(x, 0, z, key.Dim), new BlockPos(x + last, ColumnTop, z + last, key.Dim), resend.Chunks);
+        }
+        catch (Exception ex)
+        {
+            WarnFailureOnce("listing the chunks to resend", ex);
+        }
+    }
+
+    /// <summary>
+    /// Resends a dimension's chunks once none of its sources is being computed. The engine writes
+    /// a source's own position first and the rest of its sphere right after, on another thread, so
+    /// the resend waits one more pass after the last source reads as lit. Sources still waiting
+    /// for a closed column do not hold the resend back: their chunks are resent again when they
+    /// are finally lit.
+    /// </summary>
+    private void FlushResends(HashSet<int> busyDimensions)
+    {
+        foreach (int dimId in new List<int>(_resends.Keys))
+        {
+            Resend resend = _resends[dimId];
+            if (busyDimensions.Contains(dimId))
+            {
+                continue;
+            }
+
+            if (resend.AwaitingLight)
+            {
+                resend.AwaitingLight = false;
+                continue;
+            }
+
+            _resends.Remove(dimId);
+            try
+            {
+                _engine.Resend(dimId, resend.Chunks);
+            }
+            catch (Exception ex)
+            {
+                WarnFailureOnce("resending the relit chunks", ex);
+            }
+        }
+    }
+
+    private Resend ResendFor(int dimId)
+    {
+        if (!_resends.TryGetValue(dimId, out var resend))
+        {
+            resend = new Resend();
+            _resends[dimId] = resend;
+        }
+
+        return resend;
+    }
+
+    private void RecountPending()
+    {
+        int count = 0;
+        foreach (var column in _columns.Values)
+        {
+            count += column.Sources.Count;
+        }
+
+        PendingSourceCount = count;
+        if (count == 0)
+        {
+            _capWarned = false;
+        }
+    }
+
+    private void WarnCapOnce()
+    {
+        if (_capWarned)
+        {
+            return;
+        }
+
+        _capWarned = true;
+        _engine.Warn(
+            $"[Manifold] Relight: more than {MaxPendingSources} light sources are waiting to be lit; the rest of this "
+            + "relight is not restored and stays dark until the next relight. Relight smaller areas, or wait until a player is near.");
+    }
+
+    private void WarnFailureOnce(string what, Exception ex)
+    {
+        if (_failureWarned)
+        {
+            return;
+        }
+
+        _failureWarned = true;
+        _engine.Warn($"[Manifold] Relight: {what} failed and was skipped (further failures are not logged): {ex}");
+    }
+
+    private sealed class Column
+    {
+        /// <summary>Gets the pending sources of the column: position to "already queued".</summary>
+        public Dictionary<BlockPos, bool> Sources { get; } = new();
+
+        public long DeadlineMs { get; set; }
+
+        public bool SendToClients { get; set; }
+
+        public bool AnyQueued { get; set; }
+
+        public void MarkAllWaiting()
+        {
+            AnyQueued = false;
+            foreach (var pos in new List<BlockPos>(Sources.Keys))
+            {
+                Sources[pos] = false;
+            }
+        }
+    }
+
+    private sealed class Resend
+    {
+        public HashSet<(int Cx, int Cy, int Cz)> Chunks { get; } = new();
+
+        public bool AwaitingLight { get; set; }
     }
 }
