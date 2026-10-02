@@ -402,12 +402,14 @@ Y range, and it drops the chunks without saving them.
 - **A destroyed dimension's chunks stay in memory too**, with the blocks they held, until the
   restart. Manifold forgets them: a dimension created later on the recycled engine id generates its
   own terrain over them, in its landing region and, for a streaming dimension, across its whole
-  window as the streaming driver reaches each column. Columns outside what the new dimension
+  window as the streaming driver reaches each column, and resends each replaced column to the
+  players whose client still holds the old one. Columns outside what the new dimension
   generates are not cleaned, and neither are the entities and block entities the old columns held.
 - **A client gets a dimension's terrain without a map chunk in most places.** Map chunks (rain
   height map, terrain height map) are not per dimension: there is one per X/Z, the overworld's. The
   engine sends it along with a dimension's chunks only where its own send ring gets there before
-  Manifold's forced send and the overworld column underneath is loaded on the server, which is
+  Manifold's forced send and the overworld column underneath was loaded on the server when the
+  dimension column was created (the link is taken at that moment and never updated), which is
   rarely the case away from where the player entered. Client-side code running in a custom
   dimension must therefore expect `GetMapChunk` to return `null` and `GetRainMapHeightAt` to return
   0, and where they do return something it is the overworld's heights at that X/Z, not the

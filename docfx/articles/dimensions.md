@@ -40,7 +40,7 @@ with the same code - see [Dimension States](#dimension-states) and [Quarantine](
 | `Persistent` | Yes | Yes |
 | `Ephemeral` | No | No (reaped on transit-out, and at shutdown) |
 
-An `Ephemeral` dimension is reaped automatically when its last occupant **transits out** (`Destroyed` fires and its terrain is gone for good; its chunks stay in server memory until the restart, see [Chunk lifecycle](worldgen.md#chunk-lifecycle-engine-limits)), and it is removed at shutdown. **Disconnecting does not reap it** - a logged-out player keeps the dimension and reconnects straight back into it while the server is up. For a dimension a player must be able to leave and return to (including across a restart), use `Persistent`.
+An `Ephemeral` dimension is reaped automatically when its last occupant **transits out** (`Destroyed` fires and its terrain is gone for good; its chunks stay in server memory until the restart, see [Chunk lifecycle](worldgen.md#chunk-lifecycle-engine-limits)), and it is removed at shutdown. **Disconnecting does not reap it**: a logged-out player keeps the dimension and reconnects straight back into it while the server is up. For a dimension a player must be able to leave and return to (including across a restart), use `Persistent`.
 
 A dimension is **never destroyed while a player is inside it**. See [Removing dimensions](#removing-dimensions) below for `TryRemove`, `ForceRemoveDimension`, ephemeral auto-reap, and the admin purge command.
 
