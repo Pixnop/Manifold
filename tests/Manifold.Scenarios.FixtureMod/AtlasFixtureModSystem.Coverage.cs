@@ -187,6 +187,10 @@ public sealed partial class AtlasFixtureModSystem
                 .WithArgs(parsers.Word("dimpath"), parsers.Int("ceiling"))
                 .HandleWith(OnCreateDarkSky)
             .EndSubCommand()
+            .BeginSubCommand("create-streaming")
+                .WithArgs(parsers.Word("dimpath"))
+                .HandleWith(OnCreateStreaming)
+            .EndSubCommand()
             .BeginSubCommand("relight-region")
                 .WithArgs(
                     parsers.Word("dimpath"),
@@ -302,6 +306,16 @@ public sealed partial class AtlasFixtureModSystem
     {
         var path = (string)args[0];
         IDimension dimension = DefineSlab(path).Ephemeral().WithDarkSky((int)args[1]).Create();
+        PublishDimensionId(path, dimension.InternalId);
+        PregenerateSpawn(dimension);
+        return TextCommandResult.Success($"created {dimension.InternalId}");
+    }
+
+    /// <summary>Creates an ephemeral STREAMING slab dimension (window of 2 columns, widened to the server view radius).</summary>
+    private TextCommandResult OnCreateStreaming(TextCommandCallingArgs args)
+    {
+        var path = (string)args[0];
+        IDimension dimension = DefineSlab(path).Ephemeral().Streaming(2).Create();
         PublishDimensionId(path, dimension.InternalId);
         PregenerateSpawn(dimension);
         return TextCommandResult.Success($"created {dimension.InternalId}");
