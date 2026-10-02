@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`IManifoldClient.LocalPlayerChangedDimension` now also fires once when the local player joins a world already inside a custom dimension.** It used to be raised only on a transit, so a mod had to poll the player's position to learn where they were after logging in. The join notification is raised as soon as both the manifest snapshot has reached the client mirror and the local player entity exists with its position, whichever comes last. `LocalPlayerDimensionChangedEventArgs.IsJoin` is `true` for it (and `false` for a real transit); its `Source` is the mirror's overworld as a stand-in, since the player never left it, `Target` is the dimension they are in and `TargetPosition` their current block position. It is not raised when the player joins in the overworld, never twice (a re-sent snapshot is ignored), and not at all, with a warning logged, if the player's dimension id is unknown to the mirror. The existing constructor of the event args is unchanged.
+- **`IDimensionRegistry.GetByInternalId(int)` and `IManifoldClient.GetByInternalId(int)` look a dimension up by its engine id** (a block position's dimension, an entity's `Pos.Dimension`) instead of scanning the dimension list. Both return `null` for an unknown id; the overworld is id 0.
+
+### Changed
+- **The synchronous behavior of `TryTeleportPlayer`/`TeleportPlayer` is now documented.** The transit has always run to completion on the calling thread: when `TryTeleportPlayer` returns `true`, the player is already in the target dimension and `PlayerLeft`/`PlayerEntered` have already been raised; when it returns `false`, the player has not moved. A caller does not need to wait for `PlayerEntered`. No behavior change.
+- **The stability of `IDimension.InternalId` is now documented.** The id of a `Persistent` dimension (every `RegisterStatic` dimension) is kept in the savegame manifest and survives restarts, and survives the owning mod being removed and added back (the dimension is quarantined in between and its id stays reserved), until an admin purges it; the id of an `Ephemeral` dimension is recycled after the dimension is destroyed and must not be persisted. No behavior change.
+
 ## [0.6.0] - 2026-09-28
 
 ### Added

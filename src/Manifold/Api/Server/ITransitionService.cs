@@ -45,6 +45,12 @@ public interface ITransitionService
     /// out from under it. If the mount's seat refuses to release them, the whole transit is
     /// silently aborted (see <see cref="TryTeleportPlayer"/> to detect this).
     /// </summary>
+    /// <remarks>
+    /// Synchronous, like <see cref="TryTeleportPlayer"/>: if the player was moved,
+    /// <see cref="PlayerLeft"/> and <see cref="PlayerEntered"/> have already been raised by the time
+    /// this method returns. It gives no signal when the transit was cancelled or aborted; use
+    /// <see cref="TryTeleportPlayer"/> when that matters (it documents the full guarantee).
+    /// </remarks>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="options">Optional transit settings.</param>
@@ -58,6 +64,33 @@ public interface ITransitionService
     /// (same events, same generation, same landing-position resolution, same mount handling) instead
     /// of leaving a cancelled transit indistinguishable from a completed one.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The transit is synchronous: everything happens on the calling main thread before this method
+    /// returns, so a caller does not need to wait for <see cref="PlayerEntered"/> to know the outcome.
+    /// </para>
+    /// <para>
+    /// When it returns <c>true</c>: the player entity has been rebound to the target dimension (its
+    /// <c>Pos.Dimension</c> is already the target's id), the engine teleport to the landing position
+    /// has been issued, the target's game-mode and inventory policies have been applied, and
+    /// <see cref="PlayerLeft"/> then <see cref="PlayerEntered"/> have been raised, every subscriber
+    /// having run. The landing coordinates themselves are applied by the engine's own teleport, which
+    /// completes immediately for a destination column that is already loaded (Manifold generates or
+    /// loads the destination region first).
+    /// </para>
+    /// <para>
+    /// When it returns <c>false</c>: the player was not moved, and neither <see cref="PlayerLeft"/>
+    /// nor <see cref="PlayerEntered"/> was raised. A cancel at <see cref="PlayerArriving"/> or a
+    /// refused dismount comes after the destination region was generated, so that region may exist
+    /// and the player's position in the source dimension is already recorded for the
+    /// <c>LastVisited</c> behavior; the player themselves has not moved.
+    /// </para>
+    /// <para>
+    /// What is not covered: the client is notified separately (a network packet), so a client-side mod
+    /// sees <c>LocalPlayerChangedDimension</c> slightly later. An unknown or inactive target throws
+    /// before anything happens (see the exceptions below).
+    /// </para>
+    /// </remarks>
     /// <param name="player">Server player to teleport.</param>
     /// <param name="targetDim">Target dimension code.</param>
     /// <param name="options">Optional transit settings.</param>

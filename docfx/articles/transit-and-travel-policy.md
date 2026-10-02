@@ -36,6 +36,27 @@ player mounted, exactly as they were. If the mount's seat refuses to release the
 moving elevator seat mid-move), the whole transit is aborted before anything moves, the same as a
 cancellation; use `TryTeleportPlayer` to detect this.
 
+### What you can rely on when it returns
+
+The transit is **synchronous**: it runs entirely on the calling main thread. You do not need to wait
+for `PlayerEntered` to know what happened, because by the time `TryTeleportPlayer` returns:
+
+- `true`: the player entity has been rebound to the target dimension (its `Pos.Dimension` is already
+  the target's id), the engine teleport to the landing position has been issued, the target's
+  game-mode and inventory policies have been applied, and `PlayerLeft` then `PlayerEntered` have
+  been raised, with every subscriber already run. The landing coordinates are applied by the engine's
+  own teleport, which completes immediately for a column that is already loaded (and Manifold
+  generates or loads the destination region first).
+- `false`: the player was not moved, and neither `PlayerLeft` nor `PlayerEntered` was raised. A cancel
+  at `PlayerArriving` or a refused dismount happens after the destination region was generated, so
+  that region may exist and the player's position in the source dimension is already recorded for
+  `LastVisited`, but the player has not moved.
+
+`TeleportPlayer` has the same ordering without the return value. Two things are outside the
+guarantee: a client-side mod hears about the transit through a network packet and so sees
+`LocalPlayerChangedDimension` slightly later, and an unknown or inactive target throws before
+anything happens.
+
 ```csharp
 var transitions = manifold.Transitions;
 

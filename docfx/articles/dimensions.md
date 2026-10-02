@@ -88,9 +88,34 @@ foreach (IDimension d in manifold.Registry.All)
 // entity's position points at an id nothing has registered)
 IDimension? here = manifold.Registry.GetDimensionOf(somePlayer.Entity);
 
+// Look a dimension up by its engine id (a block position's dimension, an entity's Pos.Dimension).
+// Returns null for an id nothing has registered; 0 is the overworld.
+IDimension? byId = manifold.Registry.GetByInternalId(somePos.dimension);
+
 // Who is currently inside a given dimension?
 System.Collections.Generic.IReadOnlyList<IServerPlayer> occupants = manifold.GetPlayersIn(dim.Code);
 ```
+
+### Dimension ids
+
+Every dimension has an engine id (`IDimension.InternalId`). It is rarely needed, since the `Code` is
+the identifier you should prefer, but you meet it whenever you read a position (`BlockPos.dimension`,
+`Entity.Pos.Dimension`). `IDimensionRegistry.GetByInternalId(id)` and `IManifoldClient.GetByInternalId(id)`
+turn it back into the dimension, so there is no need to scan the whole list.
+
+- **A `Persistent` dimension keeps its id across restarts**, which includes every dimension
+  registered with `RegisterStatic()`. The id is written to the dimension manifest in the savegame
+  when the world saves, and handed back to the same code on every later boot, so you may store it.
+  It also survives the owning mod being removed and added back: while the mod is absent the
+  dimension is `Quarantined` and its id stays reserved, and the same id returns once the mod
+  registers the code again. The id is given up only when an admin purges the dimension with
+  `/manifold purge`; registering the code afterwards allocates a new id.
+- **An `Ephemeral` dimension's id is recycled.** It is released when the dimension is destroyed and
+  can be given to a different dimension later, and ephemeral dimensions do not outlive the server, so
+  never persist one.
+- A newly registered dimension's id is only recorded at the next world save, and a manifest the
+  server cannot read (corrupt, or written by a newer Manifold) makes it re-allocate ids. When you can,
+  store the `Code` and treat a stored id as a cache of it.
 
 ### Events
 
@@ -167,6 +192,41 @@ Whenever a dimension disappears (any of the above, or a savegame that no longer 
 whose saved position still points at it is not left stranded: `PlayerNowPlaying` checks the joining
 player's dimension, and if it is unknown or not `Active`, teleports them to the overworld at their
 last-visited position there. This is best-effort and logged, never thrown.
+
+## Knowing which dimension the local player is in (client)
+
+On the client, `IManifoldClient` mirrors the dimension list and raises `LocalPlayerChangedDimension`
+on the main thread. It covers two situations, told apart by `IsJoin`:
+
+- A **transit** (`IsJoin` is `false`): the local player moved from `Source` to `Target`.
+- A **join** (`IsJoin` is `true`): the local player has just joined the world while already inside a
+  custom dimension, so no transit ever happened. It is raised once, as soon as the dimension list and
+  the local player's position are both known. `Source` is then the overworld, as a stand-in (the
+  player never left it), `Target` is the dimension they are in and `TargetPosition` their current
+  block position. It is not raised when the player joins in the overworld, so start from the overworld
+  state.
+
+```csharp
+public override void StartClientSide(ICoreClientAPI capi)
+{
+    IManifoldClient manifold = capi.GetManifoldClient();
+
+    // Start from the overworld; the join notification corrects it if the player logs in elsewhere.
+    IDimension current = manifold.GetByInternalId(0)!;
+
+    manifold.LocalPlayerChangedDimension += (_, e) =>
+    {
+        current = e.Target;
+        if (e.IsJoin)
+        {
+            capi.Logger.Notification($"Joined inside {e.Target.Code} at {e.TargetPosition}");
+        }
+    };
+}
+```
+
+If you need the answer at an arbitrary moment (for example from a hotkey handler), ask the mirror
+directly: `manifold.GetDimensionOf(capi.World.Player.Entity)`.
 
 ## Dimension Metadata (0.4.0)
 
