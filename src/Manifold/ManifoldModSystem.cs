@@ -78,6 +78,16 @@ public sealed class ManifoldModSystem : ModSystem
 
         _sapi = api;
 
+        string? gameVersion = BrokenInteractionVersions.RunningGameVersion();
+        if (BrokenInteractionVersions.IsAffected(gameVersion))
+        {
+            Mod.Logger.Warning(
+                "Vintage Story {0} cannot interact with blocks outside the overworld: containers close as soon as they open "
+                + "and block interactions are refused in every custom dimension. This is a game bug fixed in 1.22.6; "
+                + "update the game to 1.22.6 or later.",
+                gameVersion);
+        }
+
         var allocator = new DimensionAllocator();
         _manifestStore = new SaveGameManifestStore(api);
         _persistence = new DimensionPersistence(

@@ -111,10 +111,14 @@ public sealed class MyModSystem : ModSystem
 
 | Requirement | Version |
 |-------------|---------|
-| Vintage Story | 1.22.x (integration suite runs on 1.22.7) |
+| Vintage Story | 1.22.x, except 1.22.4 and 1.22.5 (integration suite runs on 1.22.7) |
 | .NET | 10 |
 | Harmony | Not referenced |
 | protobuf-net | Not required (bundled with the game) |
+
+Vintage Story 1.22.4 and 1.22.5 have a game bug that breaks block interaction in every dimension
+but the overworld: containers close as soon as they open. The game fixed it in 1.22.6, and Manifold
+cannot work around it, so it logs a warning at server start on those two versions.
 
 ---
 
