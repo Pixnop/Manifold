@@ -24,4 +24,14 @@ internal interface IPlayerTeleporter
     /// <param name="z">World Z.</param>
     /// <param name="yaw">The yaw, in radians, to face on arrival; <c>null</c> keeps the current yaw.</param>
     void TeleportExact(IServerPlayer player, int dimension, double x, double y, double z, float? yaw);
+
+    /// <summary>
+    /// The landing the last teleport of <paramref name="player"/> asked for, when the engine has not
+    /// applied it yet. It does so once the destination column is loaded, which can be some ticks
+    /// after <see cref="Teleport"/> returns; until then the player's entity already reports the new
+    /// dimension but still the coordinates it left.
+    /// </summary>
+    /// <param name="player">Player to look up.</param>
+    /// <returns>The pending landing, or <c>null</c> when none is waiting.</returns>
+    PendingLanding? GetPendingLanding(IServerPlayer player);
 }

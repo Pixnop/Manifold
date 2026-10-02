@@ -6,6 +6,7 @@ using System.Text;
 using Manifold.Api;
 using Manifold.Api.Transitions;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 
 /// <summary>
@@ -20,6 +21,12 @@ public sealed partial class AtlasFixtureModSystem
 
     private const string OriginsKey = "manifold:origins";
 
+    /// <summary>Savegame key <c>load-column</c> publishes once an overworld column is loaded (1 in its first byte).</summary>
+    /// <param name="chunkX">Chunk X.</param>
+    /// <param name="chunkZ">Chunk Z.</param>
+    /// <returns>The key.</returns>
+    internal static string ColumnLoadedKey(int chunkX, int chunkZ) => $"{Domain}:column:{chunkX}:{chunkZ}";
+
     private void RegisterOriginCommands(ICoreServerAPI api)
     {
         var parsers = api.ChatCommands.Parsers;
@@ -27,9 +34,24 @@ public sealed partial class AtlasFixtureModSystem
         api.ChatCommands.Create("atlasfx3")
             .WithDescription("Drives Manifold's arrival yaw and return-to-origin surface for Atlas scenarios.")
             .RequiresPrivilege(Privilege.controlserver)
-            .BeginSubCommand("teleport-player-yaw")
-                .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"), parsers.Double("yaw"))
-                .HandleWith(OnTeleportPlayerYaw)
+            .BeginSubCommand("teleport-player-yaw-at")
+                .WithArgs(parsers.Word("playername"), parsers.Word("dimpath"), parsers.Double("yaw"), parsers.Int("x"), parsers.Int("z"))
+                .HandleWith(OnTeleportPlayerYawAt)
+            .EndSubCommand()
+            .BeginSubCommand("load-column")
+                .WithArgs(parsers.Int("x"), parsers.Int("z"))
+                .HandleWith(OnLoadColumn)
+            .EndSubCommand()
+            .BeginSubCommand("double-hop")
+                .WithArgs(
+                    parsers.Word("playername"),
+                    parsers.Word("dimpatha"),
+                    parsers.Int("ax"),
+                    parsers.Int("az"),
+                    parsers.Word("dimpathb"),
+                    parsers.Int("bx"),
+                    parsers.Int("bz"))
+                .HandleWith(OnDoubleHop)
             .EndSubCommand()
             .BeginSubCommand("origin")
                 .WithArgs(parsers.Word("playername"))
@@ -72,8 +94,43 @@ public sealed partial class AtlasFixtureModSystem
         _sapi.WorldManager.SaveGame.StoreData(OriginsKey, ms.ToArray());
     }
 
-    /// <summary>Player transit with a Yaw option (radians) and the usual fixed landing.</summary>
-    private TextCommandResult OnTeleportPlayerYaw(TextCommandCallingArgs args)
+    /// <summary>
+    /// Player transit with a Yaw option, landing at (x, 6, z) of the target. Reports "ok:" plus whether
+    /// the engine is still waiting to apply the move (<c>Entity.Teleporting</c>): it waits when the
+    /// overworld column at that X/Z is not loaded, which scenarios pick the coordinates for.
+    /// </summary>
+    private TextCommandResult OnTeleportPlayerYawAt(TextCommandCallingArgs args)
+    {
+        var options = new TransitionOptions
+        {
+            OverridePosition = new BlockPos((int)args[3], FixedSpawn.Y - 2, (int)args[4], 0),
+            Yaw = (float)(double)args[2],
+        };
+        return TransitWith(args, options);
+    }
+
+    /// <summary>
+    /// Loads, and keeps loaded, the overworld column at a block X/Z, then publishes
+    /// <see cref="ColumnLoadedKey"/> when it is in. A teleport to that X/Z, from any dimension to any
+    /// dimension, is then applied by the engine at once instead of waiting for the column (the engine
+    /// tests the overworld column at the landing X/Z, whatever the target dimension is).
+    /// </summary>
+    private TextCommandResult OnLoadColumn(TextCommandCallingArgs args)
+    {
+        int chunkX = (int)args[0] / 32;
+        int chunkZ = (int)args[1] / 32;
+        _sapi.WorldManager.LoadChunkColumnPriority(
+            chunkX,
+            chunkZ,
+            new ChunkLoadOptions
+            {
+                KeepLoaded = true,
+                OnLoaded = () => _sapi.WorldManager.SaveGame.StoreData(ColumnLoadedKey(chunkX, chunkZ), new byte[] { 1 }),
+            });
+        return TextCommandResult.Success("loading");
+    }
+
+    private TextCommandResult TransitWith(TextCommandCallingArgs args, TransitionOptions options)
     {
         IServerPlayer? player = FindPlayer((string)args[0]);
         if (player is null)
@@ -81,18 +138,48 @@ public sealed partial class AtlasFixtureModSystem
             return TextCommandResult.Error($"No online player named {args[0]}.");
         }
 
-        var dimPath = (string)args[1];
-        var options = new TransitionOptions { OverridePosition = DefaultLanding(dimPath), Yaw = (float)(double)args[2] };
         try
         {
-            _manifold.Transitions.TeleportPlayer(player, ResolveTargetCode(dimPath), options);
+            _manifold.Transitions.TeleportPlayer(player, ResolveTargetCode((string)args[1]), options);
         }
         catch (ManifoldException ex)
         {
             return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
         }
 
-        return TextCommandResult.Success("ok");
+        return TextCommandResult.Success($"ok:{player.Entity.Teleporting}");
+    }
+
+    /// <summary>
+    /// Two transits in the same tick: the second starts before the engine applied the first, so the
+    /// entity still reports the coordinates it left. Reports "ok:" plus <c>Entity.Teleporting</c> after
+    /// the first hop, which a scenario asserts true so it never passes without exercising the deferred case.
+    /// </summary>
+    private TextCommandResult OnDoubleHop(TextCommandCallingArgs args)
+    {
+        IServerPlayer? player = FindPlayer((string)args[0]);
+        if (player is null)
+        {
+            return TextCommandResult.Error($"No online player named {args[0]}.");
+        }
+
+        try
+        {
+            _manifold.Transitions.TeleportPlayer(
+                player,
+                ResolveTargetCode((string)args[1]),
+                new TransitionOptions { OverridePosition = new BlockPos((int)args[2], FixedSpawn.Y - 2, (int)args[3], 0) });
+            bool deferred = player.Entity.Teleporting;
+            _manifold.Transitions.TeleportPlayer(
+                player,
+                ResolveTargetCode((string)args[4]),
+                new TransitionOptions { OverridePosition = new BlockPos((int)args[5], FixedSpawn.Y - 2, (int)args[6], 0) });
+            return TextCommandResult.Success($"ok:{deferred}");
+        }
+        catch (ManifoldException ex)
+        {
+            return TextCommandResult.Error($"{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     /// <summary>Reports GetOrigin as "code|x|y|z|yaw" (invariant, round-trip precision), or "none".</summary>
@@ -111,7 +198,10 @@ public sealed partial class AtlasFixtureModSystem
                 : string.Create(CultureInfo.InvariantCulture, $"{origin.Dimension.Code}|{origin.X:R}|{origin.Y:R}|{origin.Z:R}|{origin.Yaw:R}"));
     }
 
-    /// <summary>Drives ITransitionService.TryReturnPlayer and reports its bool result directly.</summary>
+    /// <summary>
+    /// Drives ITransitionService.TryReturnPlayer and reports "refused", or "returned:" plus whether the
+    /// engine is still waiting to apply the move (<c>Entity.Teleporting</c>).
+    /// </summary>
     private TextCommandResult OnReturn(TextCommandCallingArgs args)
     {
         IServerPlayer? player = FindPlayer((string)args[0]);
@@ -120,6 +210,7 @@ public sealed partial class AtlasFixtureModSystem
             return TextCommandResult.Error($"No online player named {args[0]}.");
         }
 
-        return TextCommandResult.Success(_manifold.Transitions.TryReturnPlayer(player) ? "returned" : "refused");
+        return TextCommandResult.Success(
+            _manifold.Transitions.TryReturnPlayer(player) ? $"returned:{player.Entity.Teleporting}" : "refused");
     }
 }

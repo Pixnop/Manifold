@@ -317,6 +317,79 @@ public sealed class TransitOriginTests
         Assert.Throws<System.ArgumentNullException>(() => fx.Service.GetOrigin(null!));
     }
 
+    [Fact]
+    public void TeleportPlayer_Should_Record_The_Pending_Landing_As_The_Origin_When_The_Player_Transits_Again_Before_It_Applied()
+    {
+        var fx = NewFixture();
+        fx.Teleporter.Defer = true;
+        fx.Stand(0, 5.5, 70, 6.5, 0.5f);
+
+        // Hop 1 is accepted but the engine has not moved the player yet: the entity reports the new
+        // dimension and still the coordinates it left.
+        fx.Service.TeleportPlayer(fx.Player, A, new TransitionOptions { Yaw = 1.75f });
+        int aId = fx.Registry.Get(A)!.InternalId;
+        Assert.Equal(aId, fx.Player.Entity.Pos.Dimension);
+        Assert.Equal(5.5, fx.Player.Entity.Pos.X);
+
+        fx.Service.TeleportPlayer(fx.Player, B);
+
+        // B's origin is where hop 1 was taking the player (A's landing, facing its requested yaw),
+        // not the stale coordinates of the overworld.
+        var origin = fx.GetOriginIn(B);
+        Assert.Equal(aId, origin!.Dimension.InternalId);
+        Assert.Equal(100.5, origin.X);
+        Assert.Equal(100, origin.Y);
+        Assert.Equal(100.5, origin.Z);
+        Assert.Equal(1.75f, origin.Yaw);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Keep_The_Entity_Yaw_For_The_Origin_When_The_Pending_Landing_Asks_For_None()
+    {
+        var fx = NewFixture();
+        fx.Teleporter.Defer = true;
+        fx.Stand(0, 5.5, 70, 6.5, 0.5f);
+        fx.Service.TeleportPlayer(fx.Player, A);
+
+        fx.Service.TeleportPlayer(fx.Player, B);
+
+        Assert.Equal(0.5f, fx.GetOriginIn(B)!.Yaw);
+    }
+
+    [Fact]
+    public void TeleportPlayer_Should_Record_The_Pending_Landing_As_The_Last_Visited_Position()
+    {
+        var fx = NewFixture();
+        fx.Teleporter.Defer = true;
+        fx.Stand(0, 5.5, 70, 6.5, 0.5f);
+        fx.Service.TeleportPlayer(fx.Player, A);
+        int aId = fx.Registry.Get(A)!.InternalId;
+
+        fx.Service.TeleportPlayer(fx.Player, B);
+
+        Assert.True(fx.Store.TryGet(fx.Player.PlayerUID, aId, out int x, out int y, out int z));
+        Assert.Equal((100, 100, 100), (x, y, z));
+    }
+
+    [Fact]
+    public void TryReturnPlayer_Should_Land_Exactly_On_The_First_Hops_Landing_When_Both_Hops_Were_Deferred()
+    {
+        var fx = NewFixture();
+        fx.Teleporter.Defer = true;
+        fx.Stand(0, 5.5, 70, 6.5, 0.5f);
+        fx.Service.TeleportPlayer(fx.Player, A);
+        fx.Service.TeleportPlayer(fx.Player, B);
+        fx.Teleporter.Land(fx.Player);
+
+        Assert.True(fx.Service.TryReturnPlayer(fx.Player));
+        fx.Teleporter.Land(fx.Player);
+
+        int aId = fx.Registry.Get(A)!.InternalId;
+        Assert.Equal(aId, fx.Player.Entity.Pos.Dimension);
+        Assert.Equal(100.5, fx.Player.Entity.Pos.X);
+        Assert.Equal(100.5, fx.Player.Entity.Pos.Z);
+    }
+
     private static Fixture NewFixture()
     {
         var registry = new DimensionRegistry(new DimensionAllocator());
@@ -376,6 +449,13 @@ public sealed class TransitOriginTests
             pos.Dimension = dimension;
             pos.SetPos(x, y, z);
             pos.Yaw = yaw;
+        }
+
+        public TransitOrigin? GetOriginIn(AssetLocation dimension)
+        {
+            // The player's own dimension is the one GetOrigin reads; the pending hops leave them in B.
+            Assert.Equal(Registry.Get(dimension)!.InternalId, Player.Entity.Pos.Dimension);
+            return Service.GetOrigin(Player);
         }
 
         public OriginEntry? StoreOrigin(AssetLocation destination) =>

@@ -274,6 +274,11 @@ overworld, instead of bouncing between A and B. Any other transit (including a t
 dimension the player has already visited) replaces the origin recorded for its destination. A
 transit within the same dimension records nothing.
 
+The engine applies a teleport once the destination column is loaded, which can be some ticks after
+the call. A player who transits again in the meantime still has the coordinates they left on their
+entity, so Manifold records the landing the earlier transit asked for as their position instead: the
+origin is where the player was heading, never a stale position from another dimension.
+
 Origins are stored by dimension id plus code, and dropped when either end is removed: ephemeral
 dimension ids are recycled, so a stale origin can never send a player somewhere unrelated.
 

@@ -235,8 +235,8 @@ internal sealed class TransitService : ITransitionService
 
         // Record the player's current position in the SOURCE dimension before leaving,
         // so the LastVisited behavior can return them here later.
-        var srcPos = EntityPosAccess.Pos(player.Entity);
-        _positionStore.Record(player.PlayerUID, sourceId, (int)srcPos.X, (int)srcPos.Y, (int)srcPos.Z);
+        var departure = DepartureOf(player);
+        _positionStore.Record(player.PlayerUID, sourceId, (int)departure.X, (int)departure.Y, (int)departure.Z);
 
         // Pre-generate / load the destination region so the player lands on solid ground.
         _generator.EnsureRegion(_sapi, target.InternalId, ChunkMath.ToChunk(prelim.X), ChunkMath.ToChunk(prelim.Z), player);
@@ -280,7 +280,7 @@ internal sealed class TransitService : ITransitionService
             _positionStore.Origins.Record(
                 player.PlayerUID,
                 target.InternalId,
-                new OriginEntry(source.InternalId, source.Code.ToString(), srcPos.X, srcPos.Y, srcPos.Z, srcPos.Yaw));
+                new OriginEntry(source.InternalId, source.Code.ToString(), departure.X, departure.Y, departure.Z, departure.Yaw));
         }
 
         float? yaw = returning?.Yaw ?? options.Yaw;
@@ -299,6 +299,20 @@ internal sealed class TransitService : ITransitionService
         SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
         SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos, yaw), LogSubscriberError);
         return true;
+    }
+
+    /// <summary>
+    /// Where the player is leaving from. A player who transits again before the engine applied their
+    /// previous teleport (it waits for the destination column to load) still reports the coordinates
+    /// of the dimension before that, so reading the entity would record a position from the wrong
+    /// dimension: the landing that teleport asked for is where they effectively are.
+    /// </summary>
+    private (double X, double Y, double Z, float Yaw) DepartureOf(IServerPlayer player)
+    {
+        var pos = EntityPosAccess.Pos(player.Entity);
+        return _movers.Player.GetPendingLanding(player) is { } pending
+            ? (pending.X, pending.Y, pending.Z, pending.Yaw ?? pos.Yaw)
+            : (pos.X, pos.Y, pos.Z, pos.Yaw);
     }
 
     /// <summary>

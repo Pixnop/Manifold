@@ -32,7 +32,7 @@ public class OriginPersistenceScenarios : ManifoldScenarioBase
         // doubles and yaw came back unrounded.
         Assert.Equal("atlasfixture:flat|515.25|6|509.75|1.25", (await Ok("/atlasfx3 origin originkept")).Message);
 
-        Assert.Equal("returned", (await Ok("/atlasfx3 return originkept")).Message);
+        Assert.StartsWith("returned:", (await Ok("/atlasfx3 return originkept")).Message);
         await World.Until(
             () => player.Entity.Pos.Dimension == flatId
                 && Math.Abs(player.Entity.Pos.X - 515.25) < 1e-4

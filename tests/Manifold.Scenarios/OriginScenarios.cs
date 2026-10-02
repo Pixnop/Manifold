@@ -24,8 +24,15 @@ public class OriginScenarios : ManifoldScenarioBase
     private const string Channel = "manifold:dims";
     private const double Tolerance = 1e-4;
 
+    // The engine applies a player teleport at once when the OVERWORLD column at the landing X/Z is
+    // loaded (whatever the target dimension is), and otherwise queues it until that column loads. The
+    // yaw is set from the engine's own completion callback, so both timings are covered. Loading a
+    // column also loads its neighbours for generation, so every scenario uses coordinates tens of
+    // chunks away from every other one: a column another scenario touched would silently turn a
+    // deferred landing into an immediate one. The fixture reports the engine's own Teleporting flag
+    // so a scenario fails loudly instead of passing without exercising the timing it names.
     [AtlasScenario]
-    public async Task Player_Should_FaceTheRequestedYaw_When_TransitingWithAYawOption()
+    public async Task Player_Should_FaceTheRequestedYaw_When_TheEngineDefersTheLanding()
     {
         int flatId = await DimensionId("flat");
         ITestPlayer player = await World.JoinPlayer("atlas_yaw");
@@ -33,16 +40,29 @@ public class OriginScenarios : ManifoldScenarioBase
         player.Entity.Pos.Yaw = 0.5f;
         player.Client.Clear();
 
-        await Ok("/atlasfx3 teleport-player-yaw atlas_yaw flat 2.0");
-        await LandedAt(player, flatId, 512, 512);
-
-        // The yaw is applied by the engine's own teleport callback, a few ticks after the dimension flip.
+        Assert.Equal("ok:True", (await Ok("/atlasfx3 teleport-player-yaw-at atlas_yaw flat 2.0 30000 30000")).Message);
+        await LandedAt(player, flatId, 30000, 30000);
         await World.Until(() => Math.Abs(player.Entity.Pos.Yaw - 2.0) < Tolerance, timeoutTicks: 600);
 
         // The player's own client camera is not driven by the server's entity yaw, so the transit
         // notification must carry the requested yaw for the client to turn to.
         PlayerTransitedPacket packet = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
         Assert.Equal(2.0f, packet.Yaw);
+    }
+
+    [AtlasScenario]
+    public async Task Player_Should_FaceTheRequestedYaw_When_TheEngineAppliesTheLandingAtOnce()
+    {
+        int flatId = await DimensionId("flat");
+        ITestPlayer player = await World.JoinPlayer("atlas_yawnow");
+        await World.Ticks(2);
+        player.Entity.Pos.Yaw = 0.5f;
+        await LoadOverworldColumn(40000, 40000);
+
+        Assert.Equal("ok:False", (await Ok("/atlasfx3 teleport-player-yaw-at atlas_yawnow flat 2.0 40000 40000")).Message);
+        await LandedAt(player, flatId, 40000, 40000);
+
+        await World.Until(() => Math.Abs(player.Entity.Pos.Yaw - 2.0) < Tolerance, timeoutTicks: 600);
     }
 
     [AtlasScenario]
@@ -86,12 +106,12 @@ public class OriginScenarios : ManifoldScenarioBase
         AssertOrigin(await Ok("/atlasfx3 origin atlas_chain"), "atlasfixture:flat", flatSpot);
 
         // First return: void -> flat, exactly where the player left it. Landing here records nothing.
-        Assert.Equal("returned", (await Ok("/atlasfx3 return atlas_chain")).Message);
+        Assert.StartsWith("returned:", (await Ok("/atlasfx3 return atlas_chain")).Message);
         await ArrivesAt(player, flatSpot);
         AssertOrigin(await Ok("/atlasfx3 origin atlas_chain"), "manifold:overworld", overworldSpot);
 
         // Second return: flat -> overworld, at the spot the chain started from.
-        Assert.Equal("returned", (await Ok("/atlasfx3 return atlas_chain")).Message);
+        Assert.StartsWith("returned:", (await Ok("/atlasfx3 return atlas_chain")).Message);
         await ArrivesAt(player, overworldSpot);
 
         // The overworld has no origin: a third return is refused and the player stays put.
@@ -99,6 +119,47 @@ public class OriginScenarios : ManifoldScenarioBase
         Assert.Equal("refused", (await Ok("/atlasfx3 return atlas_chain")).Message);
         await World.Ticks(10);
         Assert.Equal(0, player.Position.dimension);
+    }
+
+    [AtlasScenario]
+    public async Task Player_Should_LandAtTheExactSpotAndYaw_When_TheReturnIsAppliedAtOnce()
+    {
+        int flatId = await DimensionId("flat");
+        ITestPlayer player = await World.JoinPlayer("atlas_instant");
+        await World.Ticks(2);
+        var spot = new Spot(0, player.Entity.Pos.X + 2.125, player.Entity.Pos.Y, player.Entity.Pos.Z + 1.875, 0.4f);
+        Place(player, spot);
+
+        // Keep the overworld column the player leaves from loaded, so the way back is applied at once.
+        await LoadOverworldColumn((int)spot.X, (int)spot.Z);
+        await Ok("/atlasfx3 teleport-player-yaw-at atlas_instant flat 1.0 50000 50000");
+        await LandedAt(player, flatId, 50000, 50000);
+
+        Assert.Equal("returned:False", (await Ok("/atlasfx3 return atlas_instant")).Message);
+        await ArrivesAt(player, spot);
+    }
+
+    // The second transit starts in the same tick, before the engine applied the first, so the entity
+    // still reports the coordinates it left. The origin must be where the first transit was taking
+    // the player, not those stale coordinates.
+    [AtlasScenario]
+    public async Task Origin_Should_BeTheFirstLanding_When_APlayerTransitsAgainBeforeItWasApplied()
+    {
+        int flatId = await DimensionId("flat");
+        int voidId = await DimensionId("void");
+        ITestPlayer player = await World.JoinPlayer("atlas_hop");
+        await World.Ticks(2);
+        float yaw = 0.65f;
+        player.Entity.Pos.Yaw = yaw;
+
+        Assert.Equal("ok:True", (await Ok("/atlasfx3 double-hop atlas_hop flat 70000 70000 void 80000 80000")).Message);
+        var flatLanding = new Spot(flatId, 70000.5, 6, 70000.5, yaw);
+        await ArrivesAt(player, new Spot(voidId, 80000.5, 6, 80000.5, yaw));
+
+        AssertOrigin(await Ok("/atlasfx3 origin atlas_hop"), "atlasfixture:flat", flatLanding);
+
+        Assert.StartsWith("returned:", (await Ok("/atlasfx3 return atlas_hop")).Message);
+        await ArrivesAt(player, flatLanding);
     }
 
     [AtlasScenario]
@@ -126,6 +187,14 @@ public class OriginScenarios : ManifoldScenarioBase
         Assert.Equal(spot.X, origin.X, Tolerance);
         Assert.Equal(spot.Z, origin.Z, Tolerance);
         Assert.Equal(spot.Yaw, origin.Yaw, (float)Tolerance);
+    }
+
+    /// <summary>Loads, and keeps loaded, the overworld column at a block X/Z (see the fixture's <c>load-column</c>) and waits until it is in.</summary>
+    private async Task LoadOverworldColumn(int x, int z)
+    {
+        await Ok($"/atlasfx3 load-column {x} {z}");
+        string key = $"atlasfixture:column:{x / 32}:{z / 32}";
+        await World.Until(() => FlagIsSet(key), timeoutTicks: 600);
     }
 
     /// <summary>Puts the live server-side entity at an exact position and yaw (the documented <c>ITestPlayer.Entity</c> escape hatch).</summary>
