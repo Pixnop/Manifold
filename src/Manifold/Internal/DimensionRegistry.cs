@@ -115,6 +115,9 @@ internal sealed class DimensionRegistry : IDimensionRegistry
     }
 
     /// <inheritdoc/>
+    IDimension? IDimensionRegistry.GetByInternalId(int internalId) => GetByInternalId(internalId);
+
+    /// <inheritdoc/>
     public IDimension? GetDimensionOf(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);

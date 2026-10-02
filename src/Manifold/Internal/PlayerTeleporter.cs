@@ -12,13 +12,60 @@ namespace Manifold.Internal;
 /// </remarks>
 internal sealed class PlayerTeleporter : IPlayerTeleporter
 {
+    private readonly LandingTracker _tracker = new();
+
     /// <inheritdoc/>
-    public void Teleport(IServerPlayer player, BlockPos target)
+    public void Teleport(IServerPlayer player, BlockPos target, float? yaw = null)
+    {
+        // +0.5 centers the player on the target block in X/Z.
+        TeleportExact(player, target.dimension, target.X + 0.5, target.Y, target.Z + 0.5, yaw);
+    }
+
+    /// <inheritdoc/>
+    public void TeleportExact(IServerPlayer player, int dimension, double x, double y, double z, float? yaw)
     {
         // Step 1: rebind entity to the destination dimension (chunk membership + PlayerDimensionChanged event).
-        player.Entity.ChangeDimension(target.dimension);
+        player.Entity.ChangeDimension(dimension);
 
-        // Step 2: positional teleport. +0.5 centers the player on the target block in X/Z.
-        player.Entity.TeleportToDouble(target.X + 0.5, target.Y, target.Z + 0.5);
+        // Step 2: positional teleport.
+        Issue(player, new PendingLanding(x, y, z, yaw));
+    }
+
+    /// <inheritdoc/>
+    public PendingLanding? GetPendingLanding(IServerPlayer player) => _tracker.GetPending(player.PlayerUID);
+
+    /// <inheritdoc/>
+    public void Forget(IServerPlayer player) => _tracker.Forget(player.PlayerUID);
+
+    /// <summary>
+    /// The engine tests whether the DIMENSION 0 column at this X/Z is loaded: if so it applies the move
+    /// right away, if not it queues it until that column loads, and a second call never replaces the
+    /// first. Either way it then runs the completion, which is where the yaw is set (after the move and
+    /// after the engine bumped the player's position version, so a late packet from the client's old
+    /// orientation cannot undo it) and where a superseded teleport is undone: it just moved the player
+    /// to coordinates a newer one had already left, so the latest landing is issued again. The engine
+    /// never pushes a player's yaw to their own client (its camera is client-driven): TransitService's
+    /// PlayerEntered handler sends it through Manifold's channel instead.
+    /// </summary>
+    private void Issue(IServerPlayer player, PendingLanding landing)
+    {
+        string uid = player.PlayerUID;
+        long id = _tracker.Begin(uid, landing);
+        player.Entity.TeleportToDouble(landing.X, landing.Y, landing.Z, () => OnApplied(player, uid, id));
+    }
+
+    private void OnApplied(IServerPlayer player, string uid, long id)
+    {
+        var pos = EntityPosAccess.Pos(player.Entity);
+        var outcome = _tracker.Complete(uid, id, pos.X, pos.Y, pos.Z);
+        if (outcome.ApplyYaw is { } yaw)
+        {
+            pos.Yaw = yaw;
+        }
+
+        if (outcome.Reissue is { } again)
+        {
+            Issue(player, again);
+        }
     }
 }

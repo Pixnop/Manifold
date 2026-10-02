@@ -40,7 +40,7 @@
 - **Per-dimension metadata** (0.4.0) - `.WithMetadata(key, value)` attaches typed registration-time hints to a dimension; consumers read them via `IDimension.Metadata` or the typed `GetMetadata<T>(key, defaultValue)` extension. Supports primitives, `string`, `enum`, `byte[]`, and `null`. Replicated to client mirrors.
 - **Per-dimension streaming budget** (0.4.0) - `.WithStreamingBudget(maxColumnsPerTick)` (range 1..64) caps how many columns the streaming driver may ensure for that dimension per tick. Budgets are independent so a busy dim cannot starve a quiet one.
 - **Dark dimensions** - `WithDarkSky(ceilingY)` seals every generated column with an opaque ceiling, so an enclosed dimension stays dark and is lit only by block light. Pair it with `WithFixedSpawn` at a Y below `ceilingY`, or the default landing resolver lands players on top of the ceiling instead of inside the dark space. The engine has no per-dimension day/night, so open custom dimensions otherwise render fully lit.
-- **Runtime relight** - `IManifoldServer.RelightRegion(dimension, min, max)` and the `/manifold relight [radius]` admin command recalculate light in a custom dimension after a mod places blocks there (the engine's own relight is dimension-blind).
+- **Runtime relight** - `IManifoldServer.RelightRegion(dimension, min, max)` and the `/manifold relight [radius]` admin command recalculate light in a custom dimension after a mod places blocks there (the engine's own relight is dimension-blind). Sunlight is recomputed at once; block light comes back through the engine's lighting queue a moment later, and only near a player.
 - **Safe teardown** - a dimension is never removed while a player stands in it; `ForceRemoveDimension` evacuates an ephemeral one first, ephemeral dimensions are reaped when their last occupant transits out, and `/manifold purge <code>` is the admin path for persistent or quarantined ones. Players whose saved dimension no longer exists are rescued to the overworld on join.
 - **Persistence** - dimension manifest, generated-column set, and per-player last-visited positions survive server restarts. Dimensions from uninstalled mods are quarantined (chunks kept, transit refused). Every persisted blob carries a schema version in a small sidecar record kept alongside it (blob bytes are unchanged); a blob a future release writes with a version this build does not recognize is refused rather than misread, with the original data preserved.
 - **Entity location** - `IDimensionRegistry.GetDimensionOf(entity)` finds which registered dimension an entity is currently in, from its live position.
@@ -111,10 +111,14 @@ public sealed class MyModSystem : ModSystem
 
 | Requirement | Version |
 |-------------|---------|
-| Vintage Story | 1.22.x (integration suite runs on 1.22.7) |
+| Vintage Story | 1.22.x, except 1.22.4 and 1.22.5 (integration suite runs on 1.22.7) |
 | .NET | 10 |
 | Harmony | Not referenced |
 | protobuf-net | Not required (bundled with the game) |
+
+Vintage Story 1.22.4 and 1.22.5 have a game bug that breaks block interaction in every dimension
+but the overworld: containers close as soon as they open. The game fixed it in 1.22.6, and Manifold
+cannot work around it, so it logs a warning at server start on those two versions.
 
 ---
 

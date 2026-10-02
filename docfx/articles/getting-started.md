@@ -9,7 +9,7 @@ This guide shows how to add Manifold as a dependency, obtain the facade, registe
 
 ## Prerequisites
 
-- Vintage Story **1.22.x** with `VintagestoryAPI.dll` available on the build path via `$VINTAGE_STORY`.
+- Vintage Story **1.22.x** with `VintagestoryAPI.dll` available on the build path via `$VINTAGE_STORY`. Avoid 1.22.4 and 1.22.5 for playing: a game bug there (fixed in 1.22.6) makes containers and other block interactions fail in every custom dimension.
 - Your mod targets **.NET 10** (`<TargetFramework>net10.0</TargetFramework>`).
 - Manifold installed in the `Mods/` folder alongside your mod.
 

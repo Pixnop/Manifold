@@ -10,7 +10,7 @@ public enum DimensionLifetime
 
     /// <summary>
     /// Survives across sessions; chunks persist with the savegame. Can be registered at boot
-    /// (<c>RegisterStatic</c>) or at runtime (<c>Create().Persistent()</c>). After a restart it is
+    /// (<c>RegisterStatic</c>) or at runtime (<c>Persistent().Create()</c>). After a restart it is
     /// <see cref="DimensionState.Pending"/> until the owning mod calls <c>Define</c> again with the
     /// same code.
     /// </summary>

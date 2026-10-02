@@ -14,22 +14,26 @@ internal sealed class ManifoldServerFacade : IManifoldServer
 {
     private readonly ICoreServerAPI _sapi;
     private readonly DimensionGenerator _generator;
+    private readonly BlockLightRestorer _lightRestorer;
 
     /// <summary>Initializes a new instance of the <see cref="ManifoldServerFacade"/> class.</summary>
     /// <param name="registry">Dimension registry.</param>
     /// <param name="transitions">Transit service.</param>
-    /// <param name="sapi">Server API (used by <see cref="RelightRegion"/>).</param>
+    /// <param name="sapi">Server API.</param>
     /// <param name="generator">Dimension generator (used by <see cref="GenerateRegion"/>).</param>
+    /// <param name="lightRestorer">Relight service (used by <see cref="RelightRegion"/>).</param>
     public ManifoldServerFacade(
         IDimensionRegistry registry,
         ITransitionService transitions,
         ICoreServerAPI sapi,
-        DimensionGenerator generator)
+        DimensionGenerator generator,
+        BlockLightRestorer lightRestorer)
     {
         Registry = registry ?? throw new ArgumentNullException(nameof(registry));
         Transitions = transitions ?? throw new ArgumentNullException(nameof(transitions));
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
+        _lightRestorer = lightRestorer ?? throw new ArgumentNullException(nameof(lightRestorer));
     }
 
     /// <inheritdoc/>
@@ -51,9 +55,9 @@ internal sealed class ManifoldServerFacade : IManifoldServer
         var dim = Registry.Get(dimension)
             ?? throw new DimensionNotFoundException($"No dimension registered with code '{dimension}'.");
 
-        // Runtime relight (consumer placed blocks at runtime): push to clients so the change is
-        // visible - the chunks are already loaded client-side, the server light alone is invisible.
-        DimensionGenerator.RelightBlockBounds(_sapi, dim.InternalId, min, max, sendToClients: true);
+        // Runtime relight (consumer placed blocks at runtime): resend to clients so the change is
+        // visible, the chunks are already loaded client-side and the server light alone is invisible.
+        _lightRestorer.Relight(dim.InternalId, min, max, sendToClients: true);
     }
 
     /// <inheritdoc/>

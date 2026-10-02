@@ -41,8 +41,11 @@ public sealed class ColumnGeneratedEventArgs : EventArgs
     /// loot). This is a plain, non-bulk accessor: writes apply immediately, no <c>Commit</c> call is
     /// needed. It is built with <c>synchronize:false, relight:false</c> (the same semantics as
     /// worldgen itself), so a write here does not queue a server relight task or a
-    /// neighbour-update/resync entry the way a live player edit would; use
-    /// <see cref="Server.IManifoldServer.RelightRegion"/> if the decoration needs lighting. The
+    /// neighbour-update/resync entry the way a live player edit would. A light-emitting block set
+    /// here is therefore dark until something relights it: call
+    /// <see cref="Server.IManifoldServer.RelightRegion"/> once over the decorated area, preferably
+    /// when a player has entered the dimension rather than from this handler (each call costs a few
+    /// hundred milliseconds, and the engine only computes block light near a player). The
     /// column has not been sent to any client yet when this event fires (sending always happens
     /// afterwards), so a block set here reaches clients as part of the column's normal first send,
     /// with no extra resync required. Only this event's column (<see cref="ChunkX"/>,
