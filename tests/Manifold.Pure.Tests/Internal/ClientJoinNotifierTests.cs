@@ -150,7 +150,9 @@ public sealed class ClientJoinNotifierTests
         Snapshot(mirror, ("a:overworld", 0));
         var notifier = new ClientJoinNotifier(mirror, () => At(99, 1, 2, 3));
 
-        notifier.Notify();
+        var thrown = Record.Exception(notifier.Notify);
+
+        Assert.Null(thrown);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Manifold.Internal;
@@ -59,13 +60,16 @@ internal sealed class LandingTracker
             return new LandingOutcome(state.Landing.Yaw, null);
         }
 
-        bool displaced = state.Applied && (x != state.Landing.X || y != state.Landing.Y || z != state.Landing.Z);
+        bool displaced = state.Applied && (Differs(x, state.Landing.X) || Differs(y, state.Landing.Y) || Differs(z, state.Landing.Z));
         return displaced ? new LandingOutcome(null, state.Landing) : default;
     }
 
     /// <summary>Drops everything known about a player (they disconnected: their entity is gone, completions that still arrive are ignored).</summary>
     /// <param name="playerUid">Player unique id.</param>
     public void Forget(string playerUid) => _players.Remove(playerUid);
+
+    /// <summary>Whether two coordinates are different places (a tolerance far below one block, not exact equality).</summary>
+    private static bool Differs(double a, double b) => Math.Abs(a - b) > 0.001;
 
     private sealed class State(long id, PendingLanding landing)
     {

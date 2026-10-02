@@ -52,7 +52,9 @@ public sealed class ClientTransitHandlerTests
     {
         var handler = new ClientTransitHandler(new ClientDimensionMirror());
 
-        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 1f });
+        var thrown = Record.Exception(() => handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 1f }));
+
+        Assert.Null(thrown);
     }
 
     [Fact]
