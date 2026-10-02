@@ -9,28 +9,38 @@ namespace Manifold.Internal;
 /// Notices that a player who died has respawned, and hands them to <see cref="TransitService.RespawnPlayer"/>
 /// once the engine has finished its own respawn. The engine's respawn event fires while the player may
 /// still be dead: its handler moves the player and revives them only when the destination column is
-/// loaded, which is immediate when it already is and some ticks later when it is not. So the request
-/// is answered by watching the player until they are alive, and only then moving them.
+/// loaded, which is immediate when it already is and some ticks later when it is not. The watcher
+/// follows the revive itself, through the player entity's <c>entityDead</c> watched attribute, so it
+/// waits exactly as long as the engine does and never gives up on a player who is still connected.
 /// </summary>
 /// <remarks>
-/// The respawn event also fires for a respawn request from a player who is alive (the engine ignores
-/// it but still raises the event), so only players seen dying are handled: through
-/// <c>PlayerDeath</c>, or already dead when they joined (they died in an earlier session).
-/// Main thread only.
+/// The same attribute tells a respawn from any other revive. Another player can revive a dead player
+/// on the spot (a healing item), which raises no respawn event: a revive that no respawn request
+/// claims in the same tick clears the player's dead state, so a later respawn request from a living
+/// player (the engine ignores it but still raises its event) cannot move them. The attribute is read
+/// rather than <c>Entity.Alive</c>: the engine's setter writes it, and so runs the listener, before it
+/// assigns the field. Main thread only.
 /// </remarks>
 internal sealed class RespawnWatcher
 {
-    /// <summary>How long the watcher waits between two looks at a player the engine has not revived yet.</summary>
-    internal const int PollIntervalMs = 50;
+    /// <summary>Delay, in milliseconds, before the deferred work that must run after the engine's revive has finished.</summary>
+    internal const int DeferMs = 1;
 
-    /// <summary>How many looks it takes before giving up on a player the engine never revives (about a minute).</summary>
-    internal const int MaxPolls = 1200;
+    /// <summary>How long to wait before trying again to move a player the transit service failed to move.</summary>
+    internal const int RetryMs = 50;
+
+    /// <summary>How many times in all the move is attempted before the failure is left in the log.</summary>
+    internal const int MaxAttempts = 3;
+
+    private const string DeadAttribute = "entityDead";
 
     private readonly System.Func<IServerPlayer, bool> _respawn;
     private readonly Action<Action, int> _schedule;
     private readonly ILogger? _logger;
+    private readonly Dictionary<string, IServerPlayer> _players = new(StringComparer.Ordinal);
     private readonly HashSet<string> _dead = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, IServerPlayer> _waiting = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _requested = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _revived = new(StringComparer.Ordinal);
 
     /// <summary>Initializes a new instance of the <see cref="RespawnWatcher"/> class.</summary>
     /// <param name="respawn">Moves a revived player out of the dimension they died in.</param>
@@ -43,26 +53,31 @@ internal sealed class RespawnWatcher
         _logger = logger;
     }
 
-    /// <summary>Subscribes the watcher to the game events it follows: death, respawn request, join and disconnect.</summary>
+    /// <summary>Subscribes the watcher to the game events it follows: join, respawn request and disconnect.</summary>
     /// <param name="events">The server event API.</param>
     public void Attach(IServerEventAPI events)
     {
         ArgumentNullException.ThrowIfNull(events);
-        events.PlayerDeath += (player, _) => OnDeath(player);
-        events.PlayerRespawn += OnRespawnRequested;
         events.PlayerNowPlaying += OnNowPlaying;
+        events.PlayerRespawn += OnRespawnRequested;
         events.PlayerDisconnect += OnDisconnect;
     }
 
-    /// <summary>Records that a player died.</summary>
-    /// <param name="player">The player.</param>
-    public void OnDeath(IServerPlayer player) => _dead.Add(player.PlayerUID);
-
-    /// <summary>Records a player who joined already dead (they died before the server restarted or before they logged out).</summary>
+    /// <summary>
+    /// Starts following a player who has just joined: their deaths and revives from now on, and their
+    /// death right now if they come back dead (they died before they logged out or the server restarted).
+    /// </summary>
     /// <param name="player">The player.</param>
     public void OnNowPlaying(IServerPlayer player)
     {
-        if (player.Entity is { Alive: false })
+        if (player.Entity is not { } entity || (_players.TryGetValue(player.PlayerUID, out var known) && ReferenceEquals(known, player)))
+        {
+            return;
+        }
+
+        _players[player.PlayerUID] = player;
+        entity.WatchedAttributes.RegisterModifiedListener(DeadAttribute, () => OnDeadAttributeChanged(player));
+        if (IsDead(entity))
         {
             _dead.Add(player.PlayerUID);
         }
@@ -72,64 +87,102 @@ internal sealed class RespawnWatcher
     /// <param name="player">The player.</param>
     public void OnDisconnect(IServerPlayer player)
     {
-        _dead.Remove(player.PlayerUID);
-        _waiting.Remove(player.PlayerUID);
+        string uid = player.PlayerUID;
+        _players.Remove(uid);
+        _dead.Remove(uid);
+        _requested.Remove(uid);
+        _revived.Remove(uid);
     }
 
-    /// <summary>The engine's respawn event: starts watching a dead player until the engine has revived them.</summary>
+    /// <summary>
+    /// The engine's respawn event. It has already run the engine's own handler, so the player is
+    /// either alive again (the spawn column was loaded) or still waiting for it.
+    /// </summary>
     /// <param name="player">The player who asked to respawn.</param>
     public void OnRespawnRequested(IServerPlayer player)
     {
         string uid = player.PlayerUID;
-        if (_dead.Contains(uid) && _waiting.TryAdd(uid, player))
+        if (!IsCurrent(player) || !_dead.Contains(uid))
         {
-            Poll(player, 0);
-        }
-    }
-
-    private void Poll(IServerPlayer player, int attempt)
-    {
-        string uid = player.PlayerUID;
-        if (!_waiting.TryGetValue(uid, out var watched) || !ReferenceEquals(watched, player))
-        {
-            return; // they left (and maybe came back as someone else's connection): this watch is stale
-        }
-
-        if (player.Entity is not { } entity)
-        {
-            _waiting.Remove(uid);
             return;
         }
 
-        if (entity.Alive)
+        if (_revived.Remove(uid))
         {
-            _waiting.Remove(uid);
             _dead.Remove(uid);
-            Respawn(player);
-            return;
+            Move(player, 1);
         }
-
-        if (attempt >= MaxPolls)
+        else if (IsDead(player.Entity))
         {
-            _waiting.Remove(uid);
-            _logger?.Warning(
-                "[Manifold] {0} asked to respawn but the game never revived them; not moving them out of their dimension.",
-                player.PlayerName);
-            return;
+            _requested.Add(uid);
         }
-
-        _schedule(() => Poll(player, attempt + 1), PollIntervalMs);
+        else
+        {
+            _dead.Remove(uid); // alive and no longer marked as just revived: a stale death
+        }
     }
 
-    private void Respawn(IServerPlayer player)
+    private static bool IsDead(EntityPlayer entity) => entity.WatchedAttributes.GetInt(DeadAttribute) != 0;
+
+    private bool IsCurrent(IServerPlayer player) =>
+        _players.TryGetValue(player.PlayerUID, out var known) && ReferenceEquals(known, player) && player.Entity is not null;
+
+    /// <summary>The listener on the player's <c>entityDead</c> attribute: runs inside the engine's death and revive.</summary>
+    private void OnDeadAttributeChanged(IServerPlayer player)
     {
+        if (!IsCurrent(player))
+        {
+            return;
+        }
+
+        string uid = player.PlayerUID;
+        if (IsDead(player.Entity))
+        {
+            _dead.Add(uid);
+            _requested.Remove(uid);
+            _revived.Remove(uid);
+        }
+        else if (_requested.Remove(uid))
+        {
+            // The engine's pending respawn teleport has applied and revived them. The revive is not
+            // finished inside this listener (the entity's alive flag is set after the attribute).
+            _dead.Remove(uid);
+            _schedule(() => Move(player, 1), DeferMs);
+        }
+        else if (_dead.Contains(uid) && _revived.Add(uid))
+        {
+            // Revived with no request yet: either the engine's respawn, whose request event follows in
+            // this same call, or a revive in place. Whatever no request has claimed by then is the latter.
+            _schedule(() => ForgetInPlaceRevive(uid), DeferMs);
+        }
+    }
+
+    private void ForgetInPlaceRevive(string uid)
+    {
+        if (_revived.Remove(uid))
+        {
+            _dead.Remove(uid);
+        }
+    }
+
+    private void Move(IServerPlayer player, int attempt)
+    {
+        if (!IsCurrent(player) || IsDead(player.Entity))
+        {
+            return;
+        }
+
         try
         {
             _respawn(player);
         }
         catch (Exception ex)
         {
-            _logger?.Error("[Manifold] Moving {0} out of their dimension after a respawn failed: {1}", player.PlayerName, ex);
+            _logger?.Error("[Manifold] Moving {0} out of their dimension after a respawn failed (attempt {1}): {2}", player.PlayerName, attempt, ex);
+            if (attempt < MaxAttempts)
+            {
+                _schedule(() => Move(player, attempt + 1), RetryMs);
+            }
         }
     }
 }

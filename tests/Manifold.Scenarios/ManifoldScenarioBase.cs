@@ -150,6 +150,20 @@ public abstract class ManifoldScenarioBase : AtlasScenarioBase
         await World.Until(() => player.Position.dimension == dimension, timeoutTicks: 100);
     }
 
+    /// <summary>
+    /// The item stacks lying on the ground within eight blocks of <paramref name="at"/>, which is an
+    /// entity position (its Y carries the dimension, as <c>Pos.XYZ</c> does).
+    /// </summary>
+    protected List<ItemStack> ItemsOnTheGround(Vec3d at) =>
+        World.Api.World.GetEntitiesAround(at, 8, 8, e => e is EntityItem)
+            .Cast<EntityItem>()
+            .Select(e => e.Itemstack)
+            .ToList();
+
+    /// <summary>The total size of the stacks of <paramref name="code"/> in <paramref name="stacks"/>.</summary>
+    protected static int CountOf(IEnumerable<ItemStack> stacks, string code) =>
+        stacks.Where(s => s.Collectible.Code.ToString() == code).Sum(s => s.StackSize);
+
     protected static int HotbarCount(ITestPlayer player, string code)
     {
         IInventory hotbar = player.Player.InventoryManager.GetHotbarInventory();

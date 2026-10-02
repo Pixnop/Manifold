@@ -303,11 +303,23 @@ internal sealed partial class TransitService : ITransitionService
     private void CompleteTransit(
         IServerPlayer player, IDimension source, IDimension target, DimensionImpl? targetImpl, BlockPos targetPos, float? yaw)
     {
+        ApplyPolicies(player, target, targetImpl);
+        RaiseMoved(player, source, target, targetPos, yaw, isRespawn: false);
+    }
+
+    /// <summary>The target dimension's game mode and inventory policies, applied to a player who has just been moved there.</summary>
+    private void ApplyPolicies(IServerPlayer player, IDimension target, DimensionImpl? targetImpl)
+    {
         ApplyGameModePolicy(player, targetImpl);
         ApplyInventoryPolicy(player, target, targetImpl);
+    }
 
-        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target), LogSubscriberError);
-        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos, yaw), LogSubscriberError);
+    /// <summary>Raises <c>PlayerLeft</c> then <c>PlayerEntered</c>, each isolated from a throwing subscriber.</summary>
+    private void RaiseMoved(
+        IServerPlayer player, IDimension source, IDimension target, BlockPos targetPos, float? yaw, bool isRespawn)
+    {
+        SafeEvent.Raise(PlayerLeft, this, new PlayerLeftDimensionEventArgs(player, source, target, isRespawn), LogSubscriberError);
+        SafeEvent.Raise(PlayerEntered, this, new PlayerEnteredDimensionEventArgs(player, source, target, targetPos, yaw, isRespawn), LogSubscriberError);
     }
 
     /// <summary>

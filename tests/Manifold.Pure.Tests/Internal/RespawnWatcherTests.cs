@@ -9,8 +9,8 @@ using Xunit;
 namespace Manifold.Pure.Tests.Internal;
 
 /// <summary>
-/// <see cref="RespawnWatcher"/>: a respawn request is answered only for a player seen dying, and only
-/// once the engine has revived them.
+/// <see cref="RespawnWatcher"/>: a respawn request is answered only for a player seen dying, only
+/// once the engine has revived them, and never for a player another player revived in place.
 /// </summary>
 public sealed class RespawnWatcherTests
 {
@@ -18,7 +18,7 @@ public sealed class RespawnWatcherTests
     public void OnRespawnRequested_Should_Ignore_A_Player_Who_Never_Died()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: true);
+        var player = fx.Join("alice");
 
         fx.Watcher.OnRespawnRequested(player);
 
@@ -30,49 +30,45 @@ public sealed class RespawnWatcherTests
     public void OnRespawnRequested_Should_Move_A_Dead_Player_At_Once_When_The_Engine_Already_Revived_Them()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
-        player.Entity.Alive = true; // the engine's respawn teleport applied and revived them at once
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+        Fixture.Revive(player); // the engine's respawn teleport applied and revived them within the request
 
         fx.Watcher.OnRespawnRequested(player);
 
         Assert.Equal(["alice"], fx.Respawned);
-        Assert.Empty(fx.Scheduled);
     }
 
     [Fact]
-    public void OnRespawnRequested_Should_Wait_For_The_Revive_When_The_Engine_Teleport_Is_Still_Pending()
+    public void OnRespawnRequested_Should_Wait_For_The_Revive_Without_Polling_When_The_Engine_Teleport_Is_Pending()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
+        var player = fx.Join("alice");
+        Fixture.Die(player);
 
         fx.Watcher.OnRespawnRequested(player);
-        fx.RunScheduled();
-        fx.RunScheduled();
+
+        Assert.Empty(fx.Scheduled); // nothing to poll, however long the engine takes
         Assert.Empty(fx.Respawned);
 
-        player.Entity.Alive = true;
-        fx.RunScheduled();
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
 
         Assert.Equal(["alice"], fx.Respawned);
-        Assert.Empty(fx.Scheduled);
-        Assert.All(fx.Delays, d => Assert.Equal(RespawnWatcher.PollIntervalMs, d));
+        Assert.Equal([RespawnWatcher.DeferMs], fx.Delays);
     }
 
     [Fact]
     public void OnRespawnRequested_Should_Move_The_Player_Only_Once_When_The_Request_Is_Repeated_While_Waiting()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
+        var player = fx.Join("alice");
+        Fixture.Die(player);
 
         fx.Watcher.OnRespawnRequested(player);
         fx.Watcher.OnRespawnRequested(player);
-        Assert.Single(fx.Scheduled);
-
-        player.Entity.Alive = true;
-        fx.RunScheduled();
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
 
         Assert.Equal(["alice"], fx.Respawned);
     }
@@ -81,68 +77,116 @@ public sealed class RespawnWatcherTests
     public void OnRespawnRequested_Should_Ignore_A_Request_After_The_Player_Was_Moved_Until_They_Die_Again()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
-        player.Entity.Alive = true;
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+        Fixture.Revive(player);
         fx.Watcher.OnRespawnRequested(player);
+        fx.RunAllScheduled();
 
         fx.Watcher.OnRespawnRequested(player); // a request from a living player: ignored
         Assert.Single(fx.Respawned);
 
-        fx.Watcher.OnDeath(player);
+        Fixture.Die(player);
+        Fixture.Revive(player);
         fx.Watcher.OnRespawnRequested(player);
         Assert.Equal(2, fx.Respawned.Count);
+    }
+
+    [Fact]
+    public void OnRespawnRequested_Should_Ignore_A_Player_Who_Was_Revived_In_Place()
+    {
+        var fx = new Fixture();
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+
+        Fixture.Revive(player); // another player revived them where they fell: no respawn request
+        fx.RunAllScheduled(); // the end of that tick
+        fx.Watcher.OnRespawnRequested(player); // a request from a player who is alive
+
+        Assert.Empty(fx.Respawned);
+    }
+
+    [Fact]
+    public void OnRespawnRequested_Should_Ignore_A_Player_Revived_In_Place_Who_Then_Dies_Again_And_Is_Revived_Again()
+    {
+        var fx = new Fixture();
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
+        Fixture.Die(player);
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
+
+        fx.Watcher.OnRespawnRequested(player);
+
+        Assert.Empty(fx.Respawned);
     }
 
     [Fact]
     public void OnRespawnRequested_Should_Handle_A_Player_Who_Joined_Dead()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
+        var player = fx.NewPlayer("alice");
+        Fixture.Die(player); // they died before they logged out
         fx.Watcher.OnNowPlaying(player);
-        player.Entity.Alive = true;
 
         fx.Watcher.OnRespawnRequested(player);
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
 
         Assert.Equal(["alice"], fx.Respawned);
     }
 
     [Fact]
-    public void OnNowPlaying_Should_Not_Mark_A_Living_Player_As_Dead()
+    public void OnNowPlaying_Should_Not_Follow_A_Player_Without_An_Entity()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: true);
-        fx.Watcher.OnNowPlaying(player);
+        var player = fx.NewPlayer("alice");
+        player.Entity.Returns((EntityPlayer?)null);
 
+        fx.Watcher.OnNowPlaying(player);
         fx.Watcher.OnRespawnRequested(player);
 
         Assert.Empty(fx.Respawned);
+    }
+
+    [Fact]
+    public void OnNowPlaying_Should_Follow_A_Player_Once_When_It_Is_Raised_Twice_For_The_Same_Connection()
+    {
+        var fx = new Fixture();
+        var player = fx.Join("alice");
+        fx.Watcher.OnNowPlaying(player);
+        Fixture.Die(player);
+        Fixture.Revive(player);
+
+        fx.Watcher.OnRespawnRequested(player);
+
+        Assert.Single(fx.Respawned);
     }
 
     [Fact]
     public void OnDisconnect_Should_Stop_The_Wait_For_A_Player_Who_Left()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
+        var player = fx.Join("alice");
+        Fixture.Die(player);
         fx.Watcher.OnRespawnRequested(player);
 
         fx.Watcher.OnDisconnect(player);
-        player.Entity.Alive = true;
-        fx.RunScheduled();
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
 
         Assert.Empty(fx.Respawned);
-        Assert.Empty(fx.Scheduled);
     }
 
     [Fact]
     public void OnDisconnect_Should_Forget_That_The_Player_Was_Dead()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
+        var player = fx.Join("alice");
+        Fixture.Die(player);
         fx.Watcher.OnDisconnect(player);
-        player.Entity.Alive = true;
 
         fx.Watcher.OnRespawnRequested(player);
 
@@ -150,19 +194,20 @@ public sealed class RespawnWatcherTests
     }
 
     [Fact]
-    public void Poll_Should_Drop_A_Stale_Wait_When_The_Player_Came_Back_As_A_New_Connection()
+    public void OnRespawnRequested_Should_Ignore_The_Old_Entity_When_The_Player_Came_Back_As_A_New_Connection()
     {
         var fx = new Fixture();
-        var first = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(first);
+        var first = fx.Join("alice");
+        Fixture.Die(first);
         fx.Watcher.OnRespawnRequested(first);
         fx.Watcher.OnDisconnect(first);
 
-        var second = fx.NewPlayer("alice", alive: false);
+        var second = fx.NewPlayer("alice");
+        Fixture.Die(second);
         fx.Watcher.OnNowPlaying(second);
         fx.Watcher.OnRespawnRequested(second);
-        first.Entity.Alive = true;
-        second.Entity.Alive = true;
+        Fixture.Revive(first);
+        Fixture.Revive(second);
         fx.RunAllScheduled();
 
         Assert.Equal(["alice"], fx.Respawned);
@@ -170,82 +215,103 @@ public sealed class RespawnWatcherTests
     }
 
     [Fact]
-    public void Poll_Should_Stop_Without_Moving_Anyone_When_The_Player_Has_No_Entity()
+    public void Move_Should_Wait_Without_A_Time_Limit_For_A_Player_Who_Is_Still_Connected()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
+        var player = fx.Join("alice");
+        Fixture.Die(player);
         fx.Watcher.OnRespawnRequested(player);
-        player.Entity.Returns((Vintagestory.API.Common.EntityPlayer?)null);
 
-        fx.RunScheduled();
+        for (int i = 0; i < 100000; i++)
+        {
+            fx.RunAllScheduled(); // nothing is scheduled, so nothing can time out
+        }
 
-        Assert.Empty(fx.Respawned);
-        Assert.Empty(fx.Scheduled);
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
+
+        Assert.Equal(["alice"], fx.Respawned);
     }
 
     [Fact]
-    public void Poll_Should_Give_Up_And_Warn_When_The_Engine_Never_Revives_The_Player()
+    public void Move_Should_Skip_A_Player_Who_Died_Again_Before_The_Deferred_Move_Ran()
     {
         var fx = new Fixture();
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+        fx.Watcher.OnRespawnRequested(player);
+        Fixture.Revive(player);
+
+        Fixture.Die(player);
+        fx.RunAllScheduled();
+
+        Assert.Empty(fx.Respawned);
+    }
+
+    [Fact]
+    public void Move_Should_Try_Again_When_Moving_The_Player_Throws_Once()
+    {
+        var fx = new Fixture { FailuresLeft = 1 };
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+        Fixture.Revive(player);
+
+        fx.Watcher.OnRespawnRequested(player);
+        fx.RunAllScheduled();
+
+        Assert.Equal(["alice"], fx.Respawned);
+        fx.Logger.Received(1).Error(Arg.Any<string>(), Arg.Any<object[]>());
+        Assert.Contains(RespawnWatcher.RetryMs, fx.Delays);
+    }
+
+    [Fact]
+    public void Move_Should_Stop_And_Leave_The_Failures_In_The_Log_When_Moving_The_Player_Keeps_Throwing()
+    {
+        var fx = new Fixture { FailuresLeft = int.MaxValue };
+        var player = fx.Join("alice");
+        Fixture.Die(player);
+        Fixture.Revive(player);
 
         fx.Watcher.OnRespawnRequested(player);
         fx.RunAllScheduled();
 
         Assert.Empty(fx.Respawned);
-        Assert.Equal(RespawnWatcher.MaxPolls, fx.Delays.Count);
-        fx.Logger.Received(1).Warning(Arg.Is<string>(m => m.Contains("never revived")), Arg.Any<object[]>());
+        fx.Logger.Received(RespawnWatcher.MaxAttempts).Error(Arg.Any<string>(), Arg.Any<object[]>());
     }
 
     [Fact]
-    public void Poll_Should_Log_And_Carry_On_When_Moving_The_Player_Throws()
-    {
-        var fx = new Fixture { RespawnThrows = true };
-        var player = fx.NewPlayer("alice", alive: false);
-        fx.Watcher.OnDeath(player);
-        player.Entity.Alive = true;
-
-        fx.Watcher.OnRespawnRequested(player);
-
-        fx.Logger.Received(1).Error(Arg.Any<string>(), Arg.Any<object[]>());
-        Assert.Empty(fx.Scheduled);
-    }
-
-    [Fact]
-    public void Attach_Should_Follow_The_Game_Events_From_Death_To_Respawn()
+    public void Attach_Should_Follow_The_Game_Events_From_Join_To_Respawn()
     {
         var fx = new Fixture();
         var events = Substitute.For<IServerEventAPI>();
         fx.Watcher.Attach(events);
-        var player = fx.NewPlayer("alice", alive: false);
+        var player = fx.NewPlayer("alice");
 
-        events.PlayerDeath += Raise.Event<PlayerDeathDelegate>(player, new DamageSource());
-        player.Entity.Alive = true;
+        events.PlayerNowPlaying += Raise.Event<PlayerDelegate>(player);
+        Fixture.Die(player);
         events.PlayerRespawn += Raise.Event<PlayerDelegate>(player);
+        Fixture.Revive(player);
+        fx.RunAllScheduled();
 
         Assert.Equal(["alice"], fx.Respawned);
     }
 
     [Fact]
-    public void Attach_Should_Follow_A_Player_Who_Joins_Dead_And_One_Who_Leaves()
+    public void Attach_Should_Forget_A_Player_Who_Disconnects()
     {
         var fx = new Fixture();
         var events = Substitute.For<IServerEventAPI>();
         fx.Watcher.Attach(events);
-        var joinedDead = fx.NewPlayer("alice", alive: false);
-        var left = fx.NewPlayer("bob", alive: false);
+        var player = fx.NewPlayer("bob");
+        events.PlayerNowPlaying += Raise.Event<PlayerDelegate>(player);
+        Fixture.Die(player);
 
-        events.PlayerNowPlaying += Raise.Event<PlayerDelegate>(joinedDead);
-        events.PlayerNowPlaying += Raise.Event<PlayerDelegate>(left);
-        events.PlayerDisconnect += Raise.Event<PlayerDelegate>(left);
-        joinedDead.Entity.Alive = true;
-        left.Entity.Alive = true;
-        events.PlayerRespawn += Raise.Event<PlayerDelegate>(joinedDead);
-        events.PlayerRespawn += Raise.Event<PlayerDelegate>(left);
+        events.PlayerDisconnect += Raise.Event<PlayerDelegate>(player);
+        Fixture.Revive(player);
+        events.PlayerRespawn += Raise.Event<PlayerDelegate>(player);
+        fx.RunAllScheduled();
 
-        Assert.Equal(["alice"], fx.Respawned);
+        Assert.Empty(fx.Respawned);
     }
 
     [Fact]
@@ -269,8 +335,9 @@ public sealed class RespawnWatcherTests
             Watcher = new RespawnWatcher(
                 p =>
                 {
-                    if (RespawnThrows)
+                    if (FailuresLeft > 0)
                     {
+                        FailuresLeft--;
                         throw new InvalidOperationException("boom");
                     }
 
@@ -294,14 +361,20 @@ public sealed class RespawnWatcherTests
 
         public List<IServerPlayer> RespawnedPlayers { get; } = [];
 
-        public bool RespawnThrows { get; init; }
+        public int FailuresLeft { get; set; }
 
         public List<string> Respawned => RespawnedPlayers.ConvertAll(p => p.PlayerUID);
 
-        public IServerPlayer NewPlayer(string uid, bool alive)
+        /// <summary>Kills the player the way the engine does: its alive setter writes this attribute, and so runs the watchers' listeners.</summary>
+        public static void Die(IServerPlayer player) => player.Entity.WatchedAttributes.SetInt("entityDead", 1);
+
+        /// <summary>Revives the player the way the engine does.</summary>
+        public static void Revive(IServerPlayer player) => player.Entity.WatchedAttributes.SetInt("entityDead", 0);
+
+        /// <summary>A living player the watcher is not following yet.</summary>
+        public IServerPlayer NewPlayer(string uid)
         {
             var entity = Substitute.For<EntityPlayer>();
-            entity.Alive = alive;
             var player = Substitute.For<IServerPlayer>();
             player.PlayerUID.Returns(uid);
             player.PlayerName.Returns(uid);
@@ -309,13 +382,19 @@ public sealed class RespawnWatcherTests
             return player;
         }
 
-        public void RunScheduled() => Scheduled.Dequeue()();
+        /// <summary>A living player who has joined, so the watcher follows their deaths and revives.</summary>
+        public IServerPlayer Join(string uid)
+        {
+            var player = NewPlayer(uid);
+            Watcher.OnNowPlaying(player);
+            return player;
+        }
 
         public void RunAllScheduled()
         {
             while (Scheduled.Count > 0)
             {
-                RunScheduled();
+                Scheduled.Dequeue()();
             }
         }
     }

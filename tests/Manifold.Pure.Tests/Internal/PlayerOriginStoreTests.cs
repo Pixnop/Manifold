@@ -175,6 +175,33 @@ public sealed class PlayerOriginStoreTests
     }
 
     [Fact]
+    public void Remove_Should_Forget_Only_That_Players_Origin_For_That_Dimension()
+    {
+        var store = new PlayerOriginStore();
+        store.Record("alice", 10, Sample);
+        store.Record("bob", 10, Sample);
+        store.Record("alice", 12, Sample);
+        store.ClearDirty();
+
+        store.Remove("alice", 10);
+
+        Assert.False(store.TryGet("alice", 10, out _));
+        Assert.True(store.TryGet("bob", 10, out _));
+        Assert.True(store.TryGet("alice", 12, out _));
+        Assert.True(store.IsDirty);
+    }
+
+    [Fact]
+    public void Remove_Should_Leave_The_Store_Clean_When_Nothing_Was_Recorded()
+    {
+        var store = new PlayerOriginStore();
+
+        store.Remove("alice", 10);
+
+        Assert.False(store.IsDirty);
+    }
+
+    [Fact]
     public void RemoveDimension_Should_Drop_The_Origins_Recorded_For_It()
     {
         var store = new PlayerOriginStore();

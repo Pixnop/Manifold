@@ -42,46 +42,57 @@ internal sealed partial class TransitService
     /// <summary>
     /// Takes a player who has just respawned out of the custom dimension they died in, or keeps them
     /// in it at its fixed spawn when it opted into <see cref="RespawnBehavior.DimensionSpawn"/>.
-    /// A death in the overworld is not touched at all.
+    /// A death in the overworld is not touched, unless the game's spawn designates a dimension (see
+    /// <see cref="DecodeSpawnY"/>), which the game's respawn leaves the player stranded above.
     /// </summary>
     /// <remarks>
     /// Leaving is a real transit for everything but its cancellable half: the target's game mode and
     /// inventory policies are applied, the old dimension's are undone, and <c>PlayerLeft</c> and
-    /// <c>PlayerEntered</c> are raised. <c>PlayerEntering</c> and <c>PlayerArriving</c> are not: a
-    /// respawn cannot be refused, and a veto would strand the player in the dimension they died in.
-    /// No dismount (death already unmounted them), and no origin or last-visited position is recorded:
-    /// the engine's spawn coordinates are not a place the player walked to. A respawn that stays in the
-    /// dimension moves the player and nothing else.
+    /// <c>PlayerEntered</c> are raised (flagged <c>IsRespawn</c>; none when the dimension they died in
+    /// is not one Manifold manages). <c>PlayerEntering</c> and <c>PlayerArriving</c> are not: a respawn
+    /// cannot be refused, and a veto would strand the player in the dimension they died in. No
+    /// dismount (death already unmounted them), and no last-visited position is recorded: the engine's
+    /// spawn coordinates are not a place the player walked to. The origin recorded for the dimension
+    /// they land in is dropped, so <c>TryReturnPlayer</c> cannot send them back to where they died. A
+    /// respawn that stays in the dimension moves the player and nothing else. Nothing of the player is
+    /// rewritten before the move itself, so a call that throws can be repeated.
     /// </remarks>
     /// <param name="player">A player who is alive again.</param>
-    /// <returns><c>true</c> if the player was moved; <c>false</c> when they are in the overworld.</returns>
+    /// <returns><c>true</c> if the player was moved; <c>false</c> when they died in the overworld with a plain spawn.</returns>
     internal bool RespawnPlayer(IServerPlayer player)
     {
         var pos = EntityPosAccess.Pos(player.Entity);
         int sourceId = pos.Dimension;
-        if (sourceId == 0)
+        if (sourceId == 0 && pos.Y < DimensionYStride)
         {
             return false;
         }
 
         var died = _registry.GetByInternalId(sourceId);
         var plan = PlanRespawn(died, pos);
-
-        // The entity must hold a plain Y before it is re-homed: a spawn that carried a dimension left
-        // a Y far above any dimension's height, and the re-homing indexes the entity's chunk by it.
-        pos.Y = plan.Y;
+        var target = _registry.GetByInternalId(plan.Dimension)!;
         if (plan.Dimension != 0)
         {
             _generator.EnsureRegion(_sapi, plan.Dimension, ChunkMath.ToChunk(plan.X), ChunkMath.ToChunk(plan.Z), player);
         }
 
-        _movers.Player.TeleportExact(player, plan.Dimension, plan.X, plan.Y, plan.Z, null);
+        // The entity must hold a plain Y before it is re-homed: a spawn that carried a dimension left
+        // a Y far above any dimension's height, and the re-homing indexes the entity's chunk by it.
+        double rawY = pos.Y;
+        pos.Y = plan.Y;
+        try
+        {
+            _movers.Player.TeleportExact(player, plan.Dimension, plan.X, plan.Y, plan.Z, null);
+        }
+        catch
+        {
+            pos.Y = rawY; // leave the spawn the way the game left it, so the move can be repeated
+            throw;
+        }
 
-        var target = _registry.GetByInternalId(plan.Dimension)!;
         if (plan.Dimension != sourceId)
         {
-            var landing = new BlockPos((int)Math.Floor(plan.X), (int)Math.Floor(plan.Y), (int)Math.Floor(plan.Z), plan.Dimension);
-            CompleteTransit(player, (IDimension?)died ?? _registry.GetByInternalId(0)!, target, target, landing, null);
+            FinishRespawnOut(player, died, target, plan);
         }
 
         _sapi.Logger?.Notification(
@@ -89,11 +100,25 @@ internal sealed partial class TransitService
         return true;
     }
 
+    /// <summary>The part of a respawn that changes dimension: the target's policies, then the events (none from a dimension Manifold does not manage).</summary>
+    private void FinishRespawnOut(IServerPlayer player, DimensionImpl? died, DimensionImpl target, RespawnPlan plan)
+    {
+        _positionStore.Origins.Remove(player.PlayerUID, plan.Dimension);
+        ApplyPolicies(player, target, target);
+        if (died is not null)
+        {
+            var landing = new BlockPos((int)Math.Floor(plan.X), (int)Math.Floor(plan.Y), (int)Math.Floor(plan.Z), plan.Dimension);
+            RaiseMoved(player, died, target, landing, null, isRespawn: true);
+        }
+    }
+
     /// <summary>
     /// Where a respawn lands, in order: the dead player's own dimension when it keeps its dead and has
-    /// a fixed spawn; the dimension the engine's spawn designates when it packs one into its Y; the
-    /// overworld at the engine's coordinates otherwise. A designated dimension that is gone or not
-    /// active falls back to the world's default spawn in the overworld.
+    /// a fixed spawn; the dimension the engine's spawn designates when it packs one into its Y and that
+    /// dimension is Active and Persistent (an ephemeral dimension's id is recycled, so a spawn set in
+    /// one could name an unrelated dimension by now); the overworld at the engine's coordinates
+    /// otherwise. A designated dimension that does not qualify falls back to the world's default spawn
+    /// in the overworld.
     /// </summary>
     private RespawnPlan PlanRespawn(DimensionImpl? died, EntityPos pos)
     {
@@ -108,13 +133,13 @@ internal sealed partial class TransitService
         }
 
         var (designated, y) = DecodeSpawnY(pos.Y);
-        if (designated == 0 || _registry.GetByInternalId(designated) is { State: DimensionState.Active })
+        if (designated == 0 || _registry.GetByInternalId(designated) is { State: DimensionState.Active, Lifetime: DimensionLifetime.Persistent })
         {
             return new RespawnPlan(designated, pos.X, y, pos.Z);
         }
 
         _sapi.Logger?.Warning(
-            "[Manifold] A respawn point designates dimension {0}, which is not active; using the world spawn instead.",
+            "[Manifold] A respawn point designates dimension {0}, which is not an active persistent dimension; using the world spawn instead.",
             designated);
         return _sapi.World.DefaultSpawnPosition is { } world
             ? new RespawnPlan(0, world.X, world.Y, world.Z)

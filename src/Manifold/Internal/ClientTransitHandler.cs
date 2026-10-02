@@ -73,6 +73,6 @@ internal sealed class ClientTransitHandler
         }
 
         var targetPosition = new BlockPos(packet.TargetX, packet.TargetY, packet.TargetZ, target.InternalId);
-        Transited?.Invoke(new LocalPlayerDimensionChangedEventArgs(source, target, targetPosition));
+        Transited?.Invoke(new LocalPlayerDimensionChangedEventArgs(source, target, targetPosition, isJoin: false, packet.IsRespawn));
     }
 }

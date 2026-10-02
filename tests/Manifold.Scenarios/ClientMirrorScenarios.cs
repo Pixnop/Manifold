@@ -119,6 +119,7 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         PlayerTransitedPacket toFlatPacket = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
         Assert.Equal("manifold:overworld", toFlatPacket.SourceCode);
         Assert.Equal("atlasfixture:flat", toFlatPacket.TargetCode);
+        Assert.False(toFlatPacket.IsRespawn);
 
         player.Client.Clear();
         await Ok("/atlasfx teleport-player atlas_mtransit overworld");
@@ -202,6 +203,7 @@ public class ClientMirrorScenarios : ManifoldScenarioBase
         PlayerTransitedPacket transited = Assert.Single(player.Client.Packets<PlayerTransitedPacket>(Channel));
         Assert.Equal("atlasfixture:mirrordie", transited.SourceCode);
         Assert.Equal("manifold:overworld", transited.TargetCode);
+        Assert.True(transited.IsRespawn);
         DimensionRemovedPacket removed = Assert.Single(player.Client.Packets<DimensionRemovedPacket>(Channel));
         Assert.Equal("atlasfixture:mirrordie", removed.Code);
     }

@@ -41,6 +41,19 @@ public sealed class LocalPlayerDimensionChangedEventArgs : EventArgs
         IsJoin = isJoin;
     }
 
+    /// <summary>Initializes a new instance of the <see cref="LocalPlayerDimensionChangedEventArgs"/> class, flagged as a join and/or a respawn.</summary>
+    /// <param name="source">Dimension the local player left, or the mirror's overworld for a join.</param>
+    /// <param name="target">Dimension the local player is now in.</param>
+    /// <param name="targetPosition">Landing (or current, for a join) position in <paramref name="target"/>.</param>
+    /// <param name="isJoin"><c>true</c> for the notification raised when the player joins already inside <paramref name="target"/>.</param>
+    /// <param name="isRespawn"><c>true</c> when the player arrived by dying and respawning.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/>, <paramref name="target"/> or <paramref name="targetPosition"/> is null.</exception>
+    internal LocalPlayerDimensionChangedEventArgs(IDimension source, IDimension target, BlockPos targetPosition, bool isJoin, bool isRespawn)
+        : this(source, target, targetPosition, isJoin)
+    {
+        IsRespawn = isRespawn;
+    }
+
     /// <summary>
     /// Dimension the local player left. For a join notification (<see cref="IsJoin"/> is <c>true</c>)
     /// this is a synthetic value: the mirror's overworld, even though the player never actually left it.
@@ -62,4 +75,11 @@ public sealed class LocalPlayerDimensionChangedEventArgs : EventArgs
     /// <see cref="Source"/> is then the overworld as a stand-in); <c>false</c> for a real transit.
     /// </summary>
     public bool IsJoin { get; }
+
+    /// <summary>
+    /// <c>true</c> when the local player arrived by dying in another dimension and respawning (the
+    /// game's respawn does not change the dimension, so Manifold moves them out), <c>false</c> for a
+    /// transit and for a join. Added in 0.6.1.
+    /// </summary>
+    public bool IsRespawn { get; }
 }

@@ -11,7 +11,7 @@ public enum RespawnBehavior
 {
     /// <summary>
     /// The player respawns in the overworld, at the position the game itself chose for the respawn
-    /// (their bed or temporal gear, else the world spawn). The dimension's game mode and inventory
+    /// (the temporal gear they used or a spawn an admin or role set, else the world spawn). The dimension's game mode and inventory
     /// policies are undone as on any other way out. This is the default.
     /// </summary>
     Overworld,

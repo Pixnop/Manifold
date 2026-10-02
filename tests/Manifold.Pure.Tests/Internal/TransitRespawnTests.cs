@@ -25,7 +25,7 @@ public sealed class TransitRespawnTests
     private static readonly AssetLocation Forced = new("owner:forced");
     private static readonly AssetLocation Later = new("owner:later");
     private static readonly string[] LeftThenEntered = ["left:plain->overworld", "entered:overworld"];
-    private static readonly string[] LeftThenEnteredFromNowhere = ["left:overworld->overworld", "entered:overworld"];
+    private static readonly string[] LeftThenEnteredForcedFromOverworld = ["left:overworld->forced", "entered:forced"];
     private static readonly string[] LeftThenEnteredForced = ["left:plain->forced", "entered:forced"];
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class TransitRespawnTests
     }
 
     [Fact]
-    public void RespawnPlayer_Should_Move_The_Player_To_The_Overworld_When_Their_Dimension_Is_Not_Registered()
+    public void RespawnPlayer_Should_Move_The_Player_To_The_Overworld_Without_Events_When_Their_Dimension_Is_Not_Registered()
     {
         var fx = NewFixture();
         fx.Stand(777, 20.5, 3, 21.5);
@@ -209,7 +209,7 @@ public sealed class TransitRespawnTests
 
         Assert.True(moved);
         Assert.Equal(0, fx.Player.Entity.Pos.Dimension);
-        Assert.Equal(LeftThenEnteredFromNowhere, events);
+        Assert.Empty(events); // a dimension Manifold does not manage: the player is moved, nobody is told they left it
     }
 
     [Fact]
@@ -357,6 +357,105 @@ public sealed class TransitRespawnTests
 
         Assert.Equal(0, fx.Player.Entity.Pos.Dimension);
         Assert.True(entered);
+    }
+
+    [Fact]
+    public void RespawnPlayer_Should_Land_In_The_Designated_Dimension_When_The_Player_Died_In_The_Overworld()
+    {
+        var fx = NewFixture();
+        fx.Player.WorldData.CurrentGameMode = EnumGameMode.Survival;
+        fx.Stand(0, 30.5, (fx.IdOf(Forced) * TransitService.DimensionYStride) + 6, 31.5);
+        var events = fx.RecordEvents();
+
+        bool moved = fx.Service.RespawnPlayer(fx.Player);
+
+        var pos = fx.Player.Entity.Pos;
+        Assert.True(moved);
+        Assert.Equal(fx.IdOf(Forced), pos.Dimension);
+        Assert.Equal((30.5, 6.0, 31.5), (pos.X, pos.Y, pos.Z));
+        Assert.Equal(EnumGameMode.Creative, fx.Player.WorldData.CurrentGameMode);
+        Assert.Equal(LeftThenEnteredForcedFromOverworld, events);
+    }
+
+    [Fact]
+    public void RespawnPlayer_Should_Land_At_The_World_Spawn_Without_Events_When_The_Player_Died_In_The_Overworld_With_An_Inactive_Designated_Dimension()
+    {
+        var fx = NewFixture();
+        fx.Stand(0, 30.5, (fx.IdOf(Later) * TransitService.DimensionYStride) + 6, 31.5);
+        var events = fx.RecordEvents();
+
+        bool moved = fx.Service.RespawnPlayer(fx.Player);
+
+        var pos = fx.Player.Entity.Pos;
+        Assert.True(moved);
+        Assert.Equal(0, pos.Dimension);
+        Assert.Equal((1000.5, 7.0, 2000.5), (pos.X, pos.Y, pos.Z));
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void RespawnPlayer_Should_Land_At_The_World_Spawn_When_The_Designated_Dimension_Is_Ephemeral()
+    {
+        var fx = NewFixture();
+        var temp = fx.Registry.DefineForOwner(new AssetLocation("owner:temp"), "owner")
+            .WithWorldgen(new FakeWorldgenStrategy()).Ephemeral().Create();
+        fx.Stand(fx.IdOf(Plain), 30.5, (temp.InternalId * TransitService.DimensionYStride) + 6, 31.5);
+
+        fx.Service.RespawnPlayer(fx.Player);
+
+        // Its id is recycled: by now it could name an unrelated dimension.
+        var pos = fx.Player.Entity.Pos;
+        Assert.Equal(0, pos.Dimension);
+        Assert.Equal((1000.5, 7.0, 2000.5), (pos.X, pos.Y, pos.Z));
+    }
+
+    [Fact]
+    public void RespawnPlayer_Should_Flag_Both_Events_As_A_Respawn_And_A_Transit_As_None()
+    {
+        var fx = NewFixture();
+        var left = new System.Collections.Generic.List<bool>();
+        var entered = new System.Collections.Generic.List<bool>();
+        fx.Service.PlayerLeft += (_, e) => left.Add(e.IsRespawn);
+        fx.Service.PlayerEntered += (_, e) => entered.Add(e.IsRespawn);
+        fx.Stand(0, 1, 64, 1);
+        fx.Service.TeleportPlayer(fx.Player, Plain);
+
+        fx.Stand(fx.IdOf(Plain), 10.5, 3, 11.5);
+        fx.Service.RespawnPlayer(fx.Player);
+
+        Assert.Equal([false, true], left);
+        Assert.Equal([false, true], entered);
+    }
+
+    [Fact]
+    public void RespawnPlayer_Should_Drop_The_Origin_Recorded_For_The_Dimension_The_Player_Lands_In()
+    {
+        var fx = NewFixture();
+        fx.Store.Origins.Record(fx.Player.PlayerUID, 0, new OriginEntry(fx.IdOf(Plain), Plain.ToString(), "manifold:overworld", 1, 2, 3, 0f));
+        fx.Stand(fx.IdOf(Plain), 10.5, 3, 11.5);
+
+        fx.Service.RespawnPlayer(fx.Player);
+
+        // Otherwise TryReturnPlayer would send the respawned player back into the dimension they died in.
+        Assert.False(fx.Store.Origins.TryGet(fx.Player.PlayerUID, 0, out _));
+        Assert.Null(fx.Service.GetOrigin(fx.Player));
+    }
+
+    [Fact]
+    public void RespawnPlayer_Should_Leave_The_Spawn_As_The_Game_Left_It_And_Allow_Another_Attempt_When_The_Move_Throws()
+    {
+        var fx = NewFixture();
+        double rawY = (fx.IdOf(Forced) * TransitService.DimensionYStride) + 6;
+        fx.Stand(fx.IdOf(Plain), 30.5, rawY, 31.5);
+        fx.Teleporter.ThrowOnMove = true;
+
+        Assert.Throws<System.InvalidOperationException>(() => fx.Service.RespawnPlayer(fx.Player));
+        Assert.Equal(rawY, fx.Player.Entity.Pos.Y);
+
+        fx.Teleporter.ThrowOnMove = false;
+        fx.Service.RespawnPlayer(fx.Player);
+
+        Assert.Equal(fx.IdOf(Forced), fx.Player.Entity.Pos.Dimension);
     }
 
     [Theory]

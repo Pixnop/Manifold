@@ -37,7 +37,7 @@ public class RespawnScenarios : ManifoldScenarioBase
     }
 
     [AtlasScenario]
-    public async Task Respawn_Should_LandExactlyAtTheBedSpawn_When_PlayerWithACustomSpawnDiesInCustomDimension()
+    public async Task Respawn_Should_LandExactlyAtTheGearSpawn_When_PlayerWithACustomSpawnDiesInCustomDimension()
     {
         int flatId = await DimensionId("flat");
         ITestPlayer player = await JoinSurvivalPlayer("rsp_bed");
@@ -80,7 +80,7 @@ public class RespawnScenarios : ManifoldScenarioBase
     }
 
     [AtlasScenario]
-    public async Task Respawn_Should_RaiseLeftAndEnteredButNotEnteringOrArriving_When_PlayerDiesInCustomDimension()
+    public async Task Respawn_Should_RaiseLeftAndEnteredFlaggedAsRespawnButNotEnteringOrArriving_When_PlayerDiesInCustomDimension()
     {
         int flatId = await DimensionId("flat");
         ITestPlayer player = await Enter("rsp_events", "flat", flatId);
@@ -89,8 +89,8 @@ public class RespawnScenarios : ManifoldScenarioBase
         await DieAndRespawn(player, 0);
 
         // A respawn cannot be refused, so the two cancellable events are not raised; the other two
-        // are, so a mod that follows players across dimensions sees this one too.
-        Assert.Equal(["left:flat->overworld", "entered:overworld"], EventLog());
+        // are (flagged IsRespawn), so a mod that follows players across dimensions sees this one too.
+        Assert.Equal(["left:flat->overworld", "entered:overworld", "respawn:overworld"], EventLog());
     }
 
     [AtlasScenario]
@@ -133,6 +133,7 @@ public class RespawnScenarios : ManifoldScenarioBase
         await LandedAt(player, vaultId, 512, 512);
         await World.Until(() => HotbarCount(player, "game:stick") == 0, timeoutTicks: 200);
         await player.GiveItem("game:flint", 3);
+        Vec3d fell = player.Entity.Pos.XYZ;
 
         await DieAndRespawn(player, 0);
 
@@ -140,6 +141,12 @@ public class RespawnScenarios : ManifoldScenarioBase
         // where they fell, in the vault) and is not carried over, nor kept in the vault's own set.
         await World.Until(() => HotbarCount(player, "game:stick") == 5, timeoutTicks: 200);
         Assert.Equal(0, HotbarCount(player, "game:flint"));
+
+        // Nothing is lost: the dropped flint lies where the player fell, in the vault, and the
+        // overworld sticks were not dropped there.
+        List<ItemStack> ground = ItemsOnTheGround(fell);
+        Assert.Equal(3, CountOf(ground, "game:flint"));
+        Assert.Equal(0, CountOf(ground, "game:stick"));
 
         await Ok("/atlasfx2 teleport-player-plain rsp_vault vault");
         await LandedAt(player, vaultId, 512, 512);
@@ -157,6 +164,7 @@ public class RespawnScenarios : ManifoldScenarioBase
         await LandedAt(player, vaultId, 512, 512);
         await World.Until(() => HotbarCount(player, "game:stick") == 0, timeoutTicks: 200);
         await player.GiveItem("game:flint", 3);
+        Vec3d fell = player.Entity.Pos.XYZ;
 
         // What the world's "keep inventory" death penalty does to the player entity type.
         EntitySidedProperties server = player.Entity.Properties.Server;
@@ -174,6 +182,7 @@ public class RespawnScenarios : ManifoldScenarioBase
 
         await World.Until(() => HotbarCount(player, "game:stick") == 5, timeoutTicks: 200);
         Assert.Equal(0, HotbarCount(player, "game:flint"));
+        Assert.Equal(0, CountOf(ItemsOnTheGround(fell), "game:flint")); // kept, not dropped
 
         await Ok("/atlasfx2 teleport-player-plain rsp_keep vault");
         await LandedAt(player, vaultId, 512, 512);
@@ -210,34 +219,29 @@ public class RespawnScenarios : ManifoldScenarioBase
     }
 
     [AtlasScenario]
-    public async Task Respawn_Should_LandInTheDimensionTheSpawnPointDesignates_When_AGearWasUsedInsideACustomDimension()
+    public async Task Respawn_Should_NotMoveThePlayer_When_TheyWereRevivedInPlaceAndThenSendARespawnRequest()
     {
         int flatId = await DimensionId("flat");
-        int creativeId = await DimensionId("creative");
-        ITestPlayer player = await Enter("rsp_gear", "flat", flatId);
+        ITestPlayer player = await Enter("rsp_revive", "flat", flatId);
+        Kill(player);
+        await World.Until(() => !player.Entity.Alive, timeoutTicks: 200);
+        await World.Ticks(5);
 
-        // A temporal gear stores the player's InternalY, which is the local Y plus 32768 times the
-        // dimension id: a spawn set inside the creative dimension.
-        player.Player.SetSpawnPosition(new PlayerSpawnPos(520, (creativeId * 32768) + 6, 520));
+        // What another player's healing item does: revive in place, with no respawn request.
+        player.Entity.Revive();
+        await World.Ticks(5);
+        Vec3d standing = player.Entity.Pos.XYZ;
+        ClearEventLog();
 
-        await DieAndRespawn(player, creativeId);
+        // A modified client can send a respawn request whenever it likes; the game ignores it for a
+        // living player but still raises its event.
+        PressRespawn(player);
+        await World.Ticks(20);
 
-        AssertAt(player, 520.5, 6, 520.5);
-        await World.Until(() => player.Player.WorldData.CurrentGameMode == EnumGameMode.Creative, timeoutTicks: 200);
-    }
-
-    [AtlasScenario]
-    public async Task Respawn_Should_LandAtTheWorldSpawn_When_TheDimensionTheSpawnPointDesignatesIsNotActive()
-    {
-        int flatId = await DimensionId("flat");
-        ITestPlayer player = await Enter("rsp_ghost", "flat", flatId);
-        const int unusedDimension = 700;
-        player.Player.SetSpawnPosition(new PlayerSpawnPos(520, (unusedDimension * 32768) + 6, 520));
-        EntityPos world = World.Api.World.DefaultSpawnPosition;
-
-        await DieAndRespawn(player, 0);
-
-        AssertAt(player, world.X, world.Y, world.Z);
+        Assert.True(player.Entity.Alive);
+        Assert.Equal(flatId, player.Position.dimension);
+        Assert.Equal(standing, player.Entity.Pos.XYZ);
+        Assert.Empty(EventLog());
     }
 
     [AtlasScenario]

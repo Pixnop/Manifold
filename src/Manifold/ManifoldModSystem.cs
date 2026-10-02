@@ -545,6 +545,7 @@ public sealed class ManifoldModSystem : ModSystem
             TargetY = e.TargetPosition.Y,
             TargetZ = e.TargetPosition.Z,
             Yaw = e.Yaw,
+            IsRespawn = e.IsRespawn,
         });
 
         // When a player transits out, try to reap the dimension they left if it is an empty ephemeral

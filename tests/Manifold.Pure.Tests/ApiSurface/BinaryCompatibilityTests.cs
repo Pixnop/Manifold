@@ -95,4 +95,21 @@ public sealed class BinaryCompatibilityTests
         Assert.Equal(0, (int)RespawnBehavior.Overworld);
         Assert.Equal(RespawnBehavior.Overworld, default);
     }
+
+    [Fact]
+    public void Transit_Event_Args_Should_Keep_Their_Existing_Constructors_And_Default_To_Not_A_Respawn()
+    {
+        // 0.6.1 adds IsRespawn through new overloads; the constructors mods built against older
+        // versions call must stay, and build a transit (not a respawn).
+        var player = typeof(Vintagestory.API.Server.IServerPlayer);
+        var dimension = typeof(Manifold.Api.IDimension);
+        var left = typeof(PlayerLeftDimensionEventArgs).GetConstructor([player, dimension, dimension]);
+        var entered = typeof(PlayerEnteredDimensionEventArgs).GetConstructor(
+            [player, dimension, dimension, typeof(Vintagestory.API.MathTools.BlockPos), typeof(float?)]);
+
+        Assert.NotNull(left);
+        Assert.NotNull(entered);
+        Assert.NotNull(typeof(PlayerLeftDimensionEventArgs).GetProperty("IsRespawn"));
+        Assert.NotNull(typeof(PlayerEnteredDimensionEventArgs).GetProperty("IsRespawn"));
+    }
 }

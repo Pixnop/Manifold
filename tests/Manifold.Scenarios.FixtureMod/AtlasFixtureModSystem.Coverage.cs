@@ -80,7 +80,13 @@ public sealed partial class AtlasFixtureModSystem
         _manifold.Transitions.PlayerLeft += (_, e) =>
             AppendEvent($"left:{e.SourceDimension.Code.Path}->{e.TargetDimension.Code.Path}");
         _manifold.Transitions.PlayerEntered += (_, e) =>
+        {
             AppendEvent($"entered:{e.TargetDimension.Code.Path}");
+            if (e.IsRespawn)
+            {
+                AppendEvent($"respawn:{e.TargetDimension.Code.Path}");
+            }
+        };
         _manifold.Transitions.EntityChangedDimension += (_, e) =>
             AppendEvent($"entity:{e.PreviousDimension.Code.Path}->{e.NewDimension.Code.Path}");
         _manifold.Registry.Created += (_, e) => AppendEvent($"created:{e.Dimension.Code.Path}");
