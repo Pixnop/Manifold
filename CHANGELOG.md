@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **ManifoldSample's dark dimension declares `chart:scanTopY`.** With the Chart companion 0.4.0 or later installed, `/darkdim` now maps its floor instead of its roof, which makes it a place to try cavern maps. Nothing changes without Chart.
+
 ## [0.6.1] - 2026-10-02
 
 ### Added
