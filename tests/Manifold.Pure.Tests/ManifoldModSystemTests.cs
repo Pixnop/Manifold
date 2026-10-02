@@ -92,6 +92,96 @@ public sealed class ManifoldModSystemTests
     }
 
     [Fact]
+    public void SaveWorldState_Should_Persist_Origins_Under_Their_Own_Key_And_Version()
+    {
+        var manifestStore = new InMemoryManifestStore();
+        var sidecar = SchemaSidecar.Load(null);
+        var positions = new PlayerPositionStore();
+        positions.Origins.Record("alice", 10, new OriginEntry(0, "manifold:overworld", "owner:a", 1.5, 2.5, 3.5, 0.5f));
+
+        ManifoldModSystem.SaveWorldState(
+            manifestStore, new DimensionPersistence(manifestStore, _ => true), Array.Empty<ManifestEntry>(), new GeneratedColumnStore(), positions, sidecar);
+
+        var restored = new PlayerOriginStore();
+        restored.LoadFromBytes(manifestStore.Read("manifold:origins"), version: sidecar.GetVersion("manifold:origins"));
+        Assert.True(restored.TryGet("alice", 10, out var origin));
+        Assert.Equal(new OriginEntry(0, "manifold:overworld", "owner:a", 1.5, 2.5, 3.5, 0.5f), origin);
+        Assert.Equal(PlayerOriginStore.SchemaVersion, sidecar.GetVersion("manifold:origins"));
+        Assert.False(positions.Origins.IsDirty);
+
+        // The positions blob itself is untouched by the origins living next to it.
+        Assert.Null(manifestStore.Read("manifold:lastpos"));
+    }
+
+    [Fact]
+    public void SaveWorldState_Should_Not_Write_Origins_That_Did_Not_Change()
+    {
+        var manifestStore = new InMemoryManifestStore();
+
+        ManifoldModSystem.SaveWorldState(
+            manifestStore, new DimensionPersistence(manifestStore, _ => true), Array.Empty<ManifestEntry>(), new GeneratedColumnStore(), new PlayerPositionStore(), SchemaSidecar.Load(null));
+
+        Assert.Null(manifestStore.Read("manifold:origins"));
+    }
+
+    [Fact]
+    public void SaveWorldState_Should_Not_Overwrite_A_Refused_Origin_Store_Even_When_Dirty()
+    {
+        var manifestStore = new InMemoryManifestStore();
+        var originalBytes = new byte[] { 1, 2, 3 };
+        manifestStore.Write("manifold:origins", originalBytes);
+        var sidecar = SchemaSidecar.Load(null);
+        sidecar.SetVersion("manifold:origins", 99);
+
+        var positions = new PlayerPositionStore();
+        positions.Origins.LoadFromBytes(originalBytes, version: 99); // refused
+        positions.Origins.Record("alice", 10, new OriginEntry(0, "manifold:overworld", "owner:a", 1, 2, 3, 0f));
+
+        ManifoldModSystem.SaveWorldState(
+            manifestStore, new DimensionPersistence(manifestStore, _ => true), Array.Empty<ManifestEntry>(), new GeneratedColumnStore(), positions, sidecar);
+
+        Assert.Equal(originalBytes, manifestStore.Read("manifold:origins"));
+        Assert.Equal(99, sidecar.GetVersion("manifold:origins"));
+    }
+
+    [Fact]
+    public void RecordDisconnectPosition_Should_Record_The_Entity_Position_When_No_Teleport_Is_Pending()
+    {
+        var positions = new PlayerPositionStore();
+        var player = PlayerAt(10);
+        player.PlayerUID.Returns("alice");
+        player.Entity.Pos.SetPos(1.5, 2.5, 3.5);
+
+        ManifoldModSystem.RecordDisconnectPosition(positions, new MovingPlayerTeleporter(), player);
+
+        Assert.True(positions.TryGet("alice", 10, out int x, out int y, out int z));
+        Assert.Equal((1, 2, 3), (x, y, z));
+    }
+
+    [Fact]
+    public void RecordDisconnectPosition_Should_Record_The_Pending_Landing_And_Forget_It_When_A_Teleport_Is_Queued()
+    {
+        var positions = new PlayerPositionStore();
+        var teleporter = new MovingPlayerTeleporter { Defer = true };
+        var player = PlayerAt(0);
+        player.PlayerUID.Returns("alice");
+        player.Entity.Pos.SetPos(1.5, 2.5, 3.5);
+        teleporter.TeleportExact(player, 10, 100.5, 70, 200.5, null); // dimension flips, coordinates still queued
+
+        ManifoldModSystem.RecordDisconnectPosition(positions, teleporter, player);
+
+        Assert.True(positions.TryGet("alice", 10, out int x, out int y, out int z));
+        Assert.Equal((100, 70, 200), (x, y, z));
+        Assert.Null(teleporter.GetPendingLanding(player));
+
+        // The completion the engine may still run for the old entity applies nothing afterwards.
+        player.Entity.Pos.SetPos(1.5, 2.5, 3.5);
+        teleporter.LandAll();
+        Assert.Equal(100.5, player.Entity.Pos.X); // the engine's own SetPos, but no re-issue, no yaw
+        Assert.Equal(0, teleporter.QueuedCount);
+    }
+
+    [Fact]
     public void SaveWorldState_Should_Not_Advance_The_Manifest_Sidecar_Entry_When_The_Manifest_Is_Refused()
     {
         var manifestStore = new InMemoryManifestStore();

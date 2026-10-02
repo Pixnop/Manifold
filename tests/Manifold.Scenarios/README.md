@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-102 scenarios, one class per area:
+112 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
@@ -71,6 +71,7 @@ self-sufficient in any order.
 | Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
 | Transit events: order, vetoes, a throwing subscriber | `TransitEventScenarios` |
 | Travel policy, forced game mode, command builders | `TravelPolicyScenarios`, `CommandBuilderScenarios` |
+| Arrival yaw, return to origin (a chain unwound step by step, the origin saved with the world and reloaded after a restart) | `OriginScenarios`, `OriginPersistenceScenarios` |
 | Per-dimension inventory, concurrent players, reconnection | `PlayerInventoryScenarios`, `MultiPlayerScenarios`, `ReconnectScenarios` |
 | Metadata, id recycling | `DimensionMetadataScenarios`, `RecyclingScenarios` |
 | What the client receives (Manifold's packets) | `ClientMirrorScenarios` |

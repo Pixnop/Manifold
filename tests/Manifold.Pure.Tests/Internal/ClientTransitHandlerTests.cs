@@ -25,6 +25,37 @@ public sealed class ClientTransitHandlerTests
     }
 
     [Fact]
+    public void Handle_Should_Apply_The_Yaw_When_The_Packet_Carries_One()
+    {
+        float? applied = null;
+        var handler = new ClientTransitHandler(new ClientDimensionMirror(), applyYaw: yaw => applied = yaw);
+
+        // Neither dimension is known to the mirror: the yaw is applied anyway.
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 1.25f });
+
+        Assert.Equal(1.25f, applied);
+    }
+
+    [Fact]
+    public void Handle_Should_Not_Apply_A_Yaw_When_The_Packet_Has_None()
+    {
+        float? applied = null;
+        var handler = new ClientTransitHandler(new ClientDimensionMirror(), applyYaw: yaw => applied = yaw);
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y" });
+
+        Assert.Null(applied);
+    }
+
+    [Fact]
+    public void Handle_Should_Not_Throw_When_A_Yaw_Arrives_But_No_Applier_Was_Supplied()
+    {
+        var handler = new ClientTransitHandler(new ClientDimensionMirror());
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:x", TargetCode = "a:y", Yaw = 1f });
+    }
+
+    [Fact]
     public void Handle_Should_Resolve_And_Raise_Transited_Synchronously()
     {
         var mirror = new ClientDimensionMirror();

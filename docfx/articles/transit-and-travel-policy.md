@@ -163,7 +163,7 @@ facade (`manifold.Transitions`):
 | `PlayerEntering` | Before any work, before generation. | Yes (`Cancel = true`) | Player, source, target, preliminary position. |
 | `PlayerArriving` (0.4.0) | After region generation, before the teleport. | Yes | Player, source, target, final position. |
 | `PlayerLeft` | After the player has left the source dimension. | No | Player, source, target. |
-| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target, landing position (`TargetPosition`). |
+| `PlayerEntered` | After the player has entered the target dimension. | No | Player, source, target, landing position (`TargetPosition`), requested arrival yaw (`Yaw`, 0.6.1). |
 | `EntityChangedDimension` (0.4.0) | After `TeleportEntity` re-homes a non-player entity. | No | Entity, previous and new `IDimension`, final position. |
 
 `PlayerEntering` is the right hook for veto logic (blocked players, missing prerequisites).
@@ -203,6 +203,7 @@ For players the engine also raises its own `IEventAPI.PlayerDimensionChanged`; M
 | `OverridePosition` | Landing `BlockPos`. Skips all resolver logic. Its dimension field is stamped with the target's internal id on a copy, so the value you pass for it is ignored and your own instance is never mutated. |
 | `Resolver` | Custom `ITargetPositionResolver` - used when `OverridePosition` is null. |
 | `SpawnBehavior` | Per-transit override of the dimension's configured spawn behavior. |
+| `Yaw` (0.6.1) | The yaw, in radians, the player faces on arrival. `null` (the default) keeps their current yaw. Players only: `TeleportEntity` ignores it. See [Arrival yaw](#arrival-yaw). |
 
 ```csharp
 // Transit to a specific absolute position. The dimension field (the 4th argument) is
@@ -212,6 +213,86 @@ transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new Tran
     OverridePosition = new BlockPos(512, 70, 512, 0)
 });
 ```
+
+## Arrival yaw
+
+Set `TransitionOptions.Yaw` to make the player face a given way when they land, in radians, the same
+unit as `EntityPos.Yaw`. Leave it `null` and they keep the yaw they had.
+
+```csharp
+transitions.TeleportPlayer(player, new AssetLocation("mymod", "arena"), new TransitionOptions
+{
+    Yaw = MathF.PI / 2,
+});
+```
+
+Manifold applies it in two halves. It tells the player's own client to turn the camera when the
+transit completes (`PlayerEntered` time), and it sets the entity's yaw once the engine has actually
+moved the player. When the engine has to wait for the destination to load, that move comes some ticks
+later, so the camera turns first and the position follows. Both halves matter: a player's camera is
+driven by their client, so changing the server-side entity yaw alone (which is all `TeleportToDouble`
+followed by `Entity.Pos.Yaw = ...` does) never reaches the screen, and a client would also send its
+old orientation straight back. `PlayerEntered` reports the requested yaw as `e.Yaw` (`null` when none
+was asked for).
+
+## Returning a player to where they came from
+
+Every time a player transits into a different dimension through Manifold, it records their origin for
+that dimension: the dimension they left, the exact position (doubles, not block coordinates) and the
+yaw they were facing. It is saved with the world, so it survives logout and server restarts.
+
+```csharp
+TransitOrigin? GetOrigin(IServerPlayer player);   // for the dimension the player is in now
+bool TryReturnPlayer(IServerPlayer player);
+```
+
+`GetOrigin` returns `null` when nothing is recorded for the player's current dimension, or when the
+dimension they came from no longer exists. `TryReturnPlayer` sends the player back there: that
+dimension, that exact position (no surface search, no spawn behavior) and that yaw. It is an
+ordinary transit, so the same events fire (`PlayerEntering`, `PlayerArriving`, `PlayerLeft`,
+`PlayerEntered`), a subscriber can cancel it, a rider is dismounted, and the game mode and inventory
+policies of the destination apply.
+
+```csharp
+// "Leave" button inside a mod's dimension: back to wherever the player entered from.
+if (!transitions.TryReturnPlayer(player))
+{
+    // Nothing recorded, the origin dimension is gone or inactive, or a subscriber vetoed it.
+    transitions.TeleportPlayer(player, new AssetLocation("manifold", "overworld"));
+}
+```
+
+`TryReturnPlayer` returns `true` when the transit went through. The engine may apply the position some
+ticks later, so do not read the entity's coordinates as final straight away. It returns `false`, and logs which case it was at Notification level, when:
+
+- nothing is recorded for the dimension the player is in;
+- the origin dimension no longer exists, or is not `Active` (an ephemeral dimension that was reaped,
+  or a persistent one whose owner mod has not re-claimed it yet);
+- a `PlayerEntering` or `PlayerArriving` subscriber cancelled the transit, or the player's mount
+  refused to release them.
+
+A return does not record a new origin for the dimension it lands in, so chains unwind one step per
+call: after overworld, then A, then B, a return from B lands in A, and a return from A lands in the
+overworld, instead of bouncing between A and B. Any other transit (including a transit to a
+dimension the player has already visited) replaces the origin recorded for its destination. A
+transit within the same dimension records nothing.
+
+The engine applies a teleport once the destination column is loaded, which can be some ticks after
+the call. A player who transits again in the meantime still has the coordinates they left on their
+entity, so Manifold records the landing the earlier transit asked for as their position instead: the
+origin is where the player was heading, not the coordinates they left. A player who disconnects
+while such a teleport is waiting is recorded the same way.
+
+For the same reason, a transit that is overtaken before the engine applied it (step into a dimension
+whose terrain is far away, then straight back out with `TryReturnPlayer`) does not drag the player
+away when the engine finally gets to it: Manifold sends them back to the landing of the transit that
+overtook it, and the overtaken transit's yaw is not applied. The engine moves the player once more
+in that case, so a client may see the player at the overtaken landing for a moment before the
+correction.
+
+Origins are stored by dimension id plus the codes of both dimensions, and dropped when either end is
+removed. Ephemeral dimension ids are recycled, so an origin whose id now belongs to another dimension
+is ignored (it reads as "nothing recorded") instead of being followed.
 
 ## SpawnBehavior
 

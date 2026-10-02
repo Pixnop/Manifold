@@ -46,4 +46,27 @@ public sealed class BinaryCompatibilityTests
         Assert.NotNull(eventInfo);
         Assert.Equal(typeof(EventHandler<PlayerEnteredDimensionEventArgs>), eventInfo!.EventHandlerType);
     }
+
+    [Fact]
+    public void PlayerEnteredDimensionEventArgs_Should_Keep_Its_Four_Argument_Constructor()
+    {
+        // Mods built before 0.6.1 construct it with these four parameters; 0.6.1 adds an overload
+        // with a yaw, it must not replace this one.
+        var ctor = typeof(PlayerEnteredDimensionEventArgs).GetConstructor(
+        [
+            typeof(Vintagestory.API.Server.IServerPlayer),
+            typeof(Manifold.Api.IDimension),
+            typeof(Manifold.Api.IDimension),
+            typeof(Vintagestory.API.MathTools.BlockPos),
+        ]);
+
+        Assert.NotNull(ctor);
+    }
+
+    [Fact]
+    public void TransitionOptions_Should_Have_No_Yaw_By_Default()
+    {
+        Assert.Null(new TransitionOptions().Yaw);
+        Assert.Equal(1f, new TransitionOptions { Yaw = 1f }.Yaw);
+    }
 }
