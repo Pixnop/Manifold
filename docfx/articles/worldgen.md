@@ -185,7 +185,7 @@ When a player enters a streaming dimension:
 1. The synchronous landing pad is generated first (`WithGenerationRadius` region, default 2). The player is teleported only after this completes, so they never spawn in void.
 2. The streaming driver then fills the surrounding window (`loadRadius`) over subsequent server ticks, spread across a per-tick budget so the server does not hitch.
 3. As the player moves, newly entered chunks are queued and generated the same way.
-4. Distant chunks that fall outside the window are handled by the engine's normal chunk unloading. Blocks placed in those chunks survive unload and reload correctly.
+4. Chunks the player walks away from stay loaded on the server until it restarts: the engine does not unload the chunks of a custom dimension (see [Chunk lifecycle](#chunk-lifecycle-engine-limits) below). They are saved with the world like any other chunk, and after a restart they are loaded back from disk, never generated again, so blocks placed in them are kept.
 
 ### Bounded vs streaming comparison
 
@@ -378,3 +378,47 @@ worldgen strategy placed. Expect a stall of a second or more: it relights whole 
 
 The effective streaming radius is `max(loadRadius, server view distance)`, so generated terrain
 always reaches at least as far as players can see, regardless of the configured `loadRadius`.
+
+## Chunk lifecycle: engine limits
+
+These are engine behaviours measured on a headless server on Vintage Story 1.22.3 and 1.22.7 (issue
+#136), not Manifold choices. The game's public API gives a mod no way around them: the only unload
+call, `IWorldManagerAPI.UnloadChunkColumn`, takes no dimension and only walks the overworld's chunk
+Y range, and it drops the chunks without saving them.
+
+- **A custom dimension's chunks are never unloaded.** The engine's unload pass
+  (`ServerSystemUnloadChunks`) only looks at the overworld's chunk Y range, on the server and for the
+  packets that tell a client to unload. A bounded dimension holds a fixed number of columns, so this
+  costs nothing there. A streaming dimension grows for as long as the server runs: with the default
+  server view radius of 12 chunks, a player standing still holds 625 columns, and every 32 blocks
+  walked in a straight line adds 25 more. They are still loaded after the player has left the
+  dimension and after they have disconnected, and a restart is what frees them. On the flat test
+  terrain a column cost roughly 7 to 15 KB of server memory (a noisy heap measurement); real
+  terrain costs more. Plan restarts
+  accordingly for a server with a large streaming dimension, and prefer a bounded dimension where
+  the play area is bounded. Clients keep the chunks they received in the same way until they leave
+  the server (read in the client's code; a real client's memory cannot be measured from a headless
+  server).
+- **A destroyed dimension's chunks stay in memory too**, with the blocks they held, until the
+  restart. Manifold forgets them: a dimension created later on the recycled engine id generates its
+  own terrain over them, in its landing region and, for a streaming dimension, across its whole
+  window as the streaming driver reaches each column. Columns outside what the new dimension
+  generates are not cleaned, and neither are the entities and block entities the old columns held.
+- **A client gets a dimension's terrain without a map chunk in most places.** Map chunks (rain
+  height map, terrain height map) are not per dimension: there is one per X/Z, the overworld's. The
+  engine sends it along with a dimension's chunks only where its own send ring gets there before
+  Manifold's forced send and the overworld column underneath is loaded on the server, which is
+  rarely the case away from where the player entered. Client-side code running in a custom
+  dimension must therefore expect `GetMapChunk` to return `null` and `GetRainMapHeightAt` to return
+  0, and where they do return something it is the overworld's heights at that X/Z, not the
+  dimension's. Manifold does not send the map chunk itself: it would be the overworld's data, and
+  for most columns of a streaming dimension the server does not have it loaded.
+- **The overworld column under a player in a dimension gets loaded.** The engine's teleport loads
+  the overworld column at the landing X/Z, and its send ring requests the overworld column for
+  every dimension chunk it does not find loaded yet. In a streaming dimension that was about 65
+  overworld columns loaded, and generated where the overworld had never been visited, around the
+  arrival point (view distance 128); they are unloaded normally once the player has walked away,
+  and walking loads no more of them because the streaming window stays ahead of the ring. In a
+  bounded dimension with a 5x5 generated region it was 25: the column under the player and the 24
+  just outside the region, where the ring stops; they are unloaded once the player has left. The lighting queue
+  and the teleport both rely on this today (see [Engine limits behind this](#engine-limits-behind-this)).
