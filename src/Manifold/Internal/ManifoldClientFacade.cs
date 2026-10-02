@@ -21,12 +21,16 @@ internal sealed class ManifoldClientFacade : IManifoldClient
     /// Resolves incoming transit packets and raises <see cref="LocalPlayerChangedDimension"/>; <c>null</c>
     /// if the caller has none (the facade then never raises that event, e.g. in a test double).
     /// </param>
+    /// <param name="joinNotifier">
+    /// Raises the one-time join notification (<see cref="LocalPlayerDimensionChangedEventArgs.IsJoin"/>)
+    /// re-published through <see cref="LocalPlayerChangedDimension"/>; <c>null</c> if the caller has none.
+    /// </param>
     /// <param name="logger">
     /// Optional logger used to report (and swallow) exceptions thrown by third-party
     /// <see cref="Created"/>/<see cref="Destroyed"/>/<see cref="LocalPlayerChangedDimension"/> subscribers.
     /// <c>null</c> silences the report.
     /// </param>
-    public ManifoldClientFacade(ClientDimensionMirror mirror, ClientTransitHandler? transitHandler = null, ILogger? logger = null)
+    public ManifoldClientFacade(ClientDimensionMirror mirror, ClientTransitHandler? transitHandler = null, ClientJoinNotifier? joinNotifier = null, ILogger? logger = null)
     {
         _mirror = mirror ?? throw new ArgumentNullException(nameof(mirror));
         _logger = logger;
@@ -41,6 +45,12 @@ internal sealed class ManifoldClientFacade : IManifoldClient
         if (transitHandler is not null)
         {
             transitHandler.Transited += args =>
+                SafeEvent.Raise(LocalPlayerChangedDimension, this, args, LogSubscriberError);
+        }
+
+        if (joinNotifier is not null)
+        {
+            joinNotifier.Joined += args =>
                 SafeEvent.Raise(LocalPlayerChangedDimension, this, args, LogSubscriberError);
         }
     }
@@ -68,6 +78,9 @@ internal sealed class ManifoldClientFacade : IManifoldClient
 
     /// <inheritdoc/>
     public IDimension? Get(AssetLocation code) => _mirror.Get(code);
+
+    /// <inheritdoc/>
+    public IDimension? GetByInternalId(int internalId) => _mirror.GetByInternalId(internalId);
 
     /// <inheritdoc/>
     public IDimension? GetDimensionOf(Entity entity)

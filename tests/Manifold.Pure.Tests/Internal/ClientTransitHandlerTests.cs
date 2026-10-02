@@ -69,6 +69,22 @@ public sealed class ClientTransitHandlerTests
     }
 
     [Fact]
+    public void Handle_Should_Raise_Transited_With_IsJoin_False_For_A_Real_Transit()
+    {
+        var mirror = new ClientDimensionMirror();
+        Seed(mirror, "a:overworld", 0);
+        Seed(mirror, "mod:nether", 10);
+        var handler = new ClientTransitHandler(mirror);
+        LocalPlayerDimensionChangedEventArgs? captured = null;
+        handler.Transited += e => captured = e;
+
+        handler.Handle(new PlayerTransitedPacket { SourceCode = "a:overworld", TargetCode = "mod:nether" });
+
+        Assert.NotNull(captured);
+        Assert.False(captured!.IsJoin);
+    }
+
+    [Fact]
     public void Handle_Should_Not_Raise_When_The_Target_Code_Is_Unknown_To_The_Mirror()
     {
         var mirror = new ClientDimensionMirror();

@@ -143,14 +143,25 @@ public sealed class ManifoldModSystem : ModSystem
         // below; neither needs a field.
         var clientMirror = new ClientDimensionMirror(api.Logger);
         var transitHandler = new ClientTransitHandler(clientMirror, api.Logger);
+        var joinNotifier = new ClientJoinNotifier(
+            clientMirror,
+            () => EntityPosAccess.PosOrNull(api.World.Player?.Entity),
+            api.Logger);
         _network.OnClientDimensionAdded += clientMirror.ApplyAdded;
         _network.OnClientDimensionRemoved += clientMirror.ApplyRemoved;
         _network.OnClientManifest += clientMirror.ApplyManifest;
+        _network.OnClientManifest += _ => joinNotifier.Notify();
         _network.OnClientPlayerTransited += transitHandler.Handle;
+
+        // "The local player entity exists with its position": the engine raises PlayerEntitySpawn when
+        // an entity-player is attached to its client player, whichever of the entity packet and the
+        // player-data packet arrives first. It fires for every player's entity, so the notifier
+        // itself checks that the LOCAL entity is there (and ignores every call once decided).
+        api.Event.PlayerEntitySpawn += _ => joinNotifier.Notify();
 
         _network.RegisterClient(api);
 
-        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, api.Logger);
+        ClientFacade = new ManifoldClientFacade(clientMirror, transitHandler, joinNotifier, api.Logger);
         ManifoldAccess.SetClientResolver(ClientFacade);
     }
 
