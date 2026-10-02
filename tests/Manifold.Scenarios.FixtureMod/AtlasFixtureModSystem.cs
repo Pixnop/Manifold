@@ -133,8 +133,10 @@ public sealed partial class AtlasFixtureModSystem : ModSystem
             $"{Domain}:event:player-left:{e.SourceDimension.Code.Path}", new[] { (byte)1 });
 
         RegisterCommands(api);
+        RegisterOriginCommands(api);
         var config = api.LoadModConfig<AtlasFixtureConfig>("atlasfixture.json") ?? new();
         SeedPersistenceFixtures(config);
+        SeedOriginFixtures(config, flat.InternalId);
         StartCoverageFixtures(api, config);
         StartSchemaFixtures(config);
     }

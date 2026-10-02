@@ -33,4 +33,10 @@ public sealed class AtlasFixtureConfig
     /// AtlasFixtureModSystem.DeclareFutureGenchunksVersionOnSave.
     /// </summary>
     public bool FutureGenchunksVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the fixture writes, on the first boot, an origin blob
+    /// for a test player (who came from "flat"); see AtlasFixtureModSystem.SeedOriginFixtures.
+    /// </summary>
+    public bool SeedOrigin { get; set; }
 }
