@@ -49,6 +49,15 @@ public interface IDimensionRegistry
     IDimension? Get(AssetLocation code);
 
     /// <summary>
+    /// Find a dimension by its engine dimension id (<see cref="IDimension.InternalId"/>), for example
+    /// the <c>Pos.Dimension</c> of an entity or the dimension of a block position. The overworld is
+    /// id 0. Safe to call from any thread.
+    /// </summary>
+    /// <param name="internalId">The engine dimension id to look up.</param>
+    /// <returns>The dimension, or <c>null</c> if no registered dimension has that id.</returns>
+    IDimension? GetByInternalId(int internalId);
+
+    /// <summary>
     /// Start a fluent declaration. Must be called through an owner-scoped registry obtained via
     /// <c>sapi.GetManifoldServer(thisModSystem).Registry</c>; calling on the parameterless
     /// overload's registry throws <see cref="DimensionOwnerRequiredException"/>.

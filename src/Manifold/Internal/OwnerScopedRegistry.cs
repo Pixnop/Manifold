@@ -65,5 +65,8 @@ internal sealed class OwnerScopedRegistry : IDimensionRegistry
     public bool TryRemove(AssetLocation code) => _shared.TryRemove(code);
 
     /// <inheritdoc/>
+    public IDimension? GetByInternalId(int internalId) => ((IDimensionRegistry)_shared).GetByInternalId(internalId);
+
+    /// <inheritdoc/>
     public IDimension? GetDimensionOf(Entity entity) => _shared.GetDimensionOf(entity);
 }
