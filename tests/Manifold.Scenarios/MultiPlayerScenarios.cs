@@ -71,21 +71,21 @@ public class MultiPlayerScenarios : ManifoldScenarioBase
     public async Task Bystander_Should_BeToldAPlayerLeftRange_When_SheEntersACustomDimensionAndBack()
     {
         int vaultId = await DimensionId("vault");
-        ITestPlayer alice = await World.JoinPlayer("atlas_alice");
-        ITestPlayer bob = await World.JoinPlayer("atlas_bob");
-        long aliceId = alice.Entity.EntityId;
-        await World.Until(() => bob.Client.KnowsEntity(aliceId), timeoutTicks: 400);
+        ITestPlayer walker = await World.JoinPlayer("atlas_walker");
+        ITestPlayer watcher = await World.JoinPlayer("atlas_watcher");
+        long walkerId = walker.Entity.EntityId;
+        await World.Until(() => watcher.Client.KnowsEntity(walkerId), timeoutTicks: 400);
 
-        bob.Client.Clear(); // KnowsEntity is the one answer Clear leaves alone.
-        await Ok("/atlasfx teleport-player atlas_alice vault");
-        await World.Until(() => alice.Position.dimension == vaultId, timeoutTicks: 600);
-        await World.Until(() => !bob.Client.KnowsEntity(aliceId), timeoutTicks: 400);
-        Assert.Contains(bob.Client.EntityDepartures(), d => d.EntityId == aliceId);
-        Assert.True(bob.Client.KnowsEntity(bob.Entity.EntityId), "Control: Bob must still know his own entity.");
+        watcher.Client.Clear(); // KnowsEntity is the one answer Clear leaves alone.
+        await Ok("/atlasfx teleport-player atlas_walker vault");
+        await World.Until(() => walker.Position.dimension == vaultId, timeoutTicks: 600);
+        await World.Until(() => !watcher.Client.KnowsEntity(walkerId), timeoutTicks: 400);
+        Assert.Contains(watcher.Client.EntityDepartures(), d => d.EntityId == walkerId);
+        Assert.True(watcher.Client.KnowsEntity(watcher.Entity.EntityId), "Control: The watcher must still know his own entity.");
 
-        await Ok("/atlasfx teleport-player atlas_alice overworld");
-        await World.Until(() => alice.Position.dimension == 0, timeoutTicks: 600);
-        await World.Until(() => bob.Client.KnowsEntity(aliceId), timeoutTicks: 400);
-        Assert.Contains(bob.Client.EntityArrivals(), a => a.EntityId == aliceId);
+        await Ok("/atlasfx teleport-player atlas_walker overworld");
+        await World.Until(() => walker.Position.dimension == 0, timeoutTicks: 600);
+        await World.Until(() => watcher.Client.KnowsEntity(walkerId), timeoutTicks: 400);
+        Assert.Contains(watcher.Client.EntityArrivals(), a => a.EntityId == walkerId);
     }
 }
