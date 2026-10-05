@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **The integration suite runs on Atlas 0.16.1.** Atlas now stages folder mods itself, so the hand-written staging targets in the scenario projects are gone, and a few scenarios use its new `SaveNow` and position waits. Tests only: nothing changes for players or mod authors.
 - **ManifoldSample's dark dimension declares `chart:scanTopY`.** With the Chart companion 0.4.0 or later installed, `/darkdim` now maps its floor instead of its roof, which makes it a place to try cavern maps. Nothing changes without Chart.
 
 ### Fixed
