@@ -446,7 +446,13 @@ Y range, and it drops the chunks without saving them.
   arrival point (view distance 128; 57 measured on arrival and 65 over the following 320 blocks
   walked, the same figures before and after the window followed the view distance); they are
   unloaded normally once the player has walked away, and walking loads next to no more of them
-  because the streaming window stays one chunk ahead of the ring. In a
+  because the streaming window stays one chunk ahead of the ring. Two cases load more: a player
+  who raises their view distance inside a streaming dimension, and a player with a long view
+  distance who arrives next to one with a short view distance. The window then has to grow faster
+  than the streaming budget generates, so the ring asks for overworld columns out to the new
+  radius (a few hundred going from 128 to 384 blocks, by a model of the engine, not measured), and
+  generates overworld terrain there if nobody had been. Raise the dimension's streaming budget
+  (`WithStreamingBudget`) if players there change view distance often. In a
   bounded dimension with a 5x5 generated region it was 25: the column under the player and the 24
   just outside the region, where the ring stops; they are unloaded once the player has left. The lighting queue
   and the teleport both rely on this today (see [Engine limits behind this](#engine-limits-behind-this)).
