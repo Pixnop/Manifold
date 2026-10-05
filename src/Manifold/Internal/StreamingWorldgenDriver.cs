@@ -19,11 +19,6 @@ internal sealed class StreamingWorldgenDriver
     private readonly DimensionRegistry _registry;
     private readonly DimensionGenerator _generator;
 
-    // The server view radius (MaxChunkRadius) is read once at construction and cached.
-    // The configured loadRadius on a streaming dimension is a floor; we extend it to
-    // the server view distance so chunks are ready before they become visible to players.
-    private readonly int _serverViewRadius;
-
     private long _listenerId = -1;
 
     /// <summary>Initializes a new instance of the <see cref="StreamingWorldgenDriver"/> class.</summary>
@@ -35,7 +30,6 @@ internal sealed class StreamingWorldgenDriver
         _sapi = sapi ?? throw new ArgumentNullException(nameof(sapi));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
-        _serverViewRadius = sapi.Server.Config.MaxChunkRadius;
     }
 
     /// <summary>Registers the periodic tick listener.</summary>
@@ -102,9 +96,14 @@ internal sealed class StreamingWorldgenDriver
                 continue;
             }
 
-            // The configured loadRadius is a floor; extend it to the server view distance so
-            // chunks are ready before they become visible to players.
-            int radius = Math.Max(dimRadius, _serverViewRadius);
+            // The configured loadRadius is a floor; the window follows the radius the engine sends
+            // to this player (their own view distance, capped by the server's), read each tick so a
+            // change of either is picked up. MaxChunkRadius is not constant: the engine raises it
+            // when a singleplayer client asks for a larger view distance.
+            int radius = StreamingPlanner.WindowRadius(
+                dimRadius,
+                sp.WorldData?.LastApprovedViewDistance ?? 0,
+                _sapi.Server.Config.MaxChunkRadius);
 
             int cx = ChunkMath.ToChunk(pos.X);
             int cz = ChunkMath.ToChunk(pos.Z);

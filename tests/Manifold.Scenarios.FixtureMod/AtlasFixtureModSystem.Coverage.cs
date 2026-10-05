@@ -311,7 +311,7 @@ public sealed partial class AtlasFixtureModSystem
         return TextCommandResult.Success($"created {dimension.InternalId}");
     }
 
-    /// <summary>Creates an ephemeral STREAMING slab dimension (window of 2 columns, widened to the server view radius).</summary>
+    /// <summary>Creates an ephemeral STREAMING slab dimension (loadRadius 2, widened to the radius the engine sends each player).</summary>
     private TextCommandResult OnCreateStreaming(TextCommandCallingArgs args)
     {
         var path = (string)args[0];

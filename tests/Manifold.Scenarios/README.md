@@ -62,11 +62,11 @@ self-sufficient in any order.
 
 ## What is covered
 
-140 scenarios, one class per area:
+144 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
-| Boot, registration, per-dimension worldgen, streaming (terrain follows the player; a streaming dimension on a recycled engine id generates over the columns the destroyed one left in memory; a player's blocks are still there when they come back), dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
+| Boot, registration, per-dimension worldgen, streaming (terrain follows the player; the window follows each player's view distance, mid-session changes included; a streaming dimension on a recycled engine id generates over the columns the destroyed one left in memory; a player's blocks are still there when they come back), dark sky | `SmokeScenarios`, `DimensionWorldgenScenarios`, `StreamingWorldgenScenarios`, `DarkSkyScenarios` |
 | Lifecycle, teardown, admin commands | `DimensionLifecycleScenarios`, `EphemeralDimensionScenarios`, `TeardownScenarios`, `AdminCommandScenarios` |
 | Relight: block light kept (also from a source just outside the relit chunks), sources placed without relight, block entities untouched, pending sources lit when a player arrives | `RelightScenarios`, `RelightPendingScenarios` |
 | Transit of entities, blocks and players, round trips | `EntityTransitScenarios`, `BlockTransitScenarios`, `PlayerTransitScenarios`, `OverworldTransitScenarios`, `InventoryAccessScenarios` |
