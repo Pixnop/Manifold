@@ -160,7 +160,7 @@ Manifold ships a built-in no-op strategy for air-filled dimensions:
 
 ## Streaming Worldgen
 
-Streaming is an opt-in alternative to bounded generation. Instead of pre-generating a fixed region and stopping, Manifold continuously generates chunks on demand as players move, keeping a window of `loadRadius` chunks generated around each player.
+Streaming is an opt-in alternative to bounded generation. Instead of pre-generating a fixed region and stopping, Manifold continuously generates chunks on demand as players move, keeping a window of chunks generated around each player, sized on what that player can see (at least `loadRadius` chunks, see [Load radius and render distance](#load-radius-and-render-distance)).
 
 ### Opting in
 
@@ -183,7 +183,7 @@ manifold.Registry
 When a player enters a streaming dimension:
 
 1. The synchronous landing pad is generated first (`WithGenerationRadius` region, default 2). The player is teleported only after this completes, so they never spawn in void.
-2. The streaming driver then fills the surrounding window (`loadRadius`) over subsequent server ticks, spread across a per-tick budget so the server does not hitch.
+2. The streaming driver then fills the player's surrounding window over subsequent server ticks, spread across a per-tick budget so the server does not hitch.
 3. As the player moves, newly entered chunks are queued and generated the same way.
 4. Chunks the player walks away from stay loaded on the server until it restarts: the engine does not unload the chunks of a custom dimension (see [Chunk lifecycle](#chunk-lifecycle-engine-limits) below). They are saved with the world like any other chunk, and after a restart they are loaded back from disk, never generated again, so blocks placed in them are kept.
 
@@ -376,8 +376,29 @@ worldgen strategy placed. Expect a stall of a second or more: it relights whole 
 
 ### Load radius and render distance
 
-The effective streaming radius is `max(loadRadius, server view distance)`, so generated terrain
-always reaches at least as far as players can see, regardless of the configured `loadRadius`.
+The game sends a player the chunks within their own view distance, in chunks and rounded up,
+capped at the server's `MaxChunkRadius` (12 by default). Manifold sizes each player's window on that
+radius, plus one chunk of lead so the window stays a chunk border ahead of the game's send ring (the
+lead never goes past `MaxChunkRadius`), and never below the dimension's `loadRadius`. Generated
+terrain therefore always reaches at least as far as that player can see, and no further than the
+server would send them, whatever the configured `loadRadius`:
+
+| Player's view distance | Chunks the game sends | Window | Columns held | Added per 32 blocks walked |
+|---|---|---|---|---|
+| 64 blocks, `loadRadius` 2 | 2 | 3 chunks | 49 (7 x 7) | 7 |
+| 128 blocks | 4 | 5 chunks | 121 (11 x 11) | 11 |
+| 256 blocks | 8 | 9 chunks | 361 (19 x 19) | 19 |
+| 384 blocks or more, `MaxChunkRadius` 12 | 12 | 12 chunks | 625 (25 x 25) | 25 |
+
+Up to 0.6.1 the window was `max(loadRadius, MaxChunkRadius)` for every player, so the last row was
+also the cost of a player with a view distance of 128 blocks (measured: 629 columns around a player
+standing still, 25 more per 32 blocks walked, against 125 and 11 now; the extra four are columns the
+landing pad generated near the world origin).
+
+The view distance is read from the player on every driver tick. A player who raises it gets a wider
+window; one who lowers it simply stops getting columns generated further out (what is already loaded
+stays, see below). Players with different view distances in one dimension each get their own window.
+The per-dimension streaming budget (`WithStreamingBudget`) is unchanged and shared by all of them.
 
 ## Chunk lifecycle: engine limits
 
@@ -389,9 +410,12 @@ Y range, and it drops the chunks without saving them.
 - **A custom dimension's chunks are never unloaded.** The engine's unload pass
   (`ServerSystemUnloadChunks`) only looks at the overworld's chunk Y range, on the server and for the
   packets that tell a client to unload. A bounded dimension holds a fixed number of columns, so this
-  costs nothing there. A streaming dimension grows for as long as the server runs: with the default
-  server view radius of 12 chunks, a player standing still holds 625 columns, and every 32 blocks
-  walked in a straight line adds 25 more. They are still loaded after the player has left the
+  costs nothing there. A streaming dimension grows for as long as the server runs, at the rate of the
+  players' windows (see [Load radius and render distance](#load-radius-and-render-distance)): a
+  player with a view distance of 128 blocks holds 121 columns standing still, and every 32 blocks
+  walked in a straight line adds 11 more; a player whose view distance reaches the server's
+  `MaxChunkRadius` of 12 holds 625 and adds 25. Up to 0.6.1 every player was in the second case, which is
+  what made this growth fast. The columns are still loaded after the player has left the
   dimension and after they have disconnected, and a restart is what frees them. On the flat test
   terrain a column cost roughly 7 to 15 KB of server memory (a noisy heap measurement); real
   terrain costs more. Plan restarts
@@ -419,8 +443,10 @@ Y range, and it drops the chunks without saving them.
   the overworld column at the landing X/Z, and its send ring requests the overworld column for
   every dimension chunk it does not find loaded yet. In a streaming dimension that was about 65
   overworld columns loaded, and generated where the overworld had never been visited, around the
-  arrival point (view distance 128); they are unloaded normally once the player has walked away,
-  and walking loads no more of them because the streaming window stays ahead of the ring. In a
+  arrival point (view distance 128; 57 measured on arrival and 65 over the following 320 blocks
+  walked, the same figures before and after the window followed the view distance); they are
+  unloaded normally once the player has walked away, and walking loads next to no more of them
+  because the streaming window stays one chunk ahead of the ring. In a
   bounded dimension with a 5x5 generated region it was 25: the column under the player and the 24
   just outside the region, where the ring stops; they are unloaded once the player has left. The lighting queue
   and the teleport both rely on this today (see [Engine limits behind this](#engine-limits-behind-this)).

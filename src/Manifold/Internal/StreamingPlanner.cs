@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Manifold.Internal.Util;
 
 namespace Manifold.Internal;
 
@@ -13,6 +14,35 @@ namespace Manifold.Internal;
 /// <remarks>No engine dependency; fully unit-testable.</remarks>
 internal static class StreamingPlanner
 {
+    /// <summary>
+    /// How many chunks a player's window extends past the radius the engine sends them. The engine's
+    /// send ring asks for an overworld column wherever it finds a dimension column not loaded yet, so a
+    /// window that stopped exactly at the send radius would race the ring at its edge each time the
+    /// player crosses a chunk border. One chunk of lead keeps that edge generated a border ahead.
+    /// The lead never takes a window past the server's <c>MaxChunkRadius</c>, which is also what a
+    /// window used to be for every player.
+    /// </summary>
+    internal const int WindowLead = 1;
+
+    /// <summary>
+    /// The chunk radius to keep generated around a player: the radius the engine sends to them
+    /// (their view distance in chunks, rounded up, capped at the server's <c>MaxChunkRadius</c>), plus
+    /// <see cref="WindowLead"/> where that stays within <c>MaxChunkRadius</c>, and never below the
+    /// dimension's configured <paramref name="loadRadius"/>.
+    /// A view distance that is zero or negative means unknown and falls back to the server's radius.
+    /// </summary>
+    /// <param name="loadRadius">The dimension's configured streaming radius (floor).</param>
+    /// <param name="viewDistanceBlocks">The player's approved view distance in blocks; zero or negative when unknown.</param>
+    /// <param name="maxChunkRadius">The server's maximum chunk radius.</param>
+    /// <returns>The window radius in chunks.</returns>
+    public static int WindowRadius(int loadRadius, int viewDistanceBlocks, int maxChunkRadius)
+    {
+        int sent = viewDistanceBlocks > 0
+            ? Math.Min(maxChunkRadius, (viewDistanceBlocks + ChunkMath.ChunkSize - 1) / ChunkMath.ChunkSize)
+            : maxChunkRadius;
+        return Math.Max(loadRadius, Math.Min(sent + WindowLead, maxChunkRadius));
+    }
+
     /// <summary>Computes the columns to ensure this tick.</summary>
     /// <param name="players">Players currently in streaming dimensions.</param>
     /// <param name="isLoaded">Predicate: is the column (dim, cx, cz) already loaded.</param>

@@ -109,8 +109,13 @@ public interface IDimensionBuilder
     /// <summary>
     /// Opts the dimension into streaming worldgen: chunks are generated on demand as players move,
     /// keeping at least <paramref name="loadRadius"/> chunks generated around each player. Range
-    /// 1..32. The effective radius is <c>max(loadRadius, server view distance)</c>, so a value below
-    /// the server's view distance has no effect and behaves like the view distance instead.
+    /// 1..32. Each player's window is the radius the game sends to that player, that is their own
+    /// view distance in chunks capped at the server's <c>MaxChunkRadius</c>, plus one chunk of lead
+    /// (still within <c>MaxChunkRadius</c>), and never below <paramref name="loadRadius"/>. A value
+    /// below that radius has no effect; a player with a short view distance does not make the server
+    /// generate out to the server's maximum. The game never unloads a custom dimension's chunks, so
+    /// the window size is what bounds memory growth. The window is read from the player on every
+    /// streaming-driver tick: a view distance change widens it or stops generating further out.
     /// Omit for bounded generation (see <see cref="WithGenerationRadius"/>).
     /// </summary>
     /// <param name="loadRadius">Chunk radius kept generated around each player.</param>

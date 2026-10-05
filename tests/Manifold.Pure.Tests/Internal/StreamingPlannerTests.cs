@@ -121,6 +121,58 @@ public sealed class StreamingPlannerTests
         Assert.Empty(planned);
     }
 
+    [Theory]
+    [InlineData(2, 128, 12, 5)] // 128 blocks are 4 chunks, plus the one chunk of lead
+    [InlineData(2, 129, 12, 6)] // a partial chunk rounds up, like the engine's send ring
+    [InlineData(2, 32, 12, 2)] // 1 chunk of view plus the lead is 2: the loadRadius floor
+    [InlineData(5, 32, 12, 5)] // the configured loadRadius is a floor
+    [InlineData(2, 352, 12, 12)] // 11 chunks plus the lead reaches the server radius
+    [InlineData(2, 384, 12, 12)] // 12 chunks: capped by MaxChunkRadius, the lead never goes past it
+    [InlineData(2, 1000, 12, 12)] // far above the server radius: still capped
+    [InlineData(2, 0, 12, 12)] // unknown view distance: the server radius, as before
+    [InlineData(2, -1, 12, 12)]
+    [InlineData(20, 128, 12, 20)] // a loadRadius above everything: still the floor
+    [InlineData(1, 64, 0, 1)] // degenerate server radius: the floor
+    public void WindowRadius_Should_Follow_The_Radius_The_Engine_Sends(int loadRadius, int viewDistance, int maxRadius, int expected)
+    {
+        Assert.Equal(expected, StreamingPlanner.WindowRadius(loadRadius, viewDistance, maxRadius));
+    }
+
+    [Fact]
+    public void WindowRadius_Should_Grow_And_Shrink_With_The_View_Distance()
+    {
+        var grown = StreamingPlanner.WindowRadius(2, 256, 12);
+        var shrunk = StreamingPlanner.WindowRadius(2, 64, 12);
+
+        Assert.Equal(9, grown);
+        Assert.Equal(3, shrunk);
+        Assert.True(grown > shrunk);
+    }
+
+    [Fact]
+    public void Plan_Should_Size_Each_Players_Window_On_Its_Own_Radius()
+    {
+        // Two players in one dimension, far apart, with different windows: the near-sighted one gets
+        // 9 columns, the far-sighted one 25. Nothing from one window leaks into the other.
+        var players = new[] { Player("near", 10, 10, 10, 1), Player("far", 10, 50, 50, 2) };
+        var planned = StreamingPlanner.Plan(players, NoneLoaded, _ => 100);
+
+        Assert.Equal(9, planned.Count(c => c.PlayerUids.Contains("near")));
+        Assert.Equal(25, planned.Count(c => c.PlayerUids.Contains("far")));
+        Assert.Equal(34, planned.Count);
+    }
+
+    [Fact]
+    public void Plan_Should_Stop_Asking_For_Outer_Columns_When_A_Window_Shrinks()
+    {
+        var wide = StreamingPlanner.Plan(new[] { Player("p", 10, 20, 20, 3) }, NoneLoaded, _ => 100);
+        var narrow = StreamingPlanner.Plan(new[] { Player("p", 10, 20, 20, 1) }, NoneLoaded, _ => 100);
+
+        Assert.Equal(49, wide.Count);
+        Assert.Equal(9, narrow.Count);
+        Assert.All(narrow, c => Assert.Contains((c.Cx, c.Cz), wide.Select(w => (w.Cx, w.Cz))));
+    }
+
     private static bool NoneLoaded(int dim, int cx, int cz) => false;
 
     private static StreamingPlayer Player(string uid, int dim, int cx, int cz, int r) => new(uid, dim, cx, cz, r);
