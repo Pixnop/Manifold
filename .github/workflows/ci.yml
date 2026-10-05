@@ -115,7 +115,7 @@ jobs:
       # not committed but generated here on every run (see Manifold.Scenarios.CompatFixtures/README.md).
       - name: Regenerate downgrade-from-dev.vcdbs
         run: |
-          dotnet tool install --global Pixnop.Atlas.Cli --version 0.15.1
+          dotnet tool install --global Pixnop.Atlas.Cli --version 0.16.1
           dotnet build tests/Manifold.Scenarios.CompatFixtures -c Release
           atlas fixture tests/Manifold.Scenarios.CompatFixtures/bin/Release/net10.0/Manifold.Scenarios.CompatFixtures.dll \
             --scenario BuildTheDowngradeFixture \

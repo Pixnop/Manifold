@@ -91,7 +91,12 @@ public class DowngradeFixtureBuilderScenarios : CompatFixtureScenarioBase
         // key, new in 0.6.1, which 0.5.1 has never heard of). Force a real world save and fail the
         // build here if the key is not in the world about to be harvested: the downgrade verifier
         // would otherwise load a world that never crossed it.
-        await Ok("/autosavenow");
-        await World.Until(() => World.Api.WorldManager.SaveGame.GetData("manifold:origins") is { Length: > 0 }, timeoutTicks: 600);
+        // Fresh world, one scenario, a few seconds: nothing but the save below writes the key, so
+        // a SaveNow that did nothing must fail here, not pass on a blob that was already there.
+        Assert.Null(World.Api.WorldManager.SaveGame.GetData("manifold:origins"));
+        await World.SaveNow();
+        Assert.True(
+            World.Api.WorldManager.SaveGame.GetData("manifold:origins") is { Length: > 0 },
+            "The save did not write the origins blob.");
     }
 }

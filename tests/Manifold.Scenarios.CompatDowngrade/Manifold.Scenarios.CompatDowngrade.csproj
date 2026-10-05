@@ -16,7 +16,7 @@
     <!-- 2.9.3 to match the xunit.extensibility.execution pin of Pixnop.Atlas.XUnit. -->
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageReference Include="Pixnop.Atlas.XUnit" Version="0.15.1" />
+    <PackageReference Include="Pixnop.Atlas.XUnit" Version="0.16.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,23 +45,6 @@
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
   </ItemGroup>
-
-  <!-- Same staging as Manifold.Scenarios.Compat (see its comment): stages CompatFixtureMod as
-       "atlas-mods/CompatFixture", a fixed, Configuration-independent path named directly in
-       DowngradeVerifyScenarios's [AtlasWorld(Mods = [...])]. -->
-  <Target Name="StageAtlasFolderMods" AfterTargets="WriteAtlasModManifest" Condition="'$(TargetFramework)' != ''">
-    <ItemGroup>
-      <_AtlasFolderModDll Include="@(_ResolvedProjectReferencePaths)" Condition="'%(_ResolvedProjectReferencePaths.AtlasMod)' == 'true'">
-        <StageDir>$(TargetDir)atlas-mods\%(Filename)</StageDir>
-        <ModInfoPath>%(RootDir)%(Directory)modinfo.json</ModInfoPath>
-      </_AtlasFolderModDll>
-    </ItemGroup>
-    <Copy SourceFiles="@(_AtlasFolderModDll)" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_AtlasFolderModDll->'%(ModInfoPath)')" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
-                      Lines="@(_AtlasFolderModDll->'%(StageDir)')"
-                      Overwrite="true" />
-  </Target>
 
   <!-- Downloads the published Manifold release zip once (cached under obj/) and stages it next
        to the test assembly under a version-independent name, for DowngradeVerifyScenarios's

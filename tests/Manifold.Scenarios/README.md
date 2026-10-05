@@ -7,7 +7,7 @@ contracts with fakes, these scenarios pin down actual engine behavior.
 
 ## Running locally
 
-Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.15.1; CI runs the scenarios on 1.22.7), and
+Requirements: .NET 10 SDK, a Vintage Story 1.22.x install (Atlas 0.16.1; CI runs the scenarios on 1.22.7), and
 the `VINTAGE_STORY` environment variable pointing at the folder containing
 `VintagestoryAPI.dll`.
 
@@ -62,7 +62,7 @@ self-sufficient in any order.
 
 ## What is covered
 
-143 scenarios, one class per area:
+144 scenarios, one class per area:
 
 | Area | Classes |
 | --- | --- |
@@ -114,9 +114,8 @@ position packet drives, reachable via `Entity.SidedProperties.Behaviors`),
 so replaying it with a moved entity position is a real collision. The
 boot scenario also asserts the portal block itself resolves
 (`World.GetBlock(manifoldsample:voidportal)`), proving the portal's own
-asset staging (the `StageAtlasFolderMods` target had to learn to copy
-`samples/ManifoldSample/assets/` too, since neither the fixture nor
-Manifold itself ships assets).
+asset staging (Atlas stages the project's `assets/` folder with the folder mod,
+since neither the fixture nor Manifold itself ships assets).
 
 Cross-version compatibility (a world moving between the published 0.5.1 release and this
 dev build, in both directions) is a separate concern from this project's restart coverage

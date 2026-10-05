@@ -11,7 +11,7 @@
     <!-- 2.9.3 to match the xunit.extensibility.execution pin of Pixnop.Atlas.XUnit. -->
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageReference Include="Pixnop.Atlas.XUnit" Version="0.15.1" />
+    <PackageReference Include="Pixnop.Atlas.XUnit" Version="0.16.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,8 +27,8 @@
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)\VintagestoryAPI.dll</HintPath>
     </Reference>
-    <!-- Mods under test: Atlas stages folder mods assembled by StageAtlasFolderMods
-         below. Scenario code must NOT touch Manifold types at runtime - the ModLoader
+    <!-- Mods under test: Atlas stages each tagged reference as a folder mod,
+         atlas-mods/<assembly name> (project assets/ and modinfo.json included). Scenario code must NOT touch Manifold types at runtime - the ModLoader
          loads its own copy of Manifold.dll (different assembly identity, statics not
          shared); interact through world state, commands, and ICoreServerAPI only. -->
     <ProjectReference Include="..\..\src\Manifold\Manifold.csproj">
@@ -43,38 +43,5 @@
       <AtlasMod>true</AtlasMod>
     </ProjectReference>
   </ItemGroup>
-
-  <!-- Atlas 0.3.0 fixed issue 22 (a tagged reference with a sibling modinfo.json is staged
-       as a folder mod), but its native staging writes the reference's OUTPUT DIRECTORY and
-       ModStager derives the staged folder name from Path.GetFileName. Both mods here build
-       into a directory named net10.0, so native staging would merge them into one staged
-       folder, the fixture's modinfo.json overwriting Manifold's. Keep assembling one
-       distinctly-named folder mod per tagged reference (dll + modinfo.json) and rewrite the
-       generated manifest to point at those folders. -->
-  <Target Name="StageAtlasFolderMods" AfterTargets="WriteAtlasModManifest" Condition="'$(TargetFramework)' != ''">
-    <ItemGroup>
-      <_AtlasFolderModDll Include="@(_ResolvedProjectReferencePaths)" Condition="'%(_ResolvedProjectReferencePaths.AtlasMod)' == 'true'">
-        <StageDir>$(TargetDir)atlas-mods\%(Filename)</StageDir>
-        <ModInfoPath>%(RootDir)%(Directory)modinfo.json</ModInfoPath>
-      </_AtlasFolderModDll>
-    </ItemGroup>
-    <Copy SourceFiles="@(_AtlasFolderModDll)" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_AtlasFolderModDll->'%(ModInfoPath)')" DestinationFolder="%(_AtlasFolderModDll.StageDir)" SkipUnchangedFiles="true" />
-
-    <!-- ManifoldSample ships block/item assets (voidportal.json, its texture/shape) that its
-         ModSystem resolves at boot; the dll+modinfo copy above is not enough for those to load.
-         Neither Manifold nor the fixture mod ships an assets folder, so this stays specific to
-         the one staged mod that needs it rather than a generic per-reference glob. -->
-    <ItemGroup>
-      <_ManifoldSampleAsset Include="..\..\samples\ManifoldSample\assets\**\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_ManifoldSampleAsset)"
-          DestinationFiles="@(_ManifoldSampleAsset->'$(TargetDir)atlas-mods\ManifoldSample\assets\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-
-    <WriteLinesToFile File="$(TargetDir)atlas-mods.generated.txt"
-                      Lines="@(_AtlasFolderModDll->'%(StageDir)')"
-                      Overwrite="true" />
-  </Target>
 
 </Project>
